@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    function isAdminOrSu() {
+      return isAuthenticated() && getUserRole() in ['admin', 'su'];
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      // Users can read their own profile
+      // Admins can read all profiles
+      allow read: if isOwner(userId) || isAdminOrSu();
+      
+      // Users can create their own profile on first login
+      allow create: if isOwner(userId);
+      
+      // Users can update their own profile
+      // Admins can update any profile
+      allow update: if isOwner(userId) || isAdminOrSu();
+      
+      // Only admins can delete users
+      allow delete: if isAdminOrSu();
+      
+      // User's subcollections (data, images, creditHistory)
+      match /data/{docId} {
+        allow read, write: if isOwner(userId) || isAdminOrSu();
+      }
+      
+      match /images/{imageId} {
+        allow read: if isOwner(userId) || isAdminOrSu();
+        allow create: if isOwner(userId);
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId) || isAdminOrSu();
+      }
+      
+      match /creditHistory/{txId} {
+        allow read: if isOwner(userId) || isAdminOrSu();
+        // Credit history is created by server only
+        allow write: if false;
+      }
+    }
+    
+    // Prompt templates (public reading, admin writing)
+    match /promptTemplates/{templateId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdminOrSu();
+    }
+    
+    // Font configurations (public reading, admin writing)
+    match /fonts/{fontId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdminOrSu();
+    }
+    
+    // Subscription plans (public reading, admin writing)
+    match /subscriptionPlans/{planId} {
+      allow read: if true;
+      allow write: if isAdminOrSu();
+    }
+    
+    // Admin-only collections
+    match /analytics/{docId} {
+      allow read, write: if isAdminOrSu();
+    }
+    
+    match /settings/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdminOrSu();
+    }
+  }
+}

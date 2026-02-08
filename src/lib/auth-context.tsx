@@ -1,0 +1,229 @@
+'use client';
+
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import {
+    User,
+    signInWithPopup,
+    GoogleAuthProvider,
+    signOut as firebaseSignOut,
+    onAuthStateChanged,
+} from 'firebase/auth';
+import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
+import { auth, db } from './firebase';
+import { UserProfile, UserRole, SubscriptionTier, AudienceMode, ADMIN_EMAILS, UserCredits, DAILY_ALLOWANCE } from './types';
+
+interface AuthContextType {
+    user: User | null;
+    profile: UserProfile | null;
+    credits: UserCredits | null;
+    loading: boolean;
+    error: string | null;
+    signInWithGoogle: () => Promise<void>;
+    signOut: () => Promise<void>;
+    refreshProfile: () => Promise<void>;
+    refreshCredits: () => Promise<void>;
+    switchRole: (role: UserRole) => Promise<void>;
+    effectiveRole: UserRole;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+    const [user, setUser] = useState<User | null>(null);
+    const [profile, setProfile] = useState<UserProfile | null>(null);
+    const [credits, setCredits] = useState<UserCredits | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    // Determine effective role (considering role-switching)
+    const effectiveRole: UserRole = profile?.actingAs || profile?.role || 'member';
+
+    // Create or update user profile
+    const createOrUpdateProfile = async (firebaseUser: User): Promise<UserProfile> => {
+        const userRef = doc(db, 'users', firebaseUser.uid);
+        const userSnap = await getDoc(userRef);
+
+        if (userSnap.exists()) {
+            const existingProfile = userSnap.data() as UserProfile;
+            // Update last login and any changed fields
+            const updatedProfile: UserProfile = {
+                ...existingProfile,
+                displayName: firebaseUser.displayName,
+                photoURL: firebaseUser.photoURL,
+                updatedAt: Timestamp.now(),
+            };
+            await setDoc(userRef, updatedProfile, { merge: true });
+            return updatedProfile;
+        }
+
+        // New user - determine initial role
+        const isAdmin = ADMIN_EMAILS.includes(firebaseUser.email || '');
+        const newProfile: UserProfile = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email || '',
+            displayName: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL,
+            role: isAdmin ? 'admin' : 'member',
+            subscription: 'free',
+            audienceMode: 'casual',
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+        };
+
+        await setDoc(userRef, newProfile);
+        return newProfile;
+    };
+
+    // Create or reset user credits
+    const createOrUpdateCredits = async (userId: string, subscription: SubscriptionTier): Promise<UserCredits> => {
+        const creditsRef = doc(db, 'users', userId, 'data', 'credits');
+        const creditsSnap = await getDoc(creditsRef);
+        const now = Timestamp.now();
+
+        if (creditsSnap.exists()) {
+            const existingCredits = creditsSnap.data() as UserCredits;
+
+            // Check if daily reset is needed
+            const lastReset = existingCredits.lastDailyReset.toDate();
+            const today = new Date();
+            const isNewDay = lastReset.toDateString() !== today.toDateString();
+
+            if (isNewDay) {
+                const updatedCredits: UserCredits = {
+                    ...existingCredits,
+                    dailyAllowanceUsed: 0,
+                    dailyAllowance: DAILY_ALLOWANCE[subscription],
+                    lastDailyReset: now,
+                };
+                await setDoc(creditsRef, updatedCredits);
+                return updatedCredits;
+            }
+
+            return existingCredits;
+        }
+
+        // New user credits
+        const newCredits: UserCredits = {
+            balance: 0,
+            dailyAllowance: DAILY_ALLOWANCE[subscription],
+            dailyAllowanceUsed: 0,
+            lastDailyReset: now,
+            expiresAt: null,
+            totalPurchased: 0,
+            totalUsed: 0,
+        };
+
+        await setDoc(creditsRef, newCredits);
+        return newCredits;
+    };
+
+    // Refresh user profile from Firestore
+    const refreshProfile = useCallback(async () => {
+        if (!user) return;
+        const userRef = doc(db, 'users', user.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+            setProfile(userSnap.data() as UserProfile);
+        }
+    }, [user]);
+
+    // Refresh user credits from Firestore
+    const refreshCredits = useCallback(async () => {
+        if (!user || !profile) return;
+        const updatedCredits = await createOrUpdateCredits(user.uid, profile.subscription);
+        setCredits(updatedCredits);
+    }, [user, profile]);
+
+    // Sign in with Google
+    const signInWithGoogle = async () => {
+        try {
+            setError(null);
+            const provider = new GoogleAuthProvider();
+            await signInWithPopup(auth, provider);
+        } catch (err: any) {
+            setError(err.message);
+            console.error('Sign in error:', err);
+        }
+    };
+
+    // Sign out
+    const signOut = async () => {
+        try {
+            await firebaseSignOut(auth);
+            setProfile(null);
+            setCredits(null);
+        } catch (err: any) {
+            setError(err.message);
+            console.error('Sign out error:', err);
+        }
+    };
+
+    // Switch role for admin/su users
+    const switchRole = async (role: UserRole) => {
+        if (!user || !profile) return;
+        if (profile.role !== 'admin' && profile.role !== 'su') {
+            setError('Only admin or su users can switch roles');
+            return;
+        }
+
+        const userRef = doc(db, 'users', user.uid);
+        const update = role === profile.role ? { actingAs: null } : { actingAs: role };
+        await setDoc(userRef, update, { merge: true });
+        await refreshProfile();
+    };
+
+    // Auth state listener
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+            setLoading(true);
+            try {
+                if (firebaseUser) {
+                    setUser(firebaseUser);
+                    const userProfile = await createOrUpdateProfile(firebaseUser);
+                    setProfile(userProfile);
+                    const userCredits = await createOrUpdateCredits(firebaseUser.uid, userProfile.subscription);
+                    setCredits(userCredits);
+                } else {
+                    setUser(null);
+                    setProfile(null);
+                    setCredits(null);
+                }
+            } catch (err: any) {
+                setError(err.message);
+                console.error('Auth state error:', err);
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        return () => unsubscribe();
+    }, []);
+
+    return (
+        <AuthContext.Provider
+            value={{
+                user,
+                profile,
+                credits,
+                loading,
+                error,
+                signInWithGoogle,
+                signOut,
+                refreshProfile,
+                refreshCredits,
+                switchRole,
+                effectiveRole,
+            }}
+        >
+            {children}
+        </AuthContext.Provider>
+    );
+}
+
+export function useAuth() {
+    const context = useContext(AuthContext);
+    if (context === undefined) {
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+    return context;
+}
