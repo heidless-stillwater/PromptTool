@@ -1,5 +1,4 @@
 // Generic Timestamp type to work with both Firebase client and admin SDKs
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type FirestoreTimestamp = any;
 
 // ============================================
@@ -99,6 +98,23 @@ export interface GeneratedImage {
     creditsCost: number;
     createdAt: FirestoreTimestamp;
     downloadCount: number;
+    collectionId?: string;      // For folder/collections organization
+    sourceImageId?: string;     // For Img2Img variations - tracks parent image
+}
+
+// ============================================
+// Collections System Types
+// ============================================
+
+export interface Collection {
+    id: string;
+    userId: string;
+    name: string;
+    description?: string;
+    coverImageUrl?: string;
+    imageCount: number;
+    createdAt: FirestoreTimestamp;
+    updatedAt: FirestoreTimestamp;
 }
 
 // ============================================
@@ -149,6 +165,7 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
         allowedModes: ['casual'],
         allowedQualities: ['standard', 'high'],
         batchGeneration: false,
+        stripePriceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_STANDARD,
     },
     pro: {
         id: 'pro',
@@ -167,6 +184,7 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
         allowedModes: ['casual', 'professional'],
         allowedQualities: ['standard', 'high', 'ultra'],
         batchGeneration: true,
+        stripePriceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO,
     },
 };
 

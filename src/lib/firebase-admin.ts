@@ -5,6 +5,7 @@ import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getStorage, type Storage } from 'firebase-admin/storage';
 
 const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+const databaseId = process.env.FIREBASE_DATABASE_ID || '(default)';
 
 const serviceAccount = {
     projectId: process.env.FIREBASE_PROJECT_ID,
@@ -27,7 +28,8 @@ if (!getApps().length) {
 }
 
 adminAuth = getAuth(adminApp);
-adminDb = getFirestore(adminApp);
+// Use named database
+adminDb = getFirestore(adminApp, databaseId);
 adminStorage = getStorage(adminApp);
 
 export { adminApp, adminAuth, adminDb, adminStorage };

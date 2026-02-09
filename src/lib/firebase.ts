@@ -1,7 +1,7 @@
 // Firebase Client SDK Configuration
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getFirestore, type Firestore, initializeFirestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -14,6 +14,8 @@ const firebaseConfig = {
     measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
+const databaseId = process.env.NEXT_PUBLIC_FIREBASE_DATABASE_ID || '(default)';
+
 // Initialize Firebase (singleton pattern)
 let app: FirebaseApp;
 let auth: Auth;
@@ -23,11 +25,13 @@ let storage: FirebaseStorage;
 if (typeof window !== 'undefined') {
     if (!getApps().length) {
         app = initializeApp(firebaseConfig);
+        // Initialize Firestore with named database
+        db = initializeFirestore(app, {}, databaseId);
     } else {
         app = getApps()[0];
+        db = getFirestore(app, databaseId);
     }
     auth = getAuth(app);
-    db = getFirestore(app);
     storage = getStorage(app);
 }
 

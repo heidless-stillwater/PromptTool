@@ -5,12 +5,21 @@ import { getNanoBananaService } from '@/lib/services/nanobanana';
 import { CREDIT_COSTS, ImageQuality, AspectRatio, GeneratedImage, MadLibsSelection, SUBSCRIPTION_PLANS } from '@/lib/types';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 
+export const maxDuration = 60; // Allow up to 60 seconds for execution (Vercel Pro/Hobby limit)
+
 interface GenerateRequest {
     prompt: string;
     quality: ImageQuality;
     aspectRatio: AspectRatio;
     promptType: 'freeform' | 'madlibs';
     madlibsData?: MadLibsSelection;
+    count?: number;
+    seed?: number;
+    negativePrompt?: string;
+    guidanceScale?: number;
+    referenceImage?: string;      // Base64 image for Img2Img variations
+    referenceMimeType?: string;   // MIME type of reference image
+    sourceImageId?: string;       // Original image ID for variation tracking
 }
 
 export async function POST(request: NextRequest) {
@@ -44,7 +53,11 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'User ID required' }, { status: 401 });
         }
 
-        const { prompt, quality, aspectRatio, promptType, madlibsData } = body;
+        const {
+            prompt, quality, aspectRatio, promptType, madlibsData,
+            count = 1, seed, negativePrompt, guidanceScale,
+            referenceImage, referenceMimeType, sourceImageId
+        } = body;
 
         // Validate request
         if (!prompt || !quality || !aspectRatio) {
@@ -67,6 +80,21 @@ export async function POST(request: NextRequest) {
             }, { status: 403 });
         }
 
+        // Check if batch is allowed (Pro only)
+        if (count > 1 && userProfile.subscription !== 'pro') {
+            return NextResponse.json({
+                error: 'Batch generation is a Pro-only feature'
+            }, { status: 403 });
+        }
+
+        // Check if advanced controls are used (Pro only)
+        const isUsingAdvanced = seed !== undefined || negativePrompt !== undefined || guidanceScale !== undefined;
+        if (isUsingAdvanced && userProfile.subscription !== 'pro') {
+            return NextResponse.json({
+                error: 'Advanced precision controls are Pro-only features'
+            }, { status: 403 });
+        }
+
         // Get and validate credits
         const creditsRef = adminDb.collection('users').doc(userId).collection('data').doc('credits');
         const creditsDoc = await creditsRef.get();
@@ -76,7 +104,8 @@ export async function POST(request: NextRequest) {
         }
 
         const credits = creditsDoc.data()!;
-        const cost = CREDIT_COSTS[quality];
+        const singleCost = CREDIT_COSTS[quality];
+        const totalCost = singleCost * count;
 
         // Check for daily reset
         const lastReset = credits.lastDailyReset.toDate();
@@ -87,90 +116,156 @@ export async function POST(request: NextRequest) {
         const remainingDaily = Math.max(0, credits.dailyAllowance - currentDailyUsed);
         const totalAvailable = credits.balance + remainingDaily;
 
-        if (totalAvailable < cost) {
+        if (totalAvailable < totalCost) {
             return NextResponse.json({
-                error: `Insufficient credits. Need ${cost}, have ${totalAvailable}`
+                error: `Insufficient credits. Need ${totalCost}, have ${totalAvailable}`
             }, { status: 402 });
         }
 
-        // Generate image
-        const nanoBananaService = getNanoBananaService();
-        const result = await nanoBananaService.generateImage({
-            prompt,
-            quality,
-            aspectRatio,
-        });
+        // Create a TransformStream for SSE
+        const encoder = new TextEncoder();
+        const transformStream = new TransformStream();
+        const writer = transformStream.writable.getWriter();
 
-        if (!result.success || !result.imageData) {
-            return NextResponse.json({ error: result.error || 'Image generation failed' }, { status: 500 });
-        }
-
-        // Upload to Firebase Storage
-        const bucket = adminStorage.bucket();
-        const filename = `users/${userId}/images/${Date.now()}.png`;
-        const file = bucket.file(filename);
-
-        const imageBuffer = Buffer.from(result.imageData, 'base64');
-        await file.save(imageBuffer, {
-            metadata: {
-                contentType: result.mimeType || 'image/png',
-            },
-        });
-
-        // Make the file publicly accessible
-        await file.makePublic();
-        const imageUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
-
-        // Deduct credits
-        const dailyDeduction = Math.min(cost, remainingDaily);
-        const balanceDeduction = cost - dailyDeduction;
-
-        await creditsRef.update({
-            balance: FieldValue.increment(-balanceDeduction),
-            dailyAllowanceUsed: isNewDay ? dailyDeduction : FieldValue.increment(dailyDeduction),
-            lastDailyReset: isNewDay ? Timestamp.now() : credits.lastDailyReset,
-            totalUsed: FieldValue.increment(cost),
-        });
-
-        // Add credit transaction
-        await adminDb.collection('users').doc(userId).collection('creditHistory').add({
-            type: 'usage',
-            amount: -cost,
-            description: `Image generation (${quality} quality)`,
-            metadata: { quality, aspectRatio, promptType },
-            createdAt: Timestamp.now(),
-        });
-
-        // Save image metadata
-        const imageData: Omit<GeneratedImage, 'id'> = {
-            userId,
-            prompt,
-            settings: {
-                quality,
-                aspectRatio,
-                prompt,
-                promptType,
-                madlibsData,
-            },
-            imageUrl,
-            storagePath: filename,
-            creditsCost: cost,
-            createdAt: Timestamp.now(),
-            downloadCount: 0,
+        // Helper to send SSE data
+        const sendEvent = async (data: any) => {
+            await writer.write(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
         };
 
-        const imageDoc = await adminDb.collection('users').doc(userId).collection('images').add(imageData);
+        // Start generation process in the background (but don't wait for completion before returning the stream)
+        (async () => {
+            try {
+                // Generate images
+                const nanoBananaService = getNanoBananaService();
+                const result = await nanoBananaService.generateImage({
+                    prompt,
+                    quality,
+                    aspectRatio,
+                    count,
+                    seed,
+                    negativePrompt,
+                    guidanceScale,
+                    referenceImage,
+                    referenceMimeType,
+                    onProgress: (current, total) => {
+                        sendEvent({ type: 'progress', current, total, message: `Generated ${current} of ${total} images...` });
+                    }
+                });
 
-        // Get updated credits
-        const updatedCredits = (await creditsRef.get()).data()!;
-        const newBalance = updatedCredits.balance + Math.max(0, updatedCredits.dailyAllowance - updatedCredits.dailyAllowanceUsed);
+                if (!result.success || !result.images || result.images.length === 0) {
+                    await sendEvent({ type: 'error', error: result.error || 'Image generation failed' });
+                    await writer.close();
+                    return;
+                }
 
-        return NextResponse.json({
-            success: true,
-            imageUrl,
-            imageId: imageDoc.id,
-            creditsUsed: cost,
-            remainingBalance: newBalance,
+                const actualCount = result.images.length;
+                const actualTotalCost = singleCost * actualCount;
+
+                // Process images
+                const bucket = adminStorage.bucket();
+                const generatedImagesData: GeneratedImage[] = [];
+
+                for (let i = 0; i < result.images.length; i++) {
+                    const img = result.images[i];
+                    const filename = `users/${userId}/images/${Date.now()}-${Math.random().toString(36).substring(7)}.png`;
+                    const file = bucket.file(filename);
+                    const imageBuffer = Buffer.from(img.data, 'base64');
+
+                    await file.save(imageBuffer, {
+                        metadata: {
+                            contentType: img.mimeType || 'image/png',
+                        },
+                    });
+
+                    await file.makePublic();
+                    const imageUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
+
+                    const settings: any = {
+                        quality,
+                        aspectRatio,
+                        prompt,
+                        promptType,
+                    };
+                    if (madlibsData) {
+                        settings.madlibsData = madlibsData;
+                    }
+                    if (seed !== undefined) settings.seed = seed;
+                    if (negativePrompt) settings.negativePrompt = negativePrompt;
+                    if (guidanceScale !== undefined) settings.guidanceScale = guidanceScale;
+
+                    const imageData: Omit<GeneratedImage, 'id'> = {
+                        userId,
+                        prompt,
+                        settings,
+                        imageUrl,
+                        storagePath: filename,
+                        creditsCost: singleCost,
+                        createdAt: Timestamp.now(),
+                        downloadCount: 0,
+                        ...(sourceImageId && { sourceImageId }),
+                    };
+
+                    const imageDoc = await adminDb.collection('users').doc(userId).collection('images').add(imageData);
+                    generatedImagesData.push({ ...imageData, id: imageDoc.id });
+
+                    // Send individual image completion event
+                    await sendEvent({ type: 'image_ready', image: { ...imageData, id: imageDoc.id }, index: i });
+                }
+
+                // Deduct credits
+                const dailyDeduction = Math.min(actualTotalCost, remainingDaily);
+                const balanceDeduction = actualTotalCost - dailyDeduction;
+
+                await creditsRef.update({
+                    balance: FieldValue.increment(-balanceDeduction),
+                    dailyAllowanceUsed: isNewDay ? dailyDeduction : FieldValue.increment(dailyDeduction),
+                    lastDailyReset: isNewDay ? Timestamp.now() : credits.lastDailyReset,
+                    totalUsed: FieldValue.increment(actualTotalCost),
+                });
+
+                // Add credit transaction
+                await adminDb.collection('users').doc(userId).collection('creditHistory').add({
+                    type: 'usage',
+                    amount: -actualTotalCost,
+                    description: `Generation (${actualCount} images, ${quality} quality)`,
+                    metadata: {
+                        quality,
+                        aspectRatio,
+                        promptType,
+                        count: actualCount,
+                        isAdvanced: isUsingAdvanced
+                    },
+                    createdAt: Timestamp.now(),
+                });
+
+                // Get updated credits
+                const updatedCredits = (await creditsRef.get()).data()!;
+                const newBalance = updatedCredits.balance + Math.max(0, updatedCredits.dailyAllowance - updatedCredits.dailyAllowanceUsed);
+
+                // Send final completion event
+                await sendEvent({
+                    type: 'complete',
+                    success: true,
+                    images: generatedImagesData,
+                    creditsUsed: actualTotalCost,
+                    remainingBalance: newBalance,
+                    warning: actualCount < count ? `Only ${actualCount} of ${count} images were generated successfully.` : undefined,
+                });
+
+            } catch (err: any) {
+                console.error('SSE Generation error:', err);
+                await sendEvent({ type: 'error', error: err.message || 'Internal server error' });
+            } finally {
+                await writer.close();
+            }
+        })();
+
+        return new NextResponse(transformStream.readable, {
+            headers: {
+                'Content-Type': 'text/event-stream',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+            },
         });
 
     } catch (error: any) {

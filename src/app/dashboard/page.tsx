@@ -5,14 +5,18 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { GeneratedImage, CREDIT_COSTS } from '@/lib/types';
+import { GeneratedImage, CREDIT_COSTS, CreditTransaction } from '@/lib/types';
 import Link from 'next/link';
+import ShareButtons from '@/components/ShareButtons';
 
 export default function DashboardPage() {
-    const { user, profile, credits, loading, signOut, switchRole, effectiveRole } = useAuth();
+    const { user, profile, credits, loading, signOut, switchRole, effectiveRole, setAudienceMode } = useAuth();
     const router = useRouter();
     const [recentImages, setRecentImages] = useState<GeneratedImage[]>([]);
+    const [creditHistory, setCreditHistory] = useState<CreditTransaction[]>([]);
     const [loadingImages, setLoadingImages] = useState(true);
+    const [loadingHistory, setLoadingHistory] = useState(true);
+    const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
 
     // Redirect if not logged in
     useEffect(() => {
@@ -20,6 +24,7 @@ export default function DashboardPage() {
             router.push('/');
         }
     }, [user, loading, router]);
+
 
     // Fetch recent images
     useEffect(() => {
@@ -46,6 +51,33 @@ export default function DashboardPage() {
 
         if (user) {
             fetchImages();
+        }
+    }, [user]);
+    // Fetch credit history
+    useEffect(() => {
+        async function fetchHistory() {
+            if (!user) return;
+
+            try {
+                const historyRef = collection(db, 'users', user.uid, 'creditHistory');
+                const q = query(historyRef, orderBy('createdAt', 'desc'), limit(10));
+                const snapshot = await getDocs(q);
+
+                const history = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                } as CreditTransaction));
+
+                setCreditHistory(history);
+            } catch (error) {
+                console.error('Failed to fetch credit history:', error);
+            } finally {
+                setLoadingHistory(false);
+            }
+        }
+
+        if (user) {
+            fetchHistory();
         }
     }, [user]);
 
@@ -82,13 +114,14 @@ export default function DashboardPage() {
 
                     <div className="flex items-center gap-4">
                         {/* Credits Display */}
-                        <div className="credit-badge">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <Link href="/pricing" className="credit-badge hover:border-primary/50 transition-colors group">
+                            <svg className="group-hover:scale-110 transition-transform" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <circle cx="12" cy="12" r="10" />
                                 <path d="M12 6v12M6 12h12" />
                             </svg>
                             <span>{availableCredits} credits</span>
-                        </div>
+                            <span className="ml-1 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">Get More</span>
+                        </Link>
 
                         {/* Role Switcher (Admin only) */}
                         {isAdminOrSu && (
@@ -103,6 +136,31 @@ export default function DashboardPage() {
                                 </select>
                             </div>
                         )}
+
+                        {/* Audience Mode Toggle */}
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[10px] uppercase tracking-wider text-foreground-muted font-bold text-center">Audience Mode</span>
+                            <div className="flex bg-background-secondary rounded-lg p-1 border border-border/50">
+                                <button
+                                    onClick={() => setAudienceMode('casual')}
+                                    className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-300 ${profile.audienceMode === 'casual'
+                                        ? 'bg-primary text-white shadow-[0_0_15px_rgba(99,102,241,0.4)]'
+                                        : 'text-foreground-muted hover:text-foreground'
+                                        }`}
+                                >
+                                    Casual
+                                </button>
+                                <button
+                                    onClick={() => setAudienceMode('professional')}
+                                    className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-300 ${profile.audienceMode === 'professional'
+                                        ? 'bg-accent text-white shadow-[0_0_15px_rgba(217,70,239,0.4)]'
+                                        : 'text-foreground-muted hover:text-foreground'
+                                        }`}
+                                >
+                                    Pro
+                                </button>
+                            </div>
+                        </div>
 
                         {/* User Menu */}
                         <div className="flex items-center gap-3">
@@ -126,6 +184,41 @@ export default function DashboardPage() {
             </header>
 
             <main className="max-w-7xl mx-auto px-4 py-8">
+                {/* Content based on Audience Mode */}
+                <div className={`mb-8 p-6 rounded-2xl border transition-all duration-500 ${profile.audienceMode === 'casual'
+                    ? 'bg-primary/5 border-primary/20 shadow-[inset_0_0_20px_rgba(99,102,241,0.05)]'
+                    : 'bg-accent/5 border-accent/20 shadow-[inset_0_0_20px_rgba(217,70,239,0.05)]'
+                    }`}>
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest ${profile.audienceMode === 'casual' ? 'bg-primary text-white' : 'bg-accent text-white'
+                                    }`}>
+                                    {profile.audienceMode} mode active
+                                </span>
+                                <h2 className="text-2xl font-bold">
+                                    {profile.audienceMode === 'casual' ? 'Ready to have some fun?' : 'Precision Image Studio'}
+                                </h2>
+                            </div>
+                            <p className="text-foreground-muted max-w-xl">
+                                {profile.audienceMode === 'casual'
+                                    ? 'In Casual mode, we guide you through creating prompts using our Build-a-Prompt tool. It is perfect for fast, high-quality results without the technical jargon.'
+                                    : 'Professional mode gives you full tool access, granular settings, and a free-form text environment for absolute creative control.'}
+                            </p>
+                        </div>
+                        <Link
+                            href="/generate"
+                            className={`btn-primary flex items-center gap-3 py-4 px-8 text-lg font-bold group transition-all duration-300 ${profile.audienceMode === 'professional' ? '!bg-accent !shadow-accent/30' : ''
+                                }`}
+                        >
+                            <span>{profile.audienceMode === 'casual' ? 'Start Creating' : 'New Generation'}</span>
+                            <svg className="group-hover:translate-x-1 transition-transform" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                <path d="M5 12h14M12 5l7 7-7 7" />
+                            </svg>
+                        </Link>
+                    </div>
+                </div>
+
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <div className="card">
@@ -133,10 +226,19 @@ export default function DashboardPage() {
                             <span className="text-foreground-muted">Available Credits</span>
                             <span className="text-2xl">💎</span>
                         </div>
-                        <p className="text-3xl font-bold">{availableCredits}</p>
-                        <p className="text-sm text-foreground-muted">
-                            {dailyRemaining} daily + {credits?.balance || 0} purchased
-                        </p>
+                        <div className="flex items-end justify-between">
+                            <div>
+                                <p className="text-3xl font-bold">{availableCredits}</p>
+                                <p className="text-sm text-foreground-muted">
+                                    {dailyRemaining} daily + {credits?.balance || 0} purchased
+                                </p>
+                            </div>
+                            {profile.subscription !== 'pro' && (
+                                <Link href="/pricing" className="btn-secondary py-2 px-4 text-xs font-bold">
+                                    Upgrade
+                                </Link>
+                            )}
+                        </div>
                     </div>
 
                     <div className="card">
@@ -216,6 +318,77 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
+                {/* Credit History Accordion */}
+                <section className="mb-12">
+                    <button
+                        onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
+                        className="w-full flex items-center justify-between p-6 glass-card rounded-2xl hover:border-primary/50 transition-all group"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                            <div className="text-left">
+                                <h3 className="text-xl font-bold">Credit Activity</h3>
+                                <p className="text-xs text-foreground-muted">View your recent credit usage and transactions</p>
+                            </div>
+                        </div>
+                        <div className={`p-2 rounded-lg bg-background-secondary border border-border transition-transform duration-300 ${isHistoryExpanded ? 'rotate-180' : ''}`}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                <path d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </button>
+
+                    <div className={`transition-all duration-500 overflow-hidden ${isHistoryExpanded ? 'max-h-[1000px] mt-4 opacity-100' : 'max-h-0 opacity-0'}`}>
+                        {loadingHistory ? (
+                            <div className="flex justify-center py-8">
+                                <div className="spinner" />
+                            </div>
+                        ) : creditHistory.length === 0 ? (
+                            <div className="card text-center py-8 text-foreground-muted">
+                                No recent credit activity
+                            </div>
+                        ) : (
+                            <div className="glass-card overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="border-b border-border bg-background-secondary/50">
+                                                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider">Date</th>
+                                                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider">Description</th>
+                                                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-right">Amount</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-border">
+                                            {creditHistory.map((tx) => (
+                                                <tr key={tx.id} className="hover:bg-background-secondary/30 transition-colors">
+                                                    <td className="px-6 py-4 text-sm text-foreground-muted whitespace-nowrap">
+                                                        {tx.createdAt?.toDate ? tx.createdAt.toDate().toLocaleDateString() : new Date(tx.createdAt).toLocaleDateString()}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm font-medium">
+                                                        {tx.description}
+                                                        {tx.type === 'usage' && tx.metadata?.quality && (
+                                                            <span className="ml-2 px-1.5 py-0.5 bg-background-secondary border border-border rounded text-[10px] uppercase">
+                                                                {tx.metadata.quality}
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className={`px-6 py-4 text-sm font-bold text-right ${tx.amount > 0 ? 'text-success' : 'text-error'}`}>
+                                                        {tx.amount > 0 ? `+${tx.amount}` : tx.amount}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </section>
+
                 {/* Recent Images */}
                 <section>
                     <div className="flex items-center justify-between mb-6">
@@ -252,10 +425,15 @@ export default function DashboardPage() {
                                         />
                                     </div>
                                     <div className="p-4">
-                                        <p className="text-sm line-clamp-2">{image.prompt}</p>
-                                        <p className="text-xs text-foreground-muted mt-2">
-                                            {image.settings.quality} • {image.settings.aspectRatio}
-                                        </p>
+                                        <div className="flex justify-between items-start gap-2 mb-2">
+                                            <p className="text-sm line-clamp-2">{image.prompt}</p>
+                                        </div>
+                                        <div className="flex items-center justify-between mt-2">
+                                            <p className="text-xs text-foreground-muted">
+                                                {image.settings.quality} • {image.settings.aspectRatio}
+                                            </p>
+                                            <ShareButtons imageUrl={image.imageUrl} prompt={image.prompt} className="scale-75 origin-right" />
+                                        </div>
                                     </div>
                                 </div>
                             ))}

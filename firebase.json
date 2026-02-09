@@ -1,9 +1,45 @@
 {
     "firestore": {
+        "database": "prompttool-db-0",
         "rules": "firestore.rules",
         "indexes": "firestore.indexes.json"
     },
     "storage": {
         "rules": "storage.rules"
+    },
+    "hosting": {
+        "site": "prompttool-v0",
+        "public": "out",
+        "ignore": [
+            "firebase.json",
+            "**/.*",
+            "**/node_modules/**"
+        ],
+        "rewrites": [
+            {
+                "source": "**",
+                "destination": "/index.html"
+            }
+        ],
+        "headers": [
+            {
+                "source": "**/*.@(js|css)",
+                "headers": [
+                    {
+                        "key": "Cache-Control",
+                        "value": "public, max-age=31536000, immutable"
+                    }
+                ]
+            },
+            {
+                "source": "**/*.@(png|jpg|jpeg|gif|webp|svg|ico)",
+                "headers": [
+                    {
+                        "key": "Cache-Control",
+                        "value": "public, max-age=31536000, immutable"
+                    }
+                ]
+            }
+        ]
     }
 }

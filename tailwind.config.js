@@ -20,6 +20,7 @@ module.exports = {
                     800: '#075985',
                     900: '#0c4a6e',
                     950: '#082f49',
+                    DEFAULT: 'var(--primary)',
                 },
                 accent: {
                     50: '#fdf4ff',
@@ -33,7 +34,24 @@ module.exports = {
                     800: '#86198f',
                     900: '#701a75',
                     950: '#4a044e',
+                    DEFAULT: 'var(--accent)',
                 },
+                background: {
+                    DEFAULT: 'var(--background)',
+                    secondary: 'var(--background-secondary)',
+                },
+                foreground: {
+                    DEFAULT: 'var(--foreground)',
+                    muted: 'var(--foreground-muted)',
+                },
+                border: 'var(--border)',
+                card: {
+                    DEFAULT: 'var(--card)',
+                    hover: 'var(--card-hover)',
+                },
+                success: 'var(--success)',
+                warning: 'var(--warning)',
+                error: 'var(--error)',
             },
             backgroundImage: {
                 'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',

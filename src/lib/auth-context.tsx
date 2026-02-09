@@ -8,7 +8,7 @@ import {
     signOut as firebaseSignOut,
     onAuthStateChanged,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, Timestamp, onSnapshot } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { UserProfile, UserRole, SubscriptionTier, AudienceMode, ADMIN_EMAILS, UserCredits, DAILY_ALLOWANCE } from './types';
 
@@ -23,6 +23,7 @@ interface AuthContextType {
     refreshProfile: () => Promise<void>;
     refreshCredits: () => Promise<void>;
     switchRole: (role: UserRole) => Promise<void>;
+    setAudienceMode: (mode: AudienceMode) => Promise<void>;
     effectiveRole: UserRole;
 }
 
@@ -50,6 +51,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 ...existingProfile,
                 displayName: firebaseUser.displayName,
                 photoURL: firebaseUser.photoURL,
+                subscription: existingProfile.subscription || 'free',
+                audienceMode: existingProfile.audienceMode || 'casual',
                 updatedAt: Timestamp.now(),
             };
             await setDoc(userRef, updatedProfile, { merge: true });
@@ -117,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return newCredits;
     };
 
-    // Refresh user profile from Firestore
+    // Manual refresh is now mostly redundant due to onSnapshot, but keeping for compatibility
     const refreshProfile = useCallback(async () => {
         if (!user) return;
         const userRef = doc(db, 'users', user.uid);
@@ -127,12 +130,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }, [user]);
 
-    // Refresh user credits from Firestore
     const refreshCredits = useCallback(async () => {
-        if (!user || !profile) return;
-        const updatedCredits = await createOrUpdateCredits(user.uid, profile.subscription);
-        setCredits(updatedCredits);
-    }, [user, profile]);
+        if (!user) return;
+        const creditsRef = doc(db, 'users', user.uid, 'data', 'credits');
+        const creditsSnap = await getDoc(creditsRef);
+        if (creditsSnap.exists()) {
+            setCredits(creditsSnap.data() as UserCredits);
+        }
+    }, [user]);
 
     // Sign in with Google
     const signInWithGoogle = async () => {
@@ -172,21 +177,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await refreshProfile();
     };
 
-    // Auth state listener
+    // Set audience mode (casual or professional)
+    const setAudienceMode = async (mode: AudienceMode) => {
+        if (!user || !profile) return;
+
+        // Optimistic update for instant UI feedback
+        const previousMode = profile.audienceMode;
+        setProfile({ ...profile, audienceMode: mode });
+
+        try {
+            const userRef = doc(db, 'users', user.uid);
+            await setDoc(userRef, { audienceMode: mode }, { merge: true });
+        } catch (err: any) {
+            console.error('[Auth] Failed to set audience mode:', err);
+            setError(err.message);
+            // Revert optimistic update on failure
+            setProfile({ ...profile, audienceMode: previousMode });
+        }
+    };
+
+    // Auth and Data Listeners
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        let unsubscribeProfile: (() => void) | null = null;
+        let unsubscribeCredits: (() => void) | null = null;
+
+        const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
             setLoading(true);
             try {
                 if (firebaseUser) {
                     setUser(firebaseUser);
-                    const userProfile = await createOrUpdateProfile(firebaseUser);
-                    setProfile(userProfile);
-                    const userCredits = await createOrUpdateCredits(firebaseUser.uid, userProfile.subscription);
-                    setCredits(userCredits);
+                    console.log('[Auth] User logged in:', firebaseUser.uid);
+
+                    // Ensure profile and credits exist
+                    const initialProfile = await createOrUpdateProfile(firebaseUser);
+                    await createOrUpdateCredits(firebaseUser.uid, initialProfile.subscription);
+
+                    // Set up real-time listeners
+                    const userRef = doc(db, 'users', firebaseUser.uid);
+                    unsubscribeProfile = onSnapshot(userRef, (doc) => {
+                        if (doc.exists()) {
+                            const data = doc.data() as UserProfile;
+                            setProfile(data);
+                        }
+                    });
+
+                    const creditsRef = doc(db, 'users', firebaseUser.uid, 'data', 'credits');
+                    unsubscribeCredits = onSnapshot(creditsRef, (doc) => {
+                        if (doc.exists()) {
+                            const data = doc.data() as UserCredits;
+                            setCredits(data);
+                        }
+                    });
+
                 } else {
                     setUser(null);
                     setProfile(null);
                     setCredits(null);
+                    if (unsubscribeProfile) unsubscribeProfile();
+                    if (unsubscribeCredits) unsubscribeCredits();
                 }
             } catch (err: any) {
                 setError(err.message);
@@ -196,7 +244,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
         });
 
-        return () => unsubscribe();
+        return () => {
+            unsubscribeAuth();
+            if (unsubscribeProfile) unsubscribeProfile();
+            if (unsubscribeCredits) unsubscribeCredits();
+        };
     }, []);
 
     return (
@@ -212,6 +264,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 refreshProfile,
                 refreshCredits,
                 switchRole,
+                setAudienceMode,
                 effectiveRole,
             }}
         >

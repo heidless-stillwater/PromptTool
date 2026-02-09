@@ -16,7 +16,9 @@ service cloud.firestore {
     }
     
     function isAdminOrSu() {
-      return isAuthenticated() && getUserRole() in ['admin', 'su'];
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'su'];
     }
     
     // Users collection
@@ -51,6 +53,13 @@ service cloud.firestore {
         allow read: if isOwner(userId) || isAdminOrSu();
         // Credit history is created by server only
         allow write: if false;
+      }
+
+      match /collections/{collectionId} {
+        allow read: if isOwner(userId) || isAdminOrSu();
+        allow create: if isOwner(userId);
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId) || isAdminOrSu();
       }
     }
     
