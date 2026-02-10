@@ -353,6 +353,12 @@ function GeneratePageContent() {
                     </Link>
 
                     <div className="flex items-center gap-4">
+                        {profile?.role === 'admin' || profile?.role === 'su' ? (
+                            <Link href="/admin" className="btn-secondary text-xs px-3 py-2 flex items-center gap-2 border-primary/20 hover:border-primary/50 transition-all">
+                                <span>🛡️</span>
+                                <span className="hidden sm:inline">Admin</span>
+                            </Link>
+                        ) : null}
                         <div className="credit-badge">
                             <span>{availableCredits} credits</span>
                         </div>

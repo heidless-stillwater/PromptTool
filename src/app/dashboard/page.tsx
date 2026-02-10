@@ -123,17 +123,23 @@ export default function DashboardPage() {
                             <span className="ml-1 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">Get More</span>
                         </Link>
 
-                        {/* Role Switcher (Admin only) */}
+                        {/* Role Switcher & Admin Link (Admin only) */}
                         {isAdminOrSu && (
-                            <div className="relative">
-                                <select
-                                    value={effectiveRole}
-                                    onChange={(e) => switchRole(e.target.value as any)}
-                                    className="select-field text-sm py-2 pr-8"
-                                >
-                                    <option value={profile.role}>View as {profile.role}</option>
-                                    <option value="member">View as Member</option>
-                                </select>
+                            <div className="flex items-center gap-3">
+                                <Link href="/admin" className="btn-secondary text-xs px-3 py-2 flex items-center gap-2 border-primary/20 hover:border-primary/50 transition-all">
+                                    <span>🛡️</span>
+                                    <span className="hidden sm:inline">Admin Panel</span>
+                                </Link>
+                                <div className="relative">
+                                    <select
+                                        value={effectiveRole}
+                                        onChange={(e) => switchRole(e.target.value as any)}
+                                        className="select-field text-sm py-2 pr-8"
+                                    >
+                                        <option value={profile.role}>View as {profile.role}</option>
+                                        <option value="member">View as Member</option>
+                                    </select>
+                                </div>
                             </div>
                         )}
 
