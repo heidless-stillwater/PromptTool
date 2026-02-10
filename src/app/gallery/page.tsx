@@ -32,6 +32,31 @@ export default function GalleryPage() {
     const [creatingCollection, setCreatingCollection] = useState(false);
     const [collectionError, setCollectionError] = useState('');
 
+    // Grouping
+    const [isGrouped, setIsGrouped] = useState(false);
+    const [selectedGroup, setSelectedGroup] = useState<GeneratedImage[] | null>(null);
+
+    // Group images helper
+    const groupImagesByPromptSet = (images: GeneratedImage[]) => {
+        const groups: Record<string, GeneratedImage[]> = {};
+
+        images.forEach(img => {
+            // Use promptSetID if available, otherwise use 'ungrouped' prefix with random ID to keep them separate
+            // or better yet, just group them by ID if no set ID (effectively single items)
+            // But requirement says: "if group only contains one image then go directly to 'Image Details'"
+
+            const key = img.promptSetID || `single-${img.id}`;
+
+            if (!groups[key]) {
+                groups[key] = [];
+            }
+            groups[key].push(img);
+        });
+
+        return groups;
+    };
+
+
     // Redirect if not logged in
     useEffect(() => {
         if (!loading && !user) {
@@ -346,7 +371,26 @@ export default function GalleryPage() {
                                 </div>
 
                                 {/* Filters */}
-                                <div className="flex gap-4">
+                                <div className="flex gap-4 items-center">
+                                    <button
+                                        onClick={() => setIsGrouped(!isGrouped)}
+                                        className={`px-3 py-2 rounded-lg text-sm font-medium border border-border transition-all flex items-center gap-2 ${isGrouped
+                                            ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20'
+                                            : 'bg-background-secondary text-foreground hover:bg-background-secondary/80'
+                                            }`}
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            {isGrouped ? (
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                            ) : (
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                                            )}
+                                        </svg>
+                                        {isGrouped ? 'Grouped' : 'Grid'}
+                                    </button>
+
+                                    <div className="h-6 w-px bg-border mx-2" />
+
                                     <select
                                         value={filterQuality}
                                         onChange={(e) => setFilterQuality(e.target.value as any)}
@@ -406,6 +450,90 @@ export default function GalleryPage() {
                                     Clear all filters
                                 </button>
                             </div>
+                        ) : isGrouped ? (
+                            <>
+                                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                    {Object.entries(groupImagesByPromptSet(filteredImages)).map(([key, groupImages]) => {
+                                        const firstImage = groupImages[0];
+                                        const isSingle = groupImages.length === 1;
+
+                                        return (
+                                            <div
+                                                key={key}
+                                                className="group relative rounded-xl overflow-hidden bg-background-secondary cursor-pointer hover:ring-2 hover:ring-primary transition-all shadow-lg"
+                                                onClick={() => {
+                                                    if (isSingle) {
+                                                        setSelectedImage(firstImage);
+                                                    } else {
+                                                        setSelectedGroup(groupImages);
+                                                    }
+                                                }}
+                                            >
+                                                {/* Stack effect for multiple images */}
+                                                {!isSingle && (
+                                                    <div className="absolute top-0 right-0 p-2 z-10">
+                                                        <div className="bg-black/60 backdrop-blur-sm text-white text-xs font-bold px-2 py-1 rounded-md flex items-center gap-1">
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                                            </svg>
+                                                            {groupImages.length}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <div className="aspect-square relative">
+                                                    {/* Background stack layers if multiple */}
+                                                    {!isSingle && (
+                                                        <>
+                                                            <div className="absolute inset-0 bg-background-secondary translate-x-1 translate-y-1 rounded-xl border border-white/10" />
+                                                            <div className="absolute inset-0 bg-background-secondary translate-x-2 translate-y-2 rounded-xl border border-white/10" />
+                                                        </>
+                                                    )}
+
+                                                    <img
+                                                        src={firstImage.imageUrl}
+                                                        alt={firstImage.prompt}
+                                                        className="w-full h-full object-cover relative z-0 rounded-xl"
+                                                        loading="lazy"
+                                                    />
+                                                </div>
+
+                                                {/* Overlay on hover */}
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-10 rounded-xl">
+                                                    <div className="absolute bottom-0 left-0 right-0 p-3">
+                                                        <p className="text-white text-sm line-clamp-2">
+                                                            {firstImage.prompt}
+                                                        </p>
+                                                        <p className="text-white/60 text-xs mt-1">
+                                                            {isSingle ? 'Single Image' : `${groupImages.length} Variations`}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Load More Button */}
+                                {hasMore && (
+                                    <div className="mt-8 flex justify-center">
+                                        <button
+                                            onClick={handleLoadMore}
+                                            disabled={loadingMore}
+                                            className="btn-secondary px-8 py-3 w-full md:w-auto"
+                                        >
+                                            {loadingMore ? (
+                                                <div className="flex items-center gap-2 justify-center">
+                                                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                                    <span>Loading...</span>
+                                                </div>
+                                            ) : (
+                                                'Load More Images'
+                                            )}
+                                        </button>
+                                    </div>
+                                )}
+                            </>
                         ) : (
                             <>
                                 <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -493,7 +621,22 @@ export default function GalleryPage() {
             {selectedImage && (
                 <div
                     className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-                    onClick={() => setSelectedImage(null)}
+                    onClick={() => {
+                        setSelectedImage(null);
+                        // If we are not in a group, we just close. 
+                        // If we ARE in a group, we stay in the group (which is behind this modal in z-index theory, but we need to ensure logic flow)
+                        // Actually, since this modal is conditionally rendered, closing it reveals whatever is underneath.
+                        // If selectedGroup is NOT null, the Group Modal will be visible (if we structured it right).
+                        // Let's check the structure.
+
+                        // Current structure:
+                        // 1. Group Modal (z-50) is rendered if selectedGroup && !selectedImage
+                        // 2. Image Modal (z-50) is rendered if selectedImage
+
+                        // So if we have selectedGroup AND selectedImage, we need to ensure Group Modal is HIDDEN or BEHIND?
+                        // The logic `selectedGroup && !selectedImage` hides Group Modal when Image Details is open.
+                        // So when we set selectedImage(null), the Group Modal condition becoming true again will re-render it.
+                    }}
                 >
                     <div
                         className="bg-background rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden"
@@ -612,6 +755,66 @@ export default function GalleryPage() {
                                         </button>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Group Modal */}
+            {selectedGroup && !selectedImage && (
+                <div
+                    className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+                    onClick={() => setSelectedGroup(null)}
+                >
+                    <div
+                        className="bg-background rounded-2xl max-w-5xl w-full max-h-[90vh] flex flex-col overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="p-4 border-b border-border flex justify-between items-center bg-background/50 backdrop-blur-md">
+                            <div>
+                                <h3 className="font-bold text-lg">Group Details</h3>
+                                <p className="text-xs text-foreground-muted">
+                                    {selectedGroup.length} images in this batch
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setSelectedGroup(null)}
+                                className="p-2 hover:bg-background-secondary rounded-lg"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                {selectedGroup.map((image) => (
+                                    <div
+                                        key={image.id}
+                                        className="group relative rounded-xl overflow-hidden bg-background-secondary cursor-pointer hover:ring-2 hover:ring-primary transition-all shadow-lg"
+                                        onClick={() => setSelectedImage(image)}
+                                    >
+                                        <div className="aspect-square">
+                                            <img
+                                                src={image.imageUrl}
+                                                alt={image.prompt}
+                                                className="w-full h-full object-cover"
+                                                loading="lazy"
+                                            />
+                                        </div>
+
+                                        {/* Overlay on hover */}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="absolute bottom-0 left-0 right-0 p-3">
+                                                <p className="text-white text-xs line-clamp-1">
+                                                    {image.settings.quality} • {image.settings.aspectRatio}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </div>
