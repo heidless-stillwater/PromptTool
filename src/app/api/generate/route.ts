@@ -20,6 +20,7 @@ interface GenerateRequest {
     referenceImage?: string;      // Base64 image for Img2Img variations
     referenceMimeType?: string;   // MIME type of reference image
     sourceImageId?: string;       // Original image ID for variation tracking
+    promptSetID?: string;         // Unique ID for the batch/generation set
 }
 
 export async function POST(request: NextRequest) {
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
         const {
             prompt, quality, aspectRatio, promptType, madlibsData,
             count = 1, seed, negativePrompt, guidanceScale,
-            referenceImage, referenceMimeType, sourceImageId
+            referenceImage, referenceMimeType, sourceImageId, promptSetID
         } = body;
 
         // Validate request
@@ -203,6 +204,7 @@ export async function POST(request: NextRequest) {
                         createdAt: Timestamp.now(),
                         downloadCount: 0,
                         ...(sourceImageId && { sourceImageId }),
+                        ...(promptSetID && { promptSetID }),
                     };
 
                     const imageDoc = await adminDb.collection('users').doc(userId).collection('images').add(imageData);

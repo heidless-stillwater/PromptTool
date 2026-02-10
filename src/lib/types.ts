@@ -78,6 +78,7 @@ export interface GenerationSettings {
     prompt: string;
     promptType: 'freeform' | 'madlibs';
     madlibsData?: MadLibsSelection;
+    promptSetID?: string;
 }
 
 export interface MadLibsSelection {
@@ -100,6 +101,7 @@ export interface GeneratedImage {
     downloadCount: number;
     collectionId?: string;      // For folder/collections organization
     sourceImageId?: string;     // For Img2Img variations - tracks parent image
+    promptSetID?: string;       // Unique ID for the batch/generation set
 }
 
 // ============================================

@@ -1,23 +1,32 @@
 'use client';
 
 import { useState } from 'react';
+import StatusModal, { ModalStatus } from '@/components/StatusModal';
 
 export default function AdminSettingsPage() {
     const [announcement, setAnnouncement] = useState('Welcome to the new AI Image Studio!');
     const [isSaving, setIsSaving] = useState(false);
     const [model, setModel] = useState('flash');
     const [safety, setSafety] = useState('medium');
+    const [modalStatus, setModalStatus] = useState<ModalStatus>('idle');
 
     const handleSave = async () => {
         setIsSaving(true);
+        setModalStatus('saving');
+
         // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
         setIsSaving(false);
-        alert('Settings saved globally!');
+        setModalStatus('success');
     };
 
     return (
         <div className="max-w-4xl space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <StatusModal
+                status={modalStatus}
+                onClose={() => setModalStatus('idle')}
+            />
             {/* Announcement Banner */}
             <div className="glass-card p-8">
                 <div className="flex items-center gap-3 mb-6">

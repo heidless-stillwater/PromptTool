@@ -11,6 +11,16 @@ import ShareButtons from '@/components/ShareButtons';
 
 type PromptMode = 'freeform' | 'madlibs' | 'featured';
 
+// Helper to generate a unique 15-character alphanumeric ID
+const generatePromptSetID = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < 15; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+};
+
 export default function GeneratePage() {
     return (
         <Suspense fallback={
@@ -53,6 +63,12 @@ function GeneratePageContent() {
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
     const [enhancing, setEnhancing] = useState(false);
     const [generationProgress, setGenerationProgress] = useState<{ current: number; total: number; message: string } | null>(null);
+    const [promptSetID, setPromptSetID] = useState<string>('');
+
+    // Initialize promptSetID on mount
+    useEffect(() => {
+        setPromptSetID(generatePromptSetID());
+    }, []);
 
     // Reference image for Img2Img variations
     const searchParams = useSearchParams();
@@ -227,6 +243,7 @@ function GeneratePageContent() {
                     guidanceScale,
                     referenceImage: referenceImage?.base64,
                     sourceImageId: referenceImage?.id,
+                    promptSetID: promptSetID.trim() || undefined,
                 }),
             });
 
@@ -590,7 +607,7 @@ function GeneratePageContent() {
                         <div className="card">
                             <h3 className="font-semibold mb-4">{isCasual ? 'Style & Size' : 'Settings'}</h3>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium mb-2">{isCasual ? 'Image Quality' : 'Quality'}</label>
                                     <select
@@ -624,7 +641,32 @@ function GeneratePageContent() {
                                         <option value="9:16">{isCasual ? 'Story' : '9:16 (Mobile)'}</option>
                                     </select>
                                 </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">Prompt Set ID</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={promptSetID}
+                                            onChange={(e) => setPromptSetID(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))}
+                                            placeholder="Enter set ID..."
+                                            maxLength={30}
+                                            className="input-field text-sm"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setPromptSetID(generatePromptSetID())}
+                                            className="p-2 border border-border rounded-lg bg-background-secondary hover:border-primary/50 transition-all"
+                                            title="Regenerate ID"
+                                        >
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
+
 
                             {profile?.subscription === 'pro' && (
                                 <div className="mt-4 pt-4 border-t border-border">
