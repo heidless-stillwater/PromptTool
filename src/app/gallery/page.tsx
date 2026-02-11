@@ -42,6 +42,9 @@ export default function GalleryPage() {
     // Editing PromptSetID
     const [isEditingPromptSetID, setIsEditingPromptSetID] = useState(false);
     const [editingPromptSetID, setEditingPromptSetID] = useState('');
+
+    // League publishing
+    const [publishingId, setPublishingId] = useState<string | null>(null);
     const [isSavingPromptSetID, setIsSavingPromptSetID] = useState(false);
 
     // Group images helper
@@ -208,6 +211,53 @@ export default function GalleryPage() {
     };
 
     // Handle image deletion
+    // League publish/unpublish handler
+    const handleLeagueToggle = async (image: GeneratedImage) => {
+        if (!user) return;
+        const action = image.publishedToLeague ? 'unpublish' : 'publish';
+        if (action === 'unpublish' && !confirm('Remove this image from the Community League?')) return;
+
+        setPublishingId(image.id);
+        try {
+            const token = await user.getIdToken();
+            const res = await fetch('/api/league/publish', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ imageId: image.id, action }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+
+            // Update local state
+            const updater = (img: GeneratedImage) => {
+                if (img.id !== image.id) return img;
+                return {
+                    ...img,
+                    publishedToLeague: action === 'publish',
+                    leagueEntryId: action === 'publish' ? data.leagueEntryId : undefined,
+                };
+            };
+            setImages(prev => prev.map(updater));
+            setSelectedImage(prev => prev ? updater(prev) : null);
+            if (selectedGroup) {
+                setSelectedGroup(prev => prev ? prev.map(updater) : null);
+            }
+
+            showToast(
+                action === 'publish' ? '🏆 Published to Community League!' : 'Removed from Community League',
+                'success'
+            );
+        } catch (error: any) {
+            console.error('[Gallery] League toggle error:', error);
+            showToast(error.message || 'Failed to update league status', 'error');
+        } finally {
+            setPublishingId(null);
+        }
+    };
+
     const handleDelete = async (imageId: string) => {
         if (!user || !confirm('Are you sure you want to delete this image?')) return;
 
@@ -654,6 +704,12 @@ export default function GalleryPage() {
                                                         className="w-full h-full object-cover relative z-0 rounded-xl"
                                                         loading="lazy"
                                                     />
+                                                    {/* League badge */}
+                                                    {firstImage.publishedToLeague && (
+                                                        <div className="absolute top-2 left-2 z-10 bg-yellow-500/90 text-white text-xs font-bold px-2 py-1 rounded-lg flex items-center gap-1 shadow-lg">
+                                                            🏆 League
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 {/* Overlay on hover */}
@@ -967,6 +1023,17 @@ export default function GalleryPage() {
                                             </button>
                                         </div>
 
+                                        {/* Edit Image button */}
+                                        <button
+                                            onClick={() => router.push(`/edit?imageId=${selectedImage.id}`)}
+                                            className="w-full py-2 px-4 text-sm bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded-lg transition-colors flex items-center justify-center gap-2 font-bold"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                            </svg>
+                                            Edit Image
+                                        </button>
+
                                         {/* Generate Variations button */}
                                         <button
                                             onClick={() => router.push(`/generate?ref=${selectedImage.id}`)}
@@ -976,6 +1043,23 @@ export default function GalleryPage() {
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                             </svg>
                                             Generate Variations
+                                        </button>
+
+                                        {/* League Publish/Unpublish button */}
+                                        <button
+                                            onClick={() => handleLeagueToggle(selectedImage)}
+                                            disabled={publishingId === selectedImage.id}
+                                            className={`w-full py-2 px-4 text-sm rounded-lg transition-colors flex items-center justify-center gap-2 font-semibold ${selectedImage.publishedToLeague
+                                                ? 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 border border-yellow-500/30'
+                                                : 'bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30'
+                                                }`}
+                                        >
+                                            {publishingId === selectedImage.id ? (
+                                                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                <span>🏆</span>
+                                            )}
+                                            {selectedImage.publishedToLeague ? 'Remove from League' : 'Publish to League'}
                                         </button>
 
                                         {/* Delete button */}

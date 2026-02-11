@@ -5,7 +5,21 @@ export type FirestoreTimestamp = any;
 // User & Authentication Types
 // ============================================
 
-export type UserRole = 'su' | 'admin' | 'member';
+export interface Notification {
+    id: string;
+    userId: string; // The person receiving the notification
+    type: 'vote' | 'comment' | 'follow' | 'system';
+    actorId: string; // The person who triggered the notification
+    actorName: string;
+    actorPhotoURL?: string;
+    entryId?: string; // Optional: reference to the league entry
+    entryImageUrl?: string;
+    text?: string; // Content of the comment or system message
+    read: boolean;
+    createdAt: FirestoreTimestamp;
+}
+
+export type UserRole = 'member' | 'admin' | 'su';
 export type SubscriptionTier = 'free' | 'standard' | 'pro';
 export type AudienceMode = 'casual' | 'professional';
 
@@ -18,6 +32,16 @@ export interface UserProfile {
     actingAs?: UserRole; // For role-switching (admin viewing as member)
     subscription: SubscriptionTier;
     audienceMode: AudienceMode;
+    totalInfluence?: number; // Sum of all upvotes across league entries
+    followerCount?: number;
+    followingCount?: number;
+    bio?: string;
+    bannerUrl?: string;
+    socialLinks?: {
+        twitter?: string;
+        instagram?: string;
+        website?: string;
+    };
     createdAt: FirestoreTimestamp;
     updatedAt: FirestoreTimestamp;
 }
@@ -103,6 +127,44 @@ export interface GeneratedImage {
     collectionIds?: string[];   // For multi-collection support
     sourceImageId?: string;     // For Img2Img variations - tracks parent image
     promptSetID?: string;       // Unique ID for the batch/generation set
+    publishedToLeague?: boolean;  // Whether image is published to community league
+    leagueEntryId?: string;       // Reference to leagueEntries doc when published
+}
+
+// ============================================
+// Community League Types
+// ============================================
+
+export interface LeagueEntry {
+    id: string;
+    // Source reference
+    originalImageId: string;
+    originalUserId: string;
+    // Denormalized image data
+    imageUrl: string;
+    prompt: string;
+    settings: GenerationSettings;
+    // Author info (denormalized)
+    authorName: string;
+    authorPhotoURL: string | null;
+    // League metadata
+    publishedAt: FirestoreTimestamp;
+    // Engagement
+    voteCount: number;
+    commentCount: number;
+    reportCount?: number;
+    isModerated?: boolean;
+    votes: Record<string, boolean>; // userId → true
+}
+
+export interface LeagueComment {
+    id: string;
+    entryId: string;
+    userId: string;
+    userName: string;
+    userPhotoURL: string | null;
+    text: string;
+    createdAt: FirestoreTimestamp;
 }
 
 // ============================================

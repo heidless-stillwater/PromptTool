@@ -2,93 +2,98 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper functions
+    // Core authentication check
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
+    // Helper function to check if the current user is the owner of the resource
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
-    
-    function getUserRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
-    }
-    
-    function isAdminOrSu() {
-      return isAuthenticated() && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'su'];
-    }
-    
+
     // Users collection
     match /users/{userId} {
-      // Users can read their own profile
-      // Admins can read all profiles
-      allow read: if isOwner(userId) || isAdminOrSu();
-      
-      // Users can create their own profile on first login
+      allow read: if isAuthenticated();
       allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
       
-      // Users can update their own profile
-      // Admins can update any profile
-      allow update: if isOwner(userId) || isAdminOrSu();
-      
-      // Only admins can delete users
-      allow delete: if isAdminOrSu();
-      
-      // User's subcollections (data, images, creditHistory)
-      match /data/{docId} {
-        allow read, write: if isOwner(userId) || isAdminOrSu();
+      // Follow lists are public for reading
+      match /followers/{followerId} {
+        allow read: if isAuthenticated();
+        allow write: if false; // Only via API
       }
-      
-      match /images/{imageId} {
-        allow read: if isOwner(userId) || isAdminOrSu();
-        allow create: if isOwner(userId);
-        allow update: if isOwner(userId);
-        allow delete: if isOwner(userId) || isAdminOrSu();
-      }
-      
-      match /creditHistory/{txId} {
-        allow read: if isOwner(userId) || isAdminOrSu();
-        // Credit history is created by server only
-        allow write: if false;
+      match /following/{followingId} {
+        allow read: if isAuthenticated();
+        allow write: if false; // Only via API
       }
 
-      match /collections/{collectionId} {
-        allow read: if isOwner(userId) || isAdminOrSu();
-        allow create: if isOwner(userId);
-        allow update: if isOwner(userId);
-        allow delete: if isOwner(userId) || isAdminOrSu();
+      // Notifications are private to the recipient
+      match /notifications/{notifId} {
+        allow read, update: if isOwner(userId);
+        allow create, delete: if isAdmin(); // System managed
+      }
+
+      // legacy catch-all for other personal data
+      match /{allSubcollections=**} {
+        allow read, write: if isOwner(userId) || isAdmin();
       }
     }
-    
-    // Prompt templates (public reading, admin writing)
-    match /promptTemplates/{templateId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdminOrSu();
+
+    // Community League - public reading for authenticated users
+    match /leagueEntries/{entryId} {
+      // IMPORTANT: Explicitly allowing list for the gallery query
+      allow read, list: if isAuthenticated();
+      
+      // Ownership-based mutations or admin moderation
+      allow create: if isAuthenticated() && request.resource.data.originalUserId == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        (resource.data.originalUserId == request.auth.uid && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['reportCount', 'isModerated'])) || 
+        isAdmin()
+      );
+      allow delete: if isAuthenticated() && (resource.data.originalUserId == request.auth.uid || isAdmin());
+      
+      // League reports (Private to admins)
+      match /reports/{reportId} {
+        allow read, write: if isAdmin();
+      }
+
+      // League comments
+      match /comments/{commentId} {
+        allow read, list: if isAuthenticated();
+        // Comment deletion only by author or admin
+        allow create: if isAuthenticated();
+        allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      }
+    }
+
+    // Public/Shared configuration
+    match /promptTemplates/{id} { 
+      allow read: if isAuthenticated(); 
+      allow write: if isAdmin();
+    }
+    match /fonts/{id} { 
+      allow read: if isAuthenticated(); 
+      allow write: if isAdmin();
+    }
+    match /subscriptionPlans/{id} { 
+      allow read: if true; 
+      allow write: if isAdmin();
+    }
+    match /settings/{id} { 
+      allow read: if isAuthenticated(); 
+      allow write: if isAdmin();
     }
     
-    // Font configurations (public reading, admin writing)
-    match /fonts/{fontId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdminOrSu();
+    match /analytics/{id} {
+      allow read, write: if isAdmin();
     }
     
-    // Subscription plans (public reading, admin writing)
-    match /subscriptionPlans/{planId} {
-      allow read: if true;
-      allow write: if isAdminOrSu();
-    }
-    
-    // Admin-only collections
-    match /analytics/{docId} {
-      allow read, write: if isAdminOrSu();
-    }
-    
-    match /settings/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdminOrSu();
+    // Global admin bypass check
+    function isAdmin() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'su'];
     }
   }
 }

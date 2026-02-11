@@ -8,6 +8,7 @@ import Link from 'next/link';
 const ADMIN_NAV_ITEMS = [
     { name: 'Overview', href: '/admin', icon: '📊' },
     { name: 'Users', href: '/admin/users', icon: '👥' },
+    { name: 'Moderation', href: '/admin/moderation', icon: '🛡️' },
     { name: 'Monitoring', href: '/admin/monitoring', icon: '🛠️' },
     { name: 'Settings', href: '/admin/settings', icon: '⚙️' },
 ];
@@ -52,8 +53,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                                 key={item.href}
                                 href={item.href}
                                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive
-                                        ? 'bg-primary text-white shadow-lg shadow-primary/20'
-                                        : 'text-foreground-muted hover:text-foreground hover:bg-background'
+                                    ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                                    : 'text-foreground-muted hover:text-foreground hover:bg-background'
                                     }`}
                             >
                                 <span className="text-xl">{item.icon}</span>

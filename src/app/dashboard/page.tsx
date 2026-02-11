@@ -8,13 +8,16 @@ import { db } from '@/lib/firebase';
 import { GeneratedImage, CREDIT_COSTS, CreditTransaction } from '@/lib/types';
 import Link from 'next/link';
 import ShareButtons from '@/components/ShareButtons';
+import NotificationBell from '@/components/NotificationBell';
 
 export default function DashboardPage() {
     const { user, profile, credits, loading, signOut, switchRole, effectiveRole, setAudienceMode } = useAuth();
     const router = useRouter();
     const [recentImages, setRecentImages] = useState<GeneratedImage[]>([]);
     const [creditHistory, setCreditHistory] = useState<CreditTransaction[]>([]);
+    const [recentLeagueEntries, setRecentLeagueEntries] = useState<any[]>([]); // Using any for simplicity here, ideally LeagueEntry
     const [loadingImages, setLoadingImages] = useState(true);
+    const [loadingLeague, setLoadingLeague] = useState(true);
     const [loadingHistory, setLoadingHistory] = useState(true);
     const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
     const [isGrouped, setIsGrouped] = useState(true);
@@ -69,6 +72,32 @@ export default function DashboardPage() {
             fetchImages();
         }
     }, [user]);
+
+    // Fetch recent league entries
+    useEffect(() => {
+        async function fetchLeague() {
+            if (!user) return;
+            try {
+                const entriesRef = collection(db, 'leagueEntries');
+                const q = query(entriesRef, orderBy('publishedAt', 'desc'), limit(8));
+                const snapshot = await getDocs(q);
+
+                const entries = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+
+                setRecentLeagueEntries(entries);
+            } catch (error) {
+                console.error('Failed to fetch league entries:', error);
+            } finally {
+                setLoadingLeague(false);
+            }
+        }
+
+        fetchLeague();
+    }, [user]);
+
     // Fetch credit history
     useEffect(() => {
         async function fetchHistory() {
@@ -129,6 +158,7 @@ export default function DashboardPage() {
                     </Link>
 
                     <div className="flex items-center gap-4">
+                        <NotificationBell />
                         {/* Credits Display */}
                         <Link href="/pricing" className="credit-badge hover:border-primary/50 transition-colors group">
                             <svg className="group-hover:scale-110 transition-transform" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -186,18 +216,23 @@ export default function DashboardPage() {
 
                         {/* User Menu */}
                         <div className="flex items-center gap-3">
-                            {profile.photoURL && (
-                                <img
-                                    src={profile.photoURL}
-                                    alt={profile.displayName || 'User'}
-                                    className="w-10 h-10 rounded-full border-2 border-primary"
-                                />
-                            )}
-                            <div className="hidden md:block">
-                                <p className="text-sm font-medium">{profile.displayName}</p>
-                                <p className="text-xs text-foreground-muted capitalize">{profile.subscription} plan</p>
-                            </div>
-                            <button onClick={signOut} className="btn-secondary text-sm px-4 py-2">
+                            <Link href={`/profile/${user.uid}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                                {profile.photoURL && (
+                                    <img
+                                        src={profile.photoURL}
+                                        alt={profile.displayName || 'User'}
+                                        className="w-10 h-10 rounded-full border-2 border-primary"
+                                    />
+                                )}
+                                <div className="hidden md:block">
+                                    <p className="text-sm font-medium">{profile.displayName}</p>
+                                    <p className="text-xs text-foreground-muted capitalize">{profile.subscription} plan</p>
+                                </div>
+                            </Link>
+                            <Link href="/settings" className="btn-secondary text-sm px-4 py-2 ml-2 flex items-center justify-center" title="Profile Settings">
+                                ⚙️
+                            </Link>
+                            <button onClick={signOut} className="btn-secondary text-sm px-4 py-2 ml-2">
                                 Sign Out
                             </button>
                         </div>
@@ -228,16 +263,25 @@ export default function DashboardPage() {
                                     : 'Professional mode gives you full tool access, granular settings, and a free-form text environment for absolute creative control.'}
                             </p>
                         </div>
-                        <Link
-                            href="/generate"
-                            className={`btn-primary flex items-center gap-3 py-4 px-8 text-lg font-bold group transition-all duration-300 ${profile.audienceMode === 'professional' ? '!bg-accent !shadow-accent/30' : ''
-                                }`}
-                        >
-                            <span>{profile.audienceMode === 'casual' ? 'Start Creating' : 'New Generation'}</span>
-                            <svg className="group-hover:translate-x-1 transition-transform" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                                <path d="M5 12h14M12 5l7 7-7 7" />
-                            </svg>
-                        </Link>
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <Link
+                                href={`/profile/${user.uid}`}
+                                className="btn-secondary flex items-center justify-center gap-2 py-4 px-6 text-sm font-bold"
+                            >
+                                <span>👤</span>
+                                <span>Public Profile</span>
+                            </Link>
+                            <Link
+                                href="/generate"
+                                className={`btn-primary flex items-center gap-3 py-4 px-8 text-lg font-bold group transition-all duration-300 ${profile.audienceMode === 'professional' ? '!bg-accent !shadow-accent/30' : ''
+                                    }`}
+                            >
+                                <span>{profile.audienceMode === 'casual' ? 'Start Creating' : 'New Generation'}</span>
+                                <svg className="group-hover:translate-x-1 transition-transform" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                    <path d="M5 12h14M12 5l7 7-7 7" />
+                                </svg>
+                            </Link>
+                        </div>
                     </div>
                 </div>
 
@@ -302,6 +346,11 @@ export default function DashboardPage() {
                         View Gallery
                     </Link>
 
+                    <Link href="/league" className="btn-secondary flex items-center gap-2">
+                        <span className="text-lg">🏆</span>
+                        Community League
+                    </Link>
+
                     {profile.subscription === 'free' && (
                         <Link href="/pricing" className="btn-secondary flex items-center gap-2">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -339,6 +388,56 @@ export default function DashboardPage() {
                         </div>
                     </div>
                 </div>
+
+                {/* Latest Community Activity Widget */}
+                {recentLeagueEntries.length > 0 && (
+                    <div className="mb-12">
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xl">🔥</span>
+                                <h2 className="text-xl font-bold">Community Pulse</h2>
+                            </div>
+                            <Link href="/league" className="text-sm text-primary font-bold hover:underline">
+                                View All Activity →
+                            </Link>
+                        </div>
+
+                        {loadingLeague ? (
+                            <div className="flex gap-4 overflow-hidden">
+                                {[1, 2, 3, 4].map(i => (
+                                    <div key={i} className="w-48 h-32 bg-background-secondary animate-pulse rounded-xl flex-shrink-0" />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
+                                {recentLeagueEntries.map((entry) => (
+                                    <Link
+                                        key={entry.id}
+                                        href={`/league?entry=${entry.id}`}
+                                        className="flex-shrink-0 w-64 group snap-start"
+                                    >
+                                        <div className="aspect-video rounded-xl overflow-hidden relative mb-2 border border-border/50">
+                                            <img
+                                                src={entry.imageUrl}
+                                                alt={entry.prompt || 'Community Entry'}
+                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                loading="lazy"
+                                            />
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
+                                                <div className="text-white text-xs font-medium truncate w-full">
+                                                    by {entry.authorName}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-foreground-muted line-clamp-1 group-hover:text-foreground transition-colors">
+                                            {entry.prompt}
+                                        </p>
+                                    </Link>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Credit History Accordion */}
                 <section className="mb-12">

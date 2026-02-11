@@ -27,6 +27,20 @@
                     "order": "DESCENDING"
                 }
             ]
+        },
+        {
+            "collectionGroup": "leagueEntries",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "voteCount",
+                    "order": "DESCENDING"
+                },
+                {
+                    "fieldPath": "publishedAt",
+                    "order": "DESCENDING"
+                }
+            ]
         }
     ],
     "fieldOverrides": []
