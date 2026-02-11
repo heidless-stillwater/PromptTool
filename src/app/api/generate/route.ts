@@ -21,6 +21,7 @@ interface GenerateRequest {
     referenceMimeType?: string;   // MIME type of reference image
     sourceImageId?: string;       // Original image ID for variation tracking
     promptSetID?: string;         // Unique ID for the batch/generation set
+    collectionIds?: string[];     // Collections to add generated images to
 }
 
 export async function POST(request: NextRequest) {
@@ -57,7 +58,8 @@ export async function POST(request: NextRequest) {
         const {
             prompt, quality, aspectRatio, promptType, madlibsData,
             count = 1, seed, negativePrompt, guidanceScale,
-            referenceImage, referenceMimeType, sourceImageId, promptSetID
+            referenceImage, referenceMimeType, sourceImageId, promptSetID,
+            collectionIds
         } = body;
 
         // Validate request
@@ -205,6 +207,7 @@ export async function POST(request: NextRequest) {
                         downloadCount: 0,
                         ...(sourceImageId && { sourceImageId }),
                         ...(promptSetID && { promptSetID }),
+                        ...(collectionIds && { collectionIds }),
                     };
 
                     const imageDoc = await adminDb.collection('users').doc(userId).collection('images').add(imageData);
@@ -235,7 +238,8 @@ export async function POST(request: NextRequest) {
                         aspectRatio,
                         promptType,
                         count: actualCount,
-                        isAdvanced: isUsingAdvanced
+                        isAdvanced: isUsingAdvanced,
+                        imageUrl: generatedImagesData[0]?.imageUrl // Capture first image URL for history
                     },
                     createdAt: Timestamp.now(),
                 });

@@ -99,7 +99,8 @@ export interface GeneratedImage {
     creditsCost: number;
     createdAt: FirestoreTimestamp;
     downloadCount: number;
-    collectionId?: string;      // For folder/collections organization
+    collectionId?: string;      // @deprecated use collectionIds instead
+    collectionIds?: string[];   // For multi-collection support
     sourceImageId?: string;     // For Img2Img variations - tracks parent image
     promptSetID?: string;       // Unique ID for the batch/generation set
 }

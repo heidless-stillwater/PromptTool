@@ -73,7 +73,7 @@ function GeneratePageContent() {
     // Reference image for Img2Img variations
     const searchParams = useSearchParams();
     const refImageId = searchParams.get('ref');
-    const [referenceImage, setReferenceImage] = useState<{ id: string; url: string; base64?: string; prompt?: string } | null>(null);
+    const [referenceImage, setReferenceImage] = useState<{ id: string; url: string; base64?: string; prompt?: string; promptSetID?: string; collectionIds?: string[] } | null>(null);
     const [loadingReference, setLoadingReference] = useState(false);
 
     // Load reference image if provided in URL
@@ -97,6 +97,11 @@ function GeneratePageContent() {
                         setPrompt(data.prompt);
                     }
 
+                    // Use existing promptSetID if available to group variations with original
+                    if (data.promptSetID) {
+                        setPromptSetID(data.promptSetID);
+                    }
+
                     // Convert to base64 for the API
                     // We use the proxy to bypass CORS
                     const response = await fetch(`/api/download?url=${encodeURIComponent(data.imageUrl)}`);
@@ -111,7 +116,9 @@ function GeneratePageContent() {
                             id: refImageId,
                             url: data.imageUrl,
                             base64,
-                            prompt: data.prompt
+                            prompt: data.prompt,
+                            promptSetID: data.promptSetID,
+                            collectionIds: data.collectionIds || (data.collectionId ? [data.collectionId] : [])
                         });
                         setLoadingReference(false);
                     };
@@ -244,6 +251,7 @@ function GeneratePageContent() {
                     referenceImage: referenceImage?.base64,
                     sourceImageId: referenceImage?.id,
                     promptSetID: promptSetID.trim() || undefined,
+                    collectionIds: referenceImage?.collectionIds,
                 }),
             });
 
@@ -470,6 +478,7 @@ function GeneratePageContent() {
                                                     <button
                                                         onClick={() => {
                                                             setReferenceImage(null);
+                                                            setPromptSetID(generatePromptSetID()); // Reset to new ID
                                                             router.replace('/generate', { scroll: false });
                                                         }}
                                                         className="p-1.5 hover:bg-background rounded-lg text-foreground-muted hover:text-error transition-colors"

@@ -17,6 +17,22 @@ export default function DashboardPage() {
     const [loadingImages, setLoadingImages] = useState(true);
     const [loadingHistory, setLoadingHistory] = useState(true);
     const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
+    const [isGrouped, setIsGrouped] = useState(true);
+
+    // Group images helper
+    const groupImagesByPromptSet = (images: GeneratedImage[]) => {
+        const groups: Record<string, GeneratedImage[]> = {};
+
+        images.forEach(img => {
+            const key = img.promptSetID || `single-${img.id}`;
+            if (!groups[key]) {
+                groups[key] = [];
+            }
+            groups[key].push(img);
+        });
+
+        return groups;
+    };
 
     // Redirect if not logged in
     useEffect(() => {
@@ -348,7 +364,7 @@ export default function DashboardPage() {
                         </div>
                     </button>
 
-                    <div className={`transition-all duration-500 overflow-hidden ${isHistoryExpanded ? 'max-h-[1000px] mt-4 opacity-100' : 'max-h-0 opacity-0'}`}>
+                    <div className={`transition-all duration-500 overflow-hidden ${isHistoryExpanded ? 'max-h-[500px] mt-4 opacity-100' : 'max-h-0 opacity-0'}`}>
                         {loadingHistory ? (
                             <div className="flex justify-center py-8">
                                 <div className="spinner" />
@@ -359,34 +375,59 @@ export default function DashboardPage() {
                             </div>
                         ) : (
                             <div className="glass-card overflow-hidden">
-                                <div className="overflow-x-auto">
+                                <div className="overflow-x-auto max-h-[400px] overflow-y-auto custom-scrollbar">
                                     <table className="w-full text-left border-collapse">
                                         <thead>
-                                            <tr className="border-b border-border bg-background-secondary/50">
+                                            <tr className="border-b border-border bg-background-secondary/50 sticky top-0 z-10">
                                                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider">Date</th>
+                                                <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider">Preview</th>
                                                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider">Description</th>
                                                 <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-right">Amount</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-border">
-                                            {creditHistory.map((tx) => (
-                                                <tr key={tx.id} className="hover:bg-background-secondary/30 transition-colors">
-                                                    <td className="px-6 py-4 text-sm text-foreground-muted whitespace-nowrap">
-                                                        {tx.createdAt?.toDate ? tx.createdAt.toDate().toLocaleDateString() : new Date(tx.createdAt).toLocaleDateString()}
-                                                    </td>
-                                                    <td className="px-6 py-4 text-sm font-medium">
-                                                        {tx.description}
-                                                        {tx.type === 'usage' && tx.metadata?.quality && (
-                                                            <span className="ml-2 px-1.5 py-0.5 bg-background-secondary border border-border rounded text-[10px] uppercase">
-                                                                {tx.metadata.quality}
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td className={`px-6 py-4 text-sm font-bold text-right ${tx.amount > 0 ? 'text-success' : 'text-error'}`}>
-                                                        {tx.amount > 0 ? `+${tx.amount}` : tx.amount}
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                            {creditHistory.map((tx) => {
+                                                // Try to find a matching image for this usage
+                                                const txDate = tx.createdAt?.toDate ? tx.createdAt.toDate().getTime() : new Date(tx.createdAt).getTime();
+                                                const metadataImage = tx.metadata?.imageUrl;
+                                                const matchingImage = metadataImage ? { imageUrl: metadataImage } : (tx.type === 'usage' ? recentImages.find(img => {
+                                                    const imgDate = img.createdAt?.toDate ? img.createdAt.toDate().getTime() : new Date(img.createdAt as any).getTime();
+                                                    // Match within 10 second tolerance
+                                                    return Math.abs(imgDate - txDate) < 10000;
+                                                }) : null);
+
+                                                return (
+                                                    <tr key={tx.id} className="hover:bg-background-secondary/30 transition-colors">
+                                                        <td className="px-6 py-4 text-sm text-foreground-muted whitespace-nowrap">
+                                                            {tx.createdAt?.toDate ? tx.createdAt.toDate().toLocaleDateString() : new Date(tx.createdAt).toLocaleDateString()}
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            {matchingImage ? (
+                                                                <img
+                                                                    src={matchingImage.imageUrl}
+                                                                    alt="Generation preview"
+                                                                    className="w-10 h-10 rounded object-cover border border-border"
+                                                                />
+                                                            ) : (
+                                                                <div className="w-10 h-10 rounded bg-background-secondary border border-border flex items-center justify-center text-lg">
+                                                                    {tx.type === 'usage' ? '🎨' : '💎'}
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-4 text-sm font-medium">
+                                                            <p className="line-clamp-1">{tx.description}</p>
+                                                            {tx.type === 'usage' && tx.metadata?.quality && (
+                                                                <span className="mt-1 inline-block px-1.5 py-0.5 bg-background-secondary border border-border rounded text-[10px] uppercase">
+                                                                    {tx.metadata.quality}
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className={`px-6 py-4 text-sm font-bold text-right whitespace-nowrap ${tx.amount > 0 ? 'text-success' : 'text-error'}`}>
+                                                            {tx.amount > 0 ? `+${tx.amount}` : tx.amount}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -398,7 +439,29 @@ export default function DashboardPage() {
                 {/* Recent Images */}
                 <section>
                     <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-2xl font-bold">Recent Creations</h2>
+                        <div className="flex items-center gap-4">
+                            <h2 className="text-2xl font-bold">Recent Creations</h2>
+                            <div className="flex bg-background-secondary rounded-lg p-1 border border-border/50">
+                                <button
+                                    onClick={() => setIsGrouped(false)}
+                                    className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${!isGrouped
+                                        ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                                        : 'text-foreground-muted hover:text-foreground'
+                                        }`}
+                                >
+                                    Grid
+                                </button>
+                                <button
+                                    onClick={() => setIsGrouped(true)}
+                                    className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${isGrouped
+                                        ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                                        : 'text-foreground-muted hover:text-foreground'
+                                        }`}
+                                >
+                                    Grouped
+                                </button>
+                            </div>
+                        </div>
                         {recentImages.length > 0 && (
                             <Link href="/gallery" className="text-primary hover:text-primary-hover transition-colors">
                                 View All →
@@ -421,28 +484,75 @@ export default function DashboardPage() {
                         </div>
                     ) : (
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                            {recentImages.map((image) => (
-                                <div key={image.id} className="card group cursor-pointer overflow-hidden p-0">
-                                    <div className="aspect-[4/3] bg-background-secondary overflow-hidden">
-                                        <img
-                                            src={image.imageUrl}
-                                            alt={image.prompt.slice(0, 50)}
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                        />
-                                    </div>
-                                    <div className="p-4">
-                                        <div className="flex justify-between items-start gap-2 mb-2">
-                                            <p className="text-sm line-clamp-2">{image.prompt}</p>
+                            {isGrouped ? (
+                                Object.entries(groupImagesByPromptSet(recentImages)).map(([key, groupImages]) => {
+                                    const mainImage = groupImages[0];
+                                    const isStack = groupImages.length > 1;
+
+                                    return (
+                                        <div
+                                            key={key}
+                                            onClick={() => router.push('/gallery')}
+                                            className={`card group cursor-pointer overflow-hidden p-0 relative ${isStack ? 'hover:-translate-y-1 transition-transform' : ''}`}
+                                        >
+                                            {isStack && (
+                                                <>
+                                                    <div className="absolute top-1 left-1 right-1 h-full bg-background-secondary border border-border rounded-2xl -z-10 translate-y-2 opacity-50" />
+                                                    <div className="absolute top-1 left-2 right-2 h-full bg-background-tertiary border border-border rounded-2xl -z-20 translate-y-4 opacity-30" />
+                                                    <div className="absolute top-2 right-2 z-10 bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg">
+                                                        {groupImages.length} images
+                                                    </div>
+                                                </>
+                                            )}
+                                            <div className="aspect-[4/3] bg-background-secondary overflow-hidden">
+                                                <img
+                                                    src={mainImage.imageUrl}
+                                                    alt={mainImage.prompt.slice(0, 50)}
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                />
+                                            </div>
+                                            <div className="p-4">
+                                                <div className="flex justify-between items-start gap-2 mb-2">
+                                                    <p className="text-sm line-clamp-2">{mainImage.prompt}</p>
+                                                </div>
+                                                <div className="flex items-center justify-between mt-2">
+                                                    <p className="text-xs text-foreground-muted">
+                                                        {mainImage.settings.quality} • {mainImage.settings.aspectRatio}
+                                                    </p>
+                                                    <ShareButtons imageUrl={mainImage.imageUrl} prompt={mainImage.prompt} className="scale-75 origin-right" />
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center justify-between mt-2">
-                                            <p className="text-xs text-foreground-muted">
-                                                {image.settings.quality} • {image.settings.aspectRatio}
-                                            </p>
-                                            <ShareButtons imageUrl={image.imageUrl} prompt={image.prompt} className="scale-75 origin-right" />
+                                    );
+                                })
+                            ) : (
+                                recentImages.map((image) => (
+                                    <div
+                                        key={image.id}
+                                        onClick={() => router.push('/gallery')}
+                                        className="card group cursor-pointer overflow-hidden p-0"
+                                    >
+                                        <div className="aspect-[4/3] bg-background-secondary overflow-hidden">
+                                            <img
+                                                src={image.imageUrl}
+                                                alt={image.prompt.slice(0, 50)}
+                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                            />
+                                        </div>
+                                        <div className="p-4">
+                                            <div className="flex justify-between items-start gap-2 mb-2">
+                                                <p className="text-sm line-clamp-2">{image.prompt}</p>
+                                            </div>
+                                            <div className="flex items-center justify-between mt-2">
+                                                <p className="text-xs text-foreground-muted">
+                                                    {image.settings.quality} • {image.settings.aspectRatio}
+                                                </p>
+                                                <ShareButtons imageUrl={image.imageUrl} prompt={image.prompt} className="scale-75 origin-right" />
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                ))
+                            )}
                         </div>
                     )}
                 </section>

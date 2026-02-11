@@ -3,14 +3,16 @@
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { collection, query, orderBy, limit, getDocs, deleteDoc, doc, updateDoc, increment, startAfter, QueryDocumentSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, deleteDoc, doc, updateDoc, increment, startAfter, QueryDocumentSnapshot, addDoc, serverTimestamp, deleteField } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { GeneratedImage, Collection } from '@/lib/types';
 import Link from 'next/link';
+import { useToast } from '@/components/Toast';
 
 export default function GalleryPage() {
     const { user, profile, loading } = useAuth();
     const router = useRouter();
+    const { showToast } = useToast();
     const [images, setImages] = useState<GeneratedImage[]>([]);
     const [loadingImages, setLoadingImages] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -33,8 +35,14 @@ export default function GalleryPage() {
     const [collectionError, setCollectionError] = useState('');
 
     // Grouping
-    const [isGrouped, setIsGrouped] = useState(false);
+    const [isGrouped, setIsGrouped] = useState(true);
     const [selectedGroup, setSelectedGroup] = useState<GeneratedImage[] | null>(null);
+    const [isCollectionDropdownOpen, setIsCollectionDropdownOpen] = useState(false);
+
+    // Editing PromptSetID
+    const [isEditingPromptSetID, setIsEditingPromptSetID] = useState(false);
+    const [editingPromptSetID, setEditingPromptSetID] = useState('');
+    const [isSavingPromptSetID, setIsSavingPromptSetID] = useState(false);
 
     // Group images helper
     const groupImagesByPromptSet = (images: GeneratedImage[]) => {
@@ -89,10 +97,19 @@ export default function GalleryPage() {
             setLastVisible(lastVisibleDoc);
             setHasMore(snapshot.docs.length === 24);
 
-            const fetchedImages: GeneratedImage[] = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-            } as GeneratedImage));
+            const fetchedImages: GeneratedImage[] = snapshot.docs.map(doc => {
+                const data = doc.data() as GeneratedImage;
+                // Backfill collectionIds for legacy data ONLY if it's undefined
+                // If it is [], it means the user explicitly removed all collections
+                if (data.collectionId && data.collectionIds === undefined) {
+                    data.collectionIds = [data.collectionId];
+                }
+                return {
+                    ...data,
+                    id: doc.id,
+                    collectionIds: data.collectionIds || [],
+                };
+            });
 
             if (isLoadMore) {
                 setImages(prev => [...prev, ...fetchedImages]);
@@ -132,6 +149,14 @@ export default function GalleryPage() {
         }
     }, [user]);
 
+    // Sync editing state when image changes
+    useEffect(() => {
+        if (selectedImage) {
+            setEditingPromptSetID(selectedImage.promptSetID || '');
+            setIsEditingPromptSetID(false);
+        }
+    }, [selectedImage]);
+
     const handleLoadMore = () => {
         fetchImages(true);
     };
@@ -141,7 +166,13 @@ export default function GalleryPage() {
         const matchesSearch = img.prompt.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesQuality = filterQuality === 'all' || img.settings.quality === filterQuality;
         const matchesAspect = filterAspectRatio === 'all' || img.settings.aspectRatio === filterAspectRatio;
-        const matchesCollection = !selectedCollectionId || img.collectionId === selectedCollectionId;
+
+        // Collection filter:
+        // Prioritize collectionIds array if it exists (even if empty)
+        // Only fallback to legacy collectionId if collectionIds is truly missing
+        const matchesCollection = !selectedCollectionId ||
+            (img.collectionIds ? img.collectionIds.includes(selectedCollectionId) : (img.collectionId === selectedCollectionId));
+
         return matchesSearch && matchesQuality && matchesAspect && matchesCollection;
     });
 
@@ -223,35 +254,162 @@ export default function GalleryPage() {
             setCollections(prev => [localCol, ...prev]);
             setNewCollectionName('');
             setShowCreateCollection(false);
+            showToast(`Collection "${newColData.name}" created`, 'success');
         } catch (error: any) {
             console.error('Error creating collection:', error);
             setCollectionError(error.message || 'Failed to create collection. Please try again.');
-        } finally {
             setCreatingCollection(false);
+            showToast('Failed to create collection', 'error');
         }
     };
 
-    const handleMoveToCollection = async (imageId: string, collectionId: string | null) => {
+    const handleToggleCollection = async (imageId: string, collectionId: string) => {
         if (!user) return;
-        try {
-            const imageRef = doc(db, 'users', user.uid, 'images', imageId);
-            await updateDoc(imageRef, { collectionId: collectionId || null });
 
-            // Update local state
+        // Optimistic update
+        const image = images.find(img => img.id === imageId);
+        if (!image) return;
+
+        const currentIds = image.collectionIds || [];
+        // Legacy fallback only if collectionIds is missing
+        if (!image.collectionIds && image.collectionId) {
+            currentIds.push(image.collectionId);
+        }
+
+        const isAdding = !currentIds.includes(collectionId);
+        let newIds: string[];
+
+        if (isAdding) {
+            newIds = [...currentIds, collectionId];
+        } else {
+            newIds = currentIds.filter(id => id !== collectionId);
+        }
+
+        try {
+            // Update local state immediately
             setImages(prev => prev.map(img =>
-                img.id === imageId ? { ...img, collectionId: collectionId || undefined } : img
+                img.id === imageId ? { ...img, collectionIds: newIds, collectionId: undefined } : img
             ));
 
             if (selectedImage?.id === imageId) {
-                setSelectedImage(prev => prev ? { ...prev, collectionId: collectionId || undefined } : null);
+                setSelectedImage(prev => prev ? { ...prev, collectionIds: newIds, collectionId: undefined } : null);
             }
 
-            // Update collection image counts (optional/simplified)
+            const imageRef = doc(db, 'users', user.uid, 'images', imageId);
+
+            await updateDoc(imageRef, {
+                collectionIds: newIds,
+                collectionId: deleteField() // Correct way to remove field in Firestore
+            });
+
             fetchCollections();
+            showToast(isAdding ? 'Added to collection' : 'Removed from collection', 'success');
+
         } catch (error) {
-            console.error('Error moving image:', error);
+            console.error('Error toggling collection:', error);
+            showToast('Failed to update collection', 'error');
         }
     };
+
+    const handleBatchToggleCollection = async (batchImages: GeneratedImage[], collectionId: string) => {
+        if (!user || !batchImages.length) return;
+
+        const allIn = batchImages.every(img => (img.collectionIds || []).includes(collectionId));
+        const isAdding = !allIn;
+
+        try {
+            const batchPromises = batchImages.map(img => {
+                const currentIds = img.collectionIds || [];
+                // Legacy fallback only if missing
+                if (!img.collectionIds && img.collectionId) {
+                    currentIds.push(img.collectionId);
+                }
+
+                let newIds: string[];
+                if (isAdding) {
+                    newIds = currentIds.includes(collectionId) ? currentIds : [...currentIds, collectionId];
+                } else {
+                    newIds = currentIds.filter(id => id !== collectionId);
+                }
+
+                const imageRef = doc(db, 'users', user.uid, 'images', img.id);
+                return updateDoc(imageRef, {
+                    collectionIds: newIds,
+                    collectionId: deleteField() // Clear legacy field
+                });
+            });
+
+            await Promise.all(batchPromises);
+
+            // Update local state
+            setImages(prev => prev.map(img => {
+                const isInBatch = batchImages.some(b => b.id === img.id);
+                if (!isInBatch) return img;
+
+                const currentIds = img.collectionIds || [];
+                if (!img.collectionIds && img.collectionId) currentIds.push(img.collectionId);
+
+                let newIds: string[];
+                if (isAdding) {
+                    newIds = currentIds.includes(collectionId) ? currentIds : [...currentIds, collectionId];
+                } else {
+                    newIds = currentIds.filter(id => id !== collectionId);
+                }
+
+                return { ...img, collectionIds: newIds, collectionId: undefined };
+            }));
+
+            // Update selectedGroup
+            setSelectedGroup(prev => {
+                if (!prev) return null;
+                return prev.map(img => {
+                    const currentIds = img.collectionIds || [];
+                    if (!img.collectionIds && img.collectionId) currentIds.push(img.collectionId);
+                    let newIds: string[];
+                    if (isAdding) {
+                        newIds = currentIds.includes(collectionId) ? currentIds : [...currentIds, collectionId];
+                    } else {
+                        newIds = currentIds.filter(id => id !== collectionId);
+                    }
+                    return { ...img, collectionIds: newIds, collectionId: undefined };
+                });
+            });
+
+            fetchCollections();
+            showToast(isAdding ? `Added ${batchImages.length} images to collection` : `Removed ${batchImages.length} images from collection`, 'success');
+        } catch (error) {
+            console.error('Error batch toggling collection:', error);
+            showToast('Failed to update collections', 'error');
+        }
+    };
+
+    const handleUpdatePromptSetID = async () => {
+        if (!user || !selectedImage) return;
+
+        setIsSavingPromptSetID(true);
+        try {
+            const cleanID = editingPromptSetID.trim();
+            const imageRef = doc(db, 'users', user.uid, 'images', selectedImage.id);
+
+            await updateDoc(imageRef, {
+                promptSetID: cleanID || deleteField()
+            });
+
+            // Update local state
+            const updatedImage = { ...selectedImage, promptSetID: cleanID || undefined };
+            setImages(prev => prev.map(img => img.id === selectedImage.id ? updatedImage : img));
+            setSelectedImage(updatedImage);
+
+            setIsEditingPromptSetID(false);
+            showToast('Prompt Set ID updated', 'success');
+        } catch (error) {
+            console.error('Error updating promptSetID:', error);
+            showToast('Failed to update Prompt Set ID', 'error');
+        } finally {
+            setIsSavingPromptSetID(false);
+        }
+    };
+
 
     // Format date
     const formatDate = (timestamp: any) => {
@@ -675,20 +833,46 @@ export default function GalleryPage() {
 
                                         {/* Move to Collection - Moved up for visibility */}
                                         <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl space-y-2">
-                                            <label className="text-xs text-primary font-bold uppercase tracking-wide block">Add to Collection</label>
-                                            <select
-                                                value={selectedImage.collectionId || ''}
-                                                onChange={(e) => handleMoveToCollection(selectedImage.id, e.target.value || null)}
-                                                className="w-full text-sm bg-background border border-border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-primary/50 text-foreground"
-                                            >
-                                                <option value="">None / All Images</option>
-                                                {collections.map(col => (
-                                                    <option key={col.id} value={col.id}>{col.name}</option>
-                                                ))}
-                                            </select>
-                                            {collections.length === 0 && (
-                                                <p className="text-[10px] text-foreground-muted italic">Create a collection in the sidebar first.</p>
-                                            )}
+                                            <div className="flex justify-between items-center">
+                                                <label className="text-xs text-primary font-bold uppercase tracking-wide block">Collections</label>
+                                                <span className="text-[10px] text-foreground-muted">
+                                                    {(selectedImage.collectionIds?.length || (selectedImage.collectionId ? 1 : 0))} selected
+                                                </span>
+                                            </div>
+
+                                            <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar pr-1">
+                                                {collections.map(col => {
+                                                    const isSelected = (selectedImage.collectionIds || (selectedImage.collectionId ? [selectedImage.collectionId] : [])).includes(col.id);
+                                                    return (
+                                                        <label
+                                                            key={col.id}
+                                                            className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors border ${isSelected
+                                                                ? 'bg-primary/10 border-primary/30'
+                                                                : 'hover:bg-background-secondary border-transparent'
+                                                                }`}
+                                                        >
+                                                            <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors ${isSelected
+                                                                ? 'bg-primary border-primary text-white'
+                                                                : 'border-foreground-muted bg-background'
+                                                                }`}>
+                                                                {isSelected && <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                                                            </div>
+                                                            <span className="text-sm truncate flex-1">{col.name}</span>
+                                                            <input
+                                                                type="checkbox"
+                                                                className="hidden"
+                                                                checked={isSelected}
+                                                                onChange={() => handleToggleCollection(selectedImage.id, col.id)}
+                                                            />
+                                                        </label>
+                                                    );
+                                                })}
+                                                {collections.length === 0 && (
+                                                    <div className="text-xs text-foreground-muted italic text-center py-2">
+                                                        No collections available.
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-4">
@@ -711,6 +895,55 @@ export default function GalleryPage() {
                                                 <label className="text-xs text-foreground-muted uppercase tracking-wide">Downloads</label>
                                                 <p className="text-sm mt-1">{selectedImage.downloadCount || 0}</p>
                                             </div>
+                                        </div>
+
+                                        <div className="pt-2 border-t border-border/50">
+                                            <label className="text-xs text-foreground-muted uppercase tracking-wide flex items-center justify-between">
+                                                Prompt Set ID
+                                                {!isEditingPromptSetID && (
+                                                    <button
+                                                        onClick={() => setIsEditingPromptSetID(true)}
+                                                        className="text-primary hover:text-primary-hover font-bold"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                )}
+                                            </label>
+                                            {isEditingPromptSetID ? (
+                                                <div className="mt-2 space-y-2">
+                                                    <input
+                                                        type="text"
+                                                        value={editingPromptSetID}
+                                                        onChange={(e) => setEditingPromptSetID(e.target.value)}
+                                                        placeholder="No Set ID"
+                                                        className="w-full bg-background-secondary border border-border rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground"
+                                                        autoFocus
+                                                    />
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={handleUpdatePromptSetID}
+                                                            disabled={isSavingPromptSetID}
+                                                            className="flex-1 bg-primary text-white text-xs font-bold py-1.5 rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50"
+                                                        >
+                                                            {isSavingPromptSetID ? 'Saving...' : 'Save'}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                setIsEditingPromptSetID(false);
+                                                                setEditingPromptSetID(selectedImage.promptSetID || '');
+                                                            }}
+                                                            disabled={isSavingPromptSetID}
+                                                            className="px-3 bg-background-secondary text-foreground text-xs font-bold py-1.5 rounded-lg hover:bg-background-tertiary transition-colors"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <p className="text-sm mt-1 font-mono text-foreground-muted truncate" title={selectedImage.promptSetID}>
+                                                    {selectedImage.promptSetID || 'No Set ID'}
+                                                </p>
+                                            )}
                                         </div>
 
                                         <div>
@@ -771,21 +1004,149 @@ export default function GalleryPage() {
                         className="bg-background rounded-2xl max-w-5xl w-full max-h-[90vh] flex flex-col overflow-hidden"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="p-4 border-b border-border flex justify-between items-center bg-background/50 backdrop-blur-md">
+                        {/* Header with high z-index to allow dropdowns to overlap content */}
+                        <div className="relative z-50 p-4 border-b border-border flex justify-between items-center bg-background/50 backdrop-blur-md">
                             <div>
                                 <h3 className="font-bold text-lg">Group Details</h3>
                                 <p className="text-xs text-foreground-muted">
                                     {selectedGroup.length} images in this batch
                                 </p>
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                    {collections.filter(col =>
+                                        selectedGroup.every(img => (img.collectionIds || (img.collectionId ? [img.collectionId] : [])).includes(col.id))
+                                    ).map(col => (
+                                        <span key={col.id} className="text-[10px] px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded-full font-bold uppercase tracking-wider">
+                                            {col.name}
+                                        </span>
+                                    ))}
+                                </div>
                             </div>
-                            <button
-                                onClick={() => setSelectedGroup(null)}
-                                className="p-2 hover:bg-background-secondary rounded-lg"
-                            >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
+                            <div className="flex items-center gap-4">
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setIsCollectionDropdownOpen(!isCollectionDropdownOpen)}
+                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors text-sm font-medium ${isCollectionDropdownOpen
+                                            ? 'bg-primary text-white border-primary'
+                                            : 'bg-background-secondary hover:bg-background-tertiary border-border'
+                                            }`}
+                                    >
+                                        <span className={`uppercase text-xs font-bold ${isCollectionDropdownOpen ? 'text-white' : 'text-foreground-muted'}`}>Manage Collections</span>
+                                        <svg className={`w-4 h-4 transition-transform ${isCollectionDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
+
+                                    {/* Dropdown Menu */}
+                                    {isCollectionDropdownOpen && (
+                                        <>
+                                            <div className="fixed inset-0 z-40" onClick={() => setIsCollectionDropdownOpen(false)} />
+                                            <div className="absolute right-0 top-full mt-2 w-64 bg-background border border-border rounded-xl shadow-xl p-2 z-50 animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+                                                <div className="text-xs font-bold text-foreground-muted uppercase px-2 py-1 mb-1">Toggle Collections</div>
+                                                <div className="space-y-1 max-h-60 overflow-y-auto custom-scrollbar">
+                                                    {collections.map(col => {
+                                                        // Check status for this collection across the group
+                                                        const allIn = selectedGroup.every(img =>
+                                                            (img.collectionIds || (img.collectionId ? [img.collectionId] : [])).includes(col.id)
+                                                        );
+                                                        const someIn = !allIn && selectedGroup.some(img =>
+                                                            (img.collectionIds || (img.collectionId ? [img.collectionId] : [])).includes(col.id)
+                                                        );
+
+                                                        return (
+                                                            <label
+                                                                key={col.id}
+                                                                className="flex items-center gap-3 px-2 py-2 hover:bg-background-secondary rounded-lg cursor-pointer transition-colors"
+                                                            >
+                                                                <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${allIn
+                                                                    ? 'bg-primary border-primary text-white'
+                                                                    : someIn
+                                                                        ? 'bg-primary/50 border-primary/50 text-white'
+                                                                        : 'border-foreground-muted'
+                                                                    }`}>
+                                                                    {allIn && <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                                                                    {someIn && <div className="w-2 h-0.5 bg-white rounded-full" />}
+                                                                </div>
+                                                                <span className="text-sm truncate flex-1">{col.name}</span>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    className="hidden"
+                                                                    checked={allIn}
+                                                                    onChange={() => handleBatchToggleCollection(selectedGroup, col.id)}
+                                                                />
+                                                            </label>
+                                                        );
+                                                    })}
+                                                    {collections.length === 0 && (
+                                                        <div className="px-2 py-4 text-center text-xs text-foreground-muted italic">
+                                                            No collections created yet.
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Inline Create Collection */}
+                                                <div className="mt-2 pt-2 border-t border-border px-1">
+                                                    <div className="flex gap-1">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="New Collection"
+                                                            className="flex-1 text-xs bg-background-secondary border border-border rounded px-2 py-1 outline-none focus:border-primary text-foreground"
+                                                            onKeyDown={async (e) => {
+                                                                if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                                                                    const name = e.currentTarget.value.trim();
+                                                                    e.currentTarget.value = ''; // Clear input
+
+                                                                    try {
+                                                                        // 1. Create Collection
+                                                                        const colRef = collection(db, 'users', user!.uid, 'collections');
+                                                                        const newColRef = await addDoc(colRef, {
+                                                                            name: name,
+                                                                            createdAt: serverTimestamp(),
+                                                                            imageCount: 0
+                                                                        });
+
+                                                                        // 2. Add to local state (optimistic)
+                                                                        const newCol: Collection = {
+                                                                            id: newColRef.id,
+                                                                            name,
+                                                                            userId: user!.uid,
+                                                                            createdAt: { seconds: Date.now() / 1000 } as any,
+                                                                            updatedAt: { seconds: Date.now() / 1000 } as any,
+                                                                            imageCount: 0
+                                                                        };
+                                                                        setCollections(prev => [newCol, ...prev]);
+
+                                                                        // 3. Auto-add batch to this new collection
+                                                                        await handleBatchToggleCollection(selectedGroup!, newColRef.id);
+
+                                                                        showToast(`Collection "${name}" created and images added`, 'success');
+
+                                                                    } catch (err) {
+                                                                        console.error("Error creating collection inline:", err);
+                                                                        showToast('Failed to create collection', 'error');
+                                                                    }
+                                                                }
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <div className="text-[10px] text-foreground-muted mt-1 px-1">
+                                                        Press Enter to create & add
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                <div className="h-6 w-px bg-border hidden md:block" />
+                                <button
+                                    onClick={() => setSelectedGroup(null)}
+                                    className="p-2 hover:bg-background-secondary rounded-lg"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
