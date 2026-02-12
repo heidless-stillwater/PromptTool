@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
                 settings: imageData.settings,
                 authorName: userProfile.displayName || 'Anonymous',
                 authorPhotoURL: userProfile.photoURL || null,
+                authorBadges: userProfile.badges || [],
                 publishedAt: Timestamp.now(),
                 voteCount: 0,
                 commentCount: 0,

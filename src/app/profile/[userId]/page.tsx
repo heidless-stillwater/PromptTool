@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { UserProfile, LeagueEntry } from '@/lib/types';
+import { UserProfile, LeagueEntry, BADGES } from '@/lib/types';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/Toast';
@@ -229,15 +229,31 @@ export default function ProfilePage() {
                         <div className="flex-1">
                             <div className="flex flex-col md:flex-row md:items-center gap-3">
                                 <h1 className="text-4xl font-bold">{author.displayName || 'Anonymous Author'}</h1>
-                                {author.role === 'su' || author.role === 'admin' ? (
-                                    <span className="bg-yellow-500/20 text-yellow-500 text-xs font-black uppercase tracking-widest px-2 py-1 rounded-md border border-yellow-500/30 self-center">
-                                        Staff
-                                    </span>
-                                ) : (
-                                    <span className="bg-primary/10 text-primary text-xs font-black uppercase tracking-widest px-2 py-1 rounded-md border border-primary/20 self-center">
-                                        Creator
-                                    </span>
-                                )}
+                                <div className="flex flex-wrap items-center gap-2 self-center md:self-auto">
+                                    {(author.badges || []).map(badgeId => {
+                                        const badge = BADGES[badgeId];
+                                        if (!badge) return null;
+                                        return (
+                                            <span
+                                                key={badgeId}
+                                                title={badge.label}
+                                                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-background border border-border shadow-sm ${badge.color}`}
+                                            >
+                                                <span>{badge.icon}</span>
+                                                <span className="hidden sm:inline">{badge.label}</span>
+                                            </span>
+                                        );
+                                    })}
+                                    {author.role === 'su' || author.role === 'admin' ? (
+                                        <span className="bg-yellow-500/20 text-yellow-500 text-xs font-black uppercase tracking-widest px-2 py-1 rounded-md border border-yellow-500/30">
+                                            Staff
+                                        </span>
+                                    ) : (
+                                        <span className="bg-primary/10 text-primary text-xs font-black uppercase tracking-widest px-2 py-1 rounded-md border border-primary/20">
+                                            Creator
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                             <p className="text-foreground-muted mt-2">Member since {formatDate(author.createdAt)}</p>
 

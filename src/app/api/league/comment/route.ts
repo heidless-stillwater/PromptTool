@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
             userId,
             userName: userProfile.displayName || 'Anonymous',
             userPhotoURL: userProfile.photoURL || null,
+            userBadges: userProfile.badges || [],
             text: trimmedText,
             createdAt: Timestamp.now(),
         };
@@ -80,6 +81,45 @@ export async function POST(request: NextRequest) {
                 text: trimmedText,
                 read: false,
                 createdAt: Timestamp.now()
+            });
+        }
+
+        const mentionRegex = /@([a-z0-9_]{3,20})/g;
+        const matches = [...trimmedText.toLowerCase().matchAll(mentionRegex)];
+        const uniqueMatches = Array.from(new Set(matches.map(m => m[1])));
+        const mentionedUsernames = uniqueMatches;
+
+        if (mentionedUsernames.length > 0) {
+            // Find users by username
+            const usersRef = adminDb.collection('users');
+            const mentionPromises = mentionedUsernames.map(username =>
+                usersRef.where('username', '==', username).limit(1).get()
+            );
+
+            const mentionSnapshots = await Promise.all(mentionPromises);
+
+            mentionSnapshots.forEach((snap, index) => {
+                if (!snap.empty) {
+                    const mentionedUserDoc = snap.docs[0];
+                    const mentionedUserId = mentionedUserDoc.id;
+
+                    // Don't notify yourself or the creator (already notified above)
+                    if (mentionedUserId !== userId && mentionedUserId !== creatorId) {
+                        const mentionNotifRef = usersRef.doc(mentionedUserId).collection('notifications').doc();
+                        batch.set(mentionNotifRef, {
+                            userId: mentionedUserId,
+                            type: 'mention',
+                            actorId: userId,
+                            actorName: userProfile.displayName || 'Anonymous',
+                            actorPhotoURL: userProfile.photoURL || null,
+                            entryId: entryId,
+                            entryImageUrl: entryData.imageUrl,
+                            text: trimmedText,
+                            read: false,
+                            createdAt: Timestamp.now()
+                        });
+                    }
+                }
             });
         }
 

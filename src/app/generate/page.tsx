@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/lib/auth-context';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useCallback, useRef } from 'react';
 import { PROMPT_CATEGORIES, buildPromptFromMadLibs, FEATURED_PROMPTS } from '@/lib/prompt-templates';
 import { ImageQuality, AspectRatio, MadLibsSelection, CREDIT_COSTS, SUBSCRIPTION_PLANS, GeneratedImage } from '@/lib/types';
 import Link from 'next/link';
@@ -65,10 +65,134 @@ function GeneratePageContent() {
     const [generationProgress, setGenerationProgress] = useState<{ current: number; total: number; message: string } | null>(null);
     const [promptSetID, setPromptSetID] = useState<string>('');
 
+    // History & Remix state
+    const [historyImages, setHistoryImages] = useState<GeneratedImage[]>([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+    const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+    const [historyIndex, setHistoryIndex] = useState(-1);
+
     // Initialize promptSetID on mount
+    // Initialize promptSetID on mount and hydrate state
+    // Initialize promptSetID on mount and hydrate state
     useEffect(() => {
-        setPromptSetID(generatePromptSetID());
-    }, []);
+        const initSession = async () => {
+            setPromptSetID(generatePromptSetID());
+
+            // 1. Load Local State (Fastest)
+            let localTimestamp = 0;
+            let localState: any = null;
+            try {
+                const savedState = localStorage.getItem('generation_session_v1');
+                if (savedState) {
+                    localState = JSON.parse(savedState);
+                    localTimestamp = localState.updatedAt || 0;
+
+                    // Hydrate from local immediately
+                    if (localState.prompt) setPrompt(localState.prompt);
+                    if (localState.quality) setQuality(localState.quality as ImageQuality);
+                    if (localState.aspectRatio) setAspectRatio(localState.aspectRatio as AspectRatio);
+                    if (localState.batchSize) setBatchSize(localState.batchSize);
+                    if (localState.negativePrompt) setNegativePrompt(localState.negativePrompt);
+                    if (localState.seed !== undefined) setSeed(localState.seed);
+                    if (localState.guidanceScale) setGuidanceScale(localState.guidanceScale);
+                    if (localState.promptMode) setPromptMode(localState.promptMode as PromptMode);
+                    if (localState.madLibs) setMadLibs(localState.madLibs);
+                }
+            } catch (e) {
+                console.warn('Failed to hydrate local session state', e);
+            }
+
+            // 2. Check Cloud State (Async)
+            if (user) {
+                try {
+                    const { doc, getDoc } = await import('firebase/firestore');
+                    const { db } = await import('@/lib/firebase');
+                    const draftRef = doc(db, 'users', user.uid, 'settings', 'draft');
+                    const draftSnap = await getDoc(draftRef);
+
+                    if (draftSnap.exists()) {
+                        const cloudData = draftSnap.data();
+                        const cloudTimestamp = cloudData.updatedAt?.toMillis?.() || 0;
+
+                        // Conflict Resolution: If Cloud is newer than Local
+                        if (cloudTimestamp > localTimestamp) {
+                            console.log('Cloud draft is newer, syncing...');
+                            if (cloudData.prompt) setPrompt(cloudData.prompt);
+                            if (cloudData.quality) setQuality(cloudData.quality as ImageQuality);
+                            if (cloudData.aspectRatio) setAspectRatio(cloudData.aspectRatio as AspectRatio);
+                            if (cloudData.batchSize) setBatchSize(cloudData.batchSize);
+                            if (cloudData.negativePrompt) setNegativePrompt(cloudData.negativePrompt);
+                            if (cloudData.seed !== undefined) setSeed(cloudData.seed);
+                            if (cloudData.guidanceScale) setGuidanceScale(cloudData.guidanceScale);
+                            if (cloudData.promptMode) setPromptMode(cloudData.promptMode as PromptMode);
+                            if (cloudData.madLibs) setMadLibs(cloudData.madLibs);
+
+                            // Update local storage to match cloud
+                            localStorage.setItem('generation_session_v1', JSON.stringify({
+                                ...cloudData,
+                                updatedAt: cloudTimestamp // Keep consistent timeframe
+                            }));
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Failed to sync with cloud draft', e);
+                }
+            }
+        };
+
+        initSession();
+    }, [user]); // Re-run when user logs in to sync their draft
+
+    // Persist state changes (Local + Cloud)
+    useEffect(() => {
+        const timestamp = Date.now();
+        const stateToSave = {
+            prompt,
+            quality,
+            aspectRatio,
+            batchSize,
+            negativePrompt,
+            seed,
+            guidanceScale,
+            promptMode,
+            madLibs,
+            updatedAt: timestamp,
+        };
+
+        // 1. Save Local (Immediate)
+        localStorage.setItem('generation_session_v1', JSON.stringify(stateToSave));
+
+        // 2. Save Cloud (Debounced 2s)
+        if (user) {
+            const saveToCloud = setTimeout(async () => {
+                try {
+                    const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+                    const { db } = await import('@/lib/firebase');
+                    const draftRef = doc(db, 'users', user.uid, 'settings', 'draft');
+
+                    await setDoc(draftRef, {
+                        ...stateToSave,
+                        updatedAt: serverTimestamp(), // Use server time for truth
+                    }, { merge: true });
+                } catch (e) {
+                    console.warn('Failed to save draft to cloud', e);
+                }
+            }, 2000);
+
+            return () => clearTimeout(saveToCloud);
+        }
+    }, [
+        prompt,
+        quality,
+        aspectRatio,
+        batchSize,
+        negativePrompt,
+        seed,
+        guidanceScale,
+        promptMode,
+        madLibs,
+        user, // Added user dependency
+    ]);
 
     // Reference image for Img2Img variations
     const searchParams = useSearchParams();
@@ -143,12 +267,67 @@ function GeneratePageContent() {
         }
     }, [profile?.audienceMode]);
 
-    // Redirect if not logged in
-    useEffect(() => {
-        if (!loading && !user) {
-            router.push('/');
+    // Fetch personal history
+    const fetchHistory = useCallback(async () => {
+        if (!user) return;
+        setLoadingHistory(true);
+        try {
+            const { collection, query, orderBy, limit, getDocs } = await import('firebase/firestore');
+            const { db } = await import('@/lib/firebase');
+
+            const imagesRef = collection(db, 'users', user.uid, 'images');
+            const q = query(imagesRef, orderBy('createdAt', 'desc'), limit(20));
+            const snapshot = await getDocs(q);
+
+            const images = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            } as GeneratedImage));
+
+            setHistoryImages(images);
+        } catch (err) {
+            console.error('Failed to fetch history:', err);
+        } finally {
+            setLoadingHistory(false);
         }
-    }, [user, loading, router]);
+    }, [user]);
+
+    useEffect(() => {
+        if (user) {
+            fetchHistory();
+        }
+    }, [user, fetchHistory]);
+
+    // Remix handler
+    const handleRemix = (image: GeneratedImage) => {
+        if (!image.settings) return;
+
+        setPrompt(image.prompt);
+        setQuality(image.settings.quality || 'standard');
+        setAspectRatio(image.settings.aspectRatio || '1:1');
+
+        if (image.settings.negativePrompt) {
+            setNegativePrompt(image.settings.negativePrompt);
+        }
+        if (image.settings.seed !== undefined) {
+            setSeed(image.settings.seed);
+        }
+        if (image.settings.guidanceScale !== undefined) {
+            setGuidanceScale(image.settings.guidanceScale);
+        }
+
+        // Open advanced if needed
+        if (image.settings.negativePrompt || image.settings.seed !== undefined || (image.settings.guidanceScale !== undefined && image.settings.guidanceScale !== 7.0)) {
+            setIsAdvancedOpen(true);
+        }
+
+        // Generate new set ID for this variation
+        setPromptSetID(generatePromptSetID());
+
+        setIsHistoryOpen(false);
+        setError('');
+        setWarning('Remixed settings from previous generation.');
+    };
 
     // Calculate available credits
     const availableCredits = credits
@@ -161,7 +340,7 @@ function GeneratePageContent() {
         : ['standard'];
 
     // Get final prompt based on mode
-    const getFinalPrompt = (): string => {
+    const getFinalPrompt = useCallback((): string => {
         if (promptMode === 'freeform') {
             return prompt;
         } else if (promptMode === 'madlibs') {
@@ -169,7 +348,7 @@ function GeneratePageContent() {
         } else {
             return prompt; // Featured prompt already set
         }
-    };
+    }, [prompt, promptMode, madLibs]);
 
     // Handle prompt enhancement
     const handleEnhancePrompt = async () => {
@@ -204,7 +383,7 @@ function GeneratePageContent() {
     };
 
     // Handle image generation
-    const handleGenerate = async () => {
+    const handleGenerate = useCallback(async () => {
         const finalPrompt = getFinalPrompt();
 
         if (!finalPrompt.trim()) {
@@ -245,9 +424,11 @@ function GeneratePageContent() {
                     promptType: promptMode === 'madlibs' ? 'madlibs' : 'freeform',
                     madlibsData: promptMode === 'madlibs' ? madLibs : undefined,
                     count: batchSize,
-                    seed,
-                    negativePrompt: negativePrompt.trim() || undefined,
-                    guidanceScale,
+                    ...(profile?.subscription === 'pro' && {
+                        seed,
+                        negativePrompt: negativePrompt.trim() || undefined,
+                        guidanceScale,
+                    }),
                     referenceImage: referenceImage?.base64,
                     sourceImageId: referenceImage?.id,
                     promptSetID: promptSetID.trim() || undefined,
@@ -295,6 +476,7 @@ function GeneratePageContent() {
                                     setWarning(data.warning);
                                 }
                                 await refreshCredits();
+                                await fetchHistory(); // REFRESH HISTORY
                             } else if (data.type === 'error') {
                                 setError(data.error);
                             }
@@ -310,7 +492,88 @@ function GeneratePageContent() {
             setGenerating(false);
             setGenerationProgress(null);
         }
-    };
+    }, [
+        user,
+        profile,
+        prompt,
+        madLibs,
+        quality,
+        aspectRatio,
+        batchSize,
+        seed,
+        negativePrompt,
+        guidanceScale,
+        promptMode,
+        promptSetID,
+        referenceImage,
+        availableCredits,
+        refreshCredits,
+        fetchHistory,
+        getFinalPrompt
+    ]);
+
+    // Redirect if not logged in
+    useEffect(() => {
+        if (!loading && !user) {
+            router.push('/');
+        }
+    }, [user, loading, router]);
+
+    // Keyboard shortcuts - Use Ref for handleGenerate to avoid listener churn on every keystroke
+    const handleNavigateHistory = useCallback((direction: 'up' | 'down') => {
+        if (historyImages.length === 0) return;
+
+        let newIndex = historyIndex;
+        if (direction === 'up') {
+            newIndex = Math.min(historyIndex + 1, historyImages.length - 1);
+        } else {
+            newIndex = Math.max(historyIndex - 1, -1);
+        }
+
+        if (newIndex !== historyIndex) {
+            setHistoryIndex(newIndex);
+            if (newIndex === -1) {
+                setPrompt('');
+            } else {
+                handleRemix(historyImages[newIndex]);
+            }
+        }
+    }, [historyIndex, historyImages, handleRemix]);
+
+    // Maintain refs for stable listeners
+    const latestGenerateRef = useRef(handleGenerate);
+    const latestNavigateRef = useRef(handleNavigateHistory);
+
+    useEffect(() => {
+        latestGenerateRef.current = handleGenerate;
+        latestNavigateRef.current = handleNavigateHistory;
+    }, [handleGenerate, handleNavigateHistory]);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // CTRL/CMD + ENTER = Generate
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                if (!generating && !enhancing) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    latestGenerateRef.current();
+                }
+                return;
+            }
+
+            // ALT + UP/DOWN = Navigate History
+            if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                e.preventDefault();
+                e.stopPropagation();
+                latestNavigateRef.current(e.key === 'ArrowUp' ? 'up' : 'down');
+            }
+        };
+
+        // Use capture mode to ensure we catch events even if children try to stop propagation
+        window.addEventListener('keydown', handleKeyDown, true);
+        return () => window.removeEventListener('keydown', handleKeyDown, true);
+    }, [generating, enhancing]);
+    // Still depend on generating/enhancing to ensure logs are accurate, or move them inside
 
     // Download image
     const handleDownload = async (format: 'png' | 'jpeg' = 'png') => {
@@ -378,6 +641,18 @@ function GeneratePageContent() {
                     </Link>
 
                     <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => setIsHistoryOpen(true)}
+                            className="btn-secondary text-sm px-4 py-2 flex items-center gap-2"
+                        >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                <path d="M3.05 13A9 9 0 1 0 6 5.3L3 5" />
+                                <path d="M3 10V5h5" />
+                            </svg>
+                            <span className="hidden sm:inline">History</span>
+                        </button>
+
                         {profile?.role === 'admin' || profile?.role === 'su' ? (
                             <Link href="/admin" className="btn-secondary text-xs px-3 py-2 flex items-center gap-2 border-primary/20 hover:border-primary/50 transition-all">
                                 <span>🛡️</span>
@@ -694,10 +969,18 @@ function GeneratePageContent() {
                                             </button>
                                         ))}
                                     </div>
-                                    <p className="text-[10px] text-foreground-muted mt-2 uppercase tracking-widest font-bold">
-                                        Cost: {CREDIT_COSTS[quality] * batchSize} Credits
+                                    <p className="text-[10px] text-foreground-muted mt-2 uppercase tracking-widest font-bold flex items-center justify-between">
+                                        <span>Estimated Cost:</span>
+                                        <span className="text-primary">{CREDIT_COSTS[quality] * batchSize} Credits</span>
                                     </p>
                                 </div>
+                            )}
+
+                            {profile?.subscription !== 'pro' && (
+                                <p className="text-[10px] text-foreground-muted mt-2 uppercase tracking-widest font-bold flex items-center justify-between">
+                                    <span>Cost:</span>
+                                    <span className="text-primary">{CREDIT_COSTS[quality]} Credit</span>
+                                </p>
                             )}
                         </div>
 
@@ -953,6 +1236,76 @@ function GeneratePageContent() {
                     />
                 )}
             </main>
+
+            {/* History Sidebar */}
+            <div className={`fixed inset-0 z-[60] transition-opacity duration-300 ${isHistoryOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+                <div
+                    className="absolute inset-0 bg-background/60 backdrop-blur-sm"
+                    onClick={() => setIsHistoryOpen(false)}
+                />
+                <div className={`absolute right-0 top-0 bottom-0 w-80 max-w-[90vw] glass-card border-l border-border transition-transform duration-300 transform ${isHistoryOpen ? 'translate-x-0' : 'translate-x-full'} overflow-hidden flex flex-col`}>
+                    <div className="p-6 border-b border-border flex items-center justify-between">
+                        <h2 className="text-xl font-bold font-sans">Recent History</h2>
+                        <button
+                            onClick={() => setIsHistoryOpen(false)}
+                            className="p-2 hover:bg-background rounded-lg"
+                        >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                        {loadingHistory && historyImages.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-foreground-muted">
+                                <div className="spinner mb-4" />
+                                <p className="text-sm">Loading history...</p>
+                            </div>
+                        ) : historyImages.length === 0 ? (
+                            <div className="text-center py-12 text-foreground-muted">
+                                <p className="text-sm">No generations found.</p>
+                                <p className="text-xs mt-2">Create something to see it here!</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {historyImages.map((img) => (
+                                    <div key={img.id} className="group relative rounded-xl overflow-hidden glass-card border border-border/50 hover:border-primary/50 transition-all p-2">
+                                        <div className="aspect-square rounded-lg overflow-hidden bg-background-secondary mb-2 relative">
+                                            <img
+                                                src={img.imageUrl}
+                                                alt={img.prompt}
+                                                className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                            />
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                <button
+                                                    onClick={() => handleRemix(img)}
+                                                    className="btn-primary text-xs px-3 py-1.5"
+                                                >
+                                                    Remix
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="px-1 overflow-hidden">
+                                            <p className="text-[10px] text-foreground-muted line-clamp-2 italic mb-1">
+                                                "{img.prompt}"
+                                            </p>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[8px] font-bold uppercase py-0.5 px-1.5 bg-primary/10 text-primary rounded">
+                                                    {img.settings?.quality || 'standard'}
+                                                </span>
+                                                <span className="text-[8px] text-foreground-muted">
+                                                    {img.createdAt?.toDate?.() ? new Date(img.createdAt.toDate()).toLocaleDateString() : 'Just now'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }

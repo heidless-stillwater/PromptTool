@@ -55,16 +55,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 audienceMode: existingProfile.audienceMode || 'casual',
                 updatedAt: Timestamp.now(),
             };
+            // Ensure username exists (legacy users)
+            if (!updatedProfile.username) {
+                const base = firebaseUser.displayName?.toLowerCase().replace(/\s+/g, '_') || 'user';
+                updatedProfile.username = `${base}_${firebaseUser.uid.substring(0, 5)}`;
+            }
             await setDoc(userRef, updatedProfile, { merge: true });
             return updatedProfile;
         }
 
         // New user - determine initial role
         const isAdmin = ADMIN_EMAILS.includes(firebaseUser.email || '');
+        const base = firebaseUser.displayName?.toLowerCase().replace(/\s+/g, '_') || 'user';
         const newProfile: UserProfile = {
             uid: firebaseUser.uid,
             email: firebaseUser.email || '',
             displayName: firebaseUser.displayName,
+            username: `${base}_${firebaseUser.uid.substring(0, 5)}`,
             photoURL: firebaseUser.photoURL,
             role: isAdmin ? 'admin' : 'member',
             subscription: 'free',

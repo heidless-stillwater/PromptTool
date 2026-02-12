@@ -45,6 +45,10 @@ export async function POST(request: NextRequest) {
                 voteCount: FieldValue.increment(-1),
             });
 
+            // 1b. Delete timestamped vote record
+            const voteRef = adminDb.collection('votes').doc(`${entryId}_${userId}`);
+            batch.delete(voteRef);
+
             // 2. Update creator's total influence
             if (creatorId) {
                 const creatorRef = adminDb.collection('users').doc(creatorId);
@@ -66,6 +70,15 @@ export async function POST(request: NextRequest) {
             batch.update(entryRef, {
                 [`votes.${userId}`]: true,
                 voteCount: FieldValue.increment(1),
+            });
+
+            // 1b. Create timestamped vote record
+            const voteRef = adminDb.collection('votes').doc(`${entryId}_${userId}`);
+            batch.set(voteRef, {
+                entryId,
+                userId,
+                authorId: creatorId,
+                createdAt: Timestamp.now()
             });
 
             // 2. Update creator's total influence

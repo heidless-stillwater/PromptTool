@@ -14,29 +14,29 @@ service cloud.firestore {
 
     // Users collection
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      allow read, list: if isAuthenticated();
       allow create: if isOwner(userId);
       allow update: if isOwner(userId);
       
       // Follow lists are public for reading
       match /followers/{followerId} {
-        allow read: if isAuthenticated();
+        allow read, list: if isAuthenticated();
         allow write: if false; // Only via API
       }
       match /following/{followingId} {
-        allow read: if isAuthenticated();
+        allow read, list: if isAuthenticated();
         allow write: if false; // Only via API
       }
 
       // Notifications are private to the recipient
       match /notifications/{notifId} {
-        allow read, update: if isOwner(userId);
+        allow read, list, update: if isOwner(userId);
         allow create, delete: if isAdmin(); // System managed
       }
 
       // legacy catch-all for other personal data
       match /{allSubcollections=**} {
-        allow read, write: if isOwner(userId) || isAdmin();
+        allow read, list, write: if isOwner(userId) || isAdmin();
       }
     }
 
@@ -87,6 +87,12 @@ service cloud.firestore {
     
     match /analytics/{id} {
       allow read, write: if isAdmin();
+    }
+
+    // Timestamped votes for weekly leaderboard and analytics
+    match /votes/{voteId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Managed via API
     }
     
     // Global admin bypass check

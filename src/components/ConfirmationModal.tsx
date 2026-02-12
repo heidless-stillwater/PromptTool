@@ -5,7 +5,8 @@ import { useEffect, useState } from 'react';
 interface ConfirmationModalProps {
     isOpen: boolean;
     title: string;
-    message: string;
+    message?: string;
+    children?: React.ReactNode;
     confirmLabel?: string;
     cancelLabel?: string;
     onConfirm: () => void;
@@ -18,6 +19,7 @@ export default function ConfirmationModal({
     isOpen,
     title,
     message,
+    children,
     confirmLabel = 'Confirm',
     cancelLabel = 'Cancel',
     onConfirm,
@@ -58,9 +60,10 @@ export default function ConfirmationModal({
                     <h3 className="text-xl font-bold">{title}</h3>
                 </div>
 
-                <p className="text-foreground-muted mb-8 text-sm leading-relaxed">
-                    {message}
-                </p>
+                <div className="text-foreground-muted mb-8 text-sm leading-relaxed">
+                    {message && <p>{message}</p>}
+                    {children}
+                </div>
 
                 <div className="flex gap-3">
                     <button

@@ -13,6 +13,7 @@ export default function SettingsPage() {
     const { showToast } = useToast();
 
     const [displayName, setDisplayName] = useState('');
+    const [username, setUsername] = useState('');
     const [bio, setBio] = useState('');
     const [socialLinks, setSocialLinks] = useState({
         twitter: '',
@@ -29,6 +30,7 @@ export default function SettingsPage() {
 
         if (profile) {
             setDisplayName(profile.displayName || '');
+            setUsername(profile.username || '');
             setBio(profile.bio || '');
             setSocialLinks({
                 twitter: profile.socialLinks?.twitter || '',
@@ -53,6 +55,7 @@ export default function SettingsPage() {
                 },
                 body: JSON.stringify({
                     displayName,
+                    username,
                     bio,
                     socialLinks
                 })
@@ -137,6 +140,26 @@ export default function SettingsPage() {
                                 />
                                 <p className="text-[10px] text-foreground-muted mt-1 text-right">
                                     {displayName.length}/50
+                                </p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold uppercase tracking-widest text-foreground-muted mb-2">
+                                    Unique Username (Handle)
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted">@</span>
+                                    <input
+                                        type="text"
+                                        value={username}
+                                        onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                                        maxLength={20}
+                                        placeholder="your_handle"
+                                        className="input-field pl-10"
+                                    />
+                                </div>
+                                <p className="text-[10px] text-foreground-muted mt-1">
+                                    Used for @mentions in comments. 3-20 characters, lowercase letters, numbers, and underscores only.
                                 </p>
                             </div>
 

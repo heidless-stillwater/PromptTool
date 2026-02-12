@@ -41,6 +41,34 @@
                     "order": "DESCENDING"
                 }
             ]
+        },
+        {
+            "collectionGroup": "images",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "collectionIds",
+                    "arrayConfig": "CONTAINS"
+                },
+                {
+                    "fieldPath": "createdAt",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "images",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "collectionId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "createdAt",
+                    "order": "DESCENDING"
+                }
+            ]
         }
     ],
     "fieldOverrides": []

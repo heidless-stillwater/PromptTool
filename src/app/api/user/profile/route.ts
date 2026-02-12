@@ -17,12 +17,32 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { displayName, bio, socialLinks, bannerUrl } = body;
+        const { displayName, username, bio, socialLinks, bannerUrl } = body;
 
         // Basic Validation
         if (displayName && displayName.trim().length > 50) {
             return NextResponse.json({ error: 'Display name too long (max 50 chars)' }, { status: 400 });
         }
+        if (username) {
+            const usernameTrimmed = username.trim().toLowerCase();
+            if (usernameTrimmed.length < 3 || usernameTrimmed.length > 20) {
+                return NextResponse.json({ error: 'Username must be between 3 and 20 characters' }, { status: 400 });
+            }
+            if (!/^[a-z0-9_]+$/.test(usernameTrimmed)) {
+                return NextResponse.json({ error: 'Username can only contain letters, numbers, and underscores' }, { status: 400 });
+            }
+
+            // Check uniqueness
+            const existingUserQuery = await adminDb.collection('users')
+                .where('username', '==', usernameTrimmed)
+                .limit(1)
+                .get();
+
+            if (!existingUserQuery.empty && existingUserQuery.docs[0].id !== userId) {
+                return NextResponse.json({ error: 'Username is already taken' }, { status: 400 });
+            }
+        }
+
         if (bio && bio.length > 500) {
             return NextResponse.json({ error: 'Bio too long (max 500 chars)' }, { status: 400 });
         }
@@ -32,6 +52,7 @@ export async function POST(request: NextRequest) {
         };
 
         if (displayName !== undefined) updateData.displayName = displayName.trim();
+        if (username !== undefined) updateData.username = username.trim().toLowerCase();
         if (bio !== undefined) updateData.bio = bio;
         if (socialLinks !== undefined) updateData.socialLinks = socialLinks;
         if (bannerUrl !== undefined) updateData.bannerUrl = bannerUrl;

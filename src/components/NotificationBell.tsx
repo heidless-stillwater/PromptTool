@@ -91,6 +91,13 @@ export default function NotificationBell() {
                         <span className="font-bold text-foreground">{notif.actorName}</span> started following you
                     </span>
                 );
+            case 'mention':
+                return (
+                    <span>
+                        <span className="font-bold text-foreground">{notif.actorName}</span> mentioned you in a comment:
+                        <span className="text-foreground-muted block truncate mt-1 italic">&quot;{notif.text}&quot;</span>
+                    </span>
+                );
             case 'system':
                 return <span>{notif.text}</span>;
             default:
@@ -173,7 +180,7 @@ export default function NotificationBell() {
                                                 </div>
                                             )}
                                             <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-background rounded-full flex items-center justify-center text-[10px] shadow-sm ring-2 ring-background">
-                                                {notif.type === 'vote' ? '❤️' : notif.type === 'comment' ? '💬' : '👤'}
+                                                {notif.type === 'vote' ? '❤️' : notif.type === 'comment' ? '💬' : notif.type === 'mention' ? '🏷️' : '👤'}
                                             </div>
                                         </div>
 

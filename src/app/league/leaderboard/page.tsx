@@ -38,14 +38,14 @@ export default function LeaderboardPage() {
 
                 setTopCreators(creators.filter(c => (c.totalInfluence || 0) > 0));
             } else {
-                // Weekly Logic: Aggregate votes from entries in the last 7 days
+                // Weekly Logic: Query the new 'votes' collection for votes cast in the last 7 days
                 const now = new Date();
                 const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-                const entriesRef = collection(db, 'leagueEntries');
+                const votesRef = collection(db, 'votes');
                 const q = query(
-                    entriesRef,
-                    where('publishedAt', '>=', Timestamp.fromDate(sevenDaysAgo))
+                    votesRef,
+                    where('createdAt', '>=', Timestamp.fromDate(sevenDaysAgo))
                 );
 
                 const snapshot = await getDocs(q);
@@ -57,19 +57,46 @@ export default function LeaderboardPage() {
                     photo: string | null
                 }> = {};
 
+                // We need to fetch author details for these votes
+                // For efficiency, we'll collect all unique author IDs first
+                const authorIds = new Set<string>();
                 snapshot.docs.forEach(doc => {
                     const data = doc.data();
-                    const authorId = data.originalUserId;
-                    const votes = data.voteCount || 0;
+                    if (data.authorId) authorIds.add(data.authorId);
+                });
 
+                // Fetch author profiles in parallel buckets if there are many
+                // For now, we'll assume a reasonable number of active authors this week
+                const profilePromises = Array.from(authorIds).map(async (authorId) => {
+                    const userDoc = await getDocs(query(collection(db, 'users'), where('__name__', '==', authorId)));
+                    if (!userDoc.empty) {
+                        const userData = userDoc.docs[0].data();
+                        return {
+                            uid: authorId,
+                            displayName: userData.displayName || 'Unknown',
+                            photoURL: userData.photoURL || null
+                        };
+                    }
+                    return null;
+                });
+
+                const profiles = await Promise.all(profilePromises);
+                const profilesMap = new Map(profiles.filter(p => p !== null).map(p => [p!.uid, p!]));
+
+                snapshot.docs.forEach(doc => {
+                    const data = doc.data();
+                    const authorId = data.authorId;
+                    if (!authorId) return;
+
+                    const authorProfile = profilesMap.get(authorId);
                     if (!authorStats[authorId]) {
                         authorStats[authorId] = {
                             score: 0,
-                            name: data.authorName || 'Unknown',
-                            photo: data.authorPhotoURL || null
+                            name: authorProfile?.displayName || 'Unknown',
+                            photo: authorProfile?.photoURL || null
                         };
                     }
-                    authorStats[authorId].score += votes;
+                    authorStats[authorId].score += 1;
                 });
 
                 // Convert to UserProfile array
@@ -78,10 +105,10 @@ export default function LeaderboardPage() {
                         uid,
                         displayName: stats.name,
                         photoURL: stats.photo,
-                        totalInfluence: stats.score, // Reuse this field for display
-                        role: 'member', // Default
-                        subscription: 'free', // Default
-                        audienceMode: 'casual', // Default
+                        totalInfluence: stats.score,
+                        role: 'member',
+                        subscription: 'free',
+                        audienceMode: 'casual',
                         createdAt: Timestamp.now(),
                         updatedAt: Timestamp.now()
                     } as UserProfile))
@@ -171,22 +198,22 @@ export default function LeaderboardPage() {
                         <div className="bg-background-secondary p-1 rounded-xl flex items-center shadow-inner border border-border/50">
                             <button
                                 onClick={() => setTimeframe('all-time')}
-                                className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${timeframe === 'all-time'
-                                    ? 'bg-primary text-white shadow-lg'
-                                    : 'text-foreground-muted hover:text-foreground'
+                                className={`px-6 py-2 rounded-lg text-sm font-bold transition-all border-2 ${timeframe === 'all-time'
+                                    ? 'bg-primary text-white border-primary shadow-lg'
+                                    : 'text-foreground-muted hover:text-foreground border-transparent'
                                     }`}
                             >
                                 All Time
                             </button>
                             <button
                                 onClick={() => setTimeframe('weekly')}
-                                className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${timeframe === 'weekly'
-                                    ? 'bg-accent text-white shadow-lg'
-                                    : 'text-foreground-muted hover:text-foreground'
+                                className={`px-6 py-2 rounded-lg text-sm font-bold transition-all border-2 ${timeframe === 'weekly'
+                                    ? 'bg-accent text-white border-accent shadow-lg'
+                                    : 'text-foreground-muted hover:text-foreground border-transparent'
                                     }`}
                             >
                                 This Week
-                                <span className="ml-2 text-[10px] bg-white/20 px-1.5 py-0.5 rounded uppercase tracking-wider">Hot</span>
+                                <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wider ${timeframe === 'weekly' ? 'bg-white/20' : 'bg-background-tertiary'}`}>Hot</span>
                             </button>
                         </div>
                     </div>

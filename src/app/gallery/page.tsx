@@ -3,11 +3,12 @@
 import { useAuth } from '@/lib/auth-context';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { collection, query, orderBy, limit, getDocs, deleteDoc, doc, updateDoc, increment, startAfter, QueryDocumentSnapshot, addDoc, serverTimestamp, deleteField } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, deleteDoc, doc, updateDoc, increment, startAfter, QueryDocumentSnapshot, addDoc, serverTimestamp, deleteField, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { GeneratedImage, Collection } from '@/lib/types';
 import Link from 'next/link';
 import { useToast } from '@/components/Toast';
+import GlobalSearch from '@/components/GlobalSearch';
 
 export default function GalleryPage() {
     const { user, profile, loading } = useAuth();
@@ -25,6 +26,14 @@ export default function GalleryPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterQuality, setFilterQuality] = useState<'all' | 'standard' | 'high' | 'ultra'>('all');
     const [filterAspectRatio, setFilterAspectRatio] = useState<string>('all');
+    const [filterTag, setFilterTag] = useState<string>('all');
+
+    // Advanced Filters
+    const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+    const [filterSeed, setFilterSeed] = useState('');
+    const [filterGuidanceMin, setFilterGuidanceMin] = useState('');
+    const [filterGuidanceMax, setFilterGuidanceMax] = useState('');
+    const [filterHasNegativePrompt, setFilterHasNegativePrompt] = useState<'all' | 'yes' | 'no'>('all');
 
     // Collections
     const [collections, setCollections] = useState<Collection[]>([]);
@@ -47,17 +56,21 @@ export default function GalleryPage() {
     const [publishingId, setPublishingId] = useState<string | null>(null);
     const [isSavingPromptSetID, setIsSavingPromptSetID] = useState(false);
 
+    // Direct Image Tagging State
+    const [newImageTag, setNewImageTag] = useState('');
+    const [isUpdatingTags, setIsUpdatingTags] = useState(false);
+
+    // Batch Select Mode
+    const [selectionMode, setSelectionMode] = useState(false);
+    const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(new Set());
+    const [batchDeleting, setBatchDeleting] = useState(false);
+
     // Group images helper
     const groupImagesByPromptSet = (images: GeneratedImage[]) => {
         const groups: Record<string, GeneratedImage[]> = {};
 
         images.forEach(img => {
-            // Use promptSetID if available, otherwise use 'ungrouped' prefix with random ID to keep them separate
-            // or better yet, just group them by ID if no set ID (effectively single items)
-            // But requirement says: "if group only contains one image then go directly to 'Image Details'"
-
             const key = img.promptSetID || `single-${img.id}`;
-
             if (!groups[key]) {
                 groups[key] = [];
             }
@@ -102,8 +115,6 @@ export default function GalleryPage() {
 
             const fetchedImages: GeneratedImage[] = snapshot.docs.map(doc => {
                 const data = doc.data() as GeneratedImage;
-                // Backfill collectionIds for legacy data ONLY if it's undefined
-                // If it is [], it means the user explicitly removed all collections
                 if (data.collectionId && data.collectionIds === undefined) {
                     data.collectionIds = [data.collectionId];
                 }
@@ -149,8 +160,33 @@ export default function GalleryPage() {
         if (user) {
             fetchImages();
             fetchCollections();
+
+            // Handle ?tag=... query param
+            const params = new URLSearchParams(window.location.search);
+            const tagParam = params.get('tag');
+            const searchParam = params.get('q');
+
+            if (tagParam) {
+                setFilterTag(tagParam);
+                setSelectedCollectionId(null);
+            }
+            if (searchParam) {
+                setSearchQuery(searchParam);
+            }
         }
     }, [user]);
+
+    // Handle selectedParam once images are loaded
+    useEffect(() => {
+        if (!loadingImages && images.length > 0) {
+            const params = new URLSearchParams(window.location.search);
+            const selectedParam = params.get('selected');
+            if (selectedParam) {
+                const img = images.find(i => i.id === selectedParam);
+                if (img) setSelectedImage(img);
+            }
+        }
+    }, [loadingImages, images]);
 
     // Sync editing state when image changes
     useEffect(() => {
@@ -171,13 +207,27 @@ export default function GalleryPage() {
         const matchesAspect = filterAspectRatio === 'all' || img.settings.aspectRatio === filterAspectRatio;
 
         // Collection filter:
-        // Prioritize collectionIds array if it exists (even if empty)
-        // Only fallback to legacy collectionId if collectionIds is truly missing
         const matchesCollection = !selectedCollectionId ||
             (img.collectionIds ? img.collectionIds.includes(selectedCollectionId) : (img.collectionId === selectedCollectionId));
 
-        return matchesSearch && matchesQuality && matchesAspect && matchesCollection;
+        // Tag filter: Match if ANY of the image's collections have this tag
+        const matchesTag = filterTag === 'all' || collections.some(col =>
+            (img.collectionIds?.includes(col.id) || img.collectionId === col.id) &&
+            col.tags?.some(t => t.toLowerCase() === filterTag.toLowerCase())
+        );
+
+        // Advanced filters
+        const matchesSeed = !filterSeed.trim() || String(img.settings?.seed ?? '') === filterSeed.trim();
+        const imgGuidance = img.settings?.guidanceScale;
+        const matchesGuidanceMin = !filterGuidanceMin || (imgGuidance !== undefined && imgGuidance >= parseFloat(filterGuidanceMin));
+        const matchesGuidanceMax = !filterGuidanceMax || (imgGuidance !== undefined && imgGuidance <= parseFloat(filterGuidanceMax));
+        const matchesNegPrompt = filterHasNegativePrompt === 'all' ||
+            (filterHasNegativePrompt === 'yes' && !!img.settings?.negativePrompt?.trim()) ||
+            (filterHasNegativePrompt === 'no' && !img.settings?.negativePrompt?.trim());
+
+        return matchesSearch && matchesQuality && matchesAspect && matchesCollection && matchesTag && matchesSeed && matchesGuidanceMin && matchesGuidanceMax && matchesNegPrompt;
     });
+
 
     // Handle image download
     const handleDownload = async (image: GeneratedImage, format: 'png' | 'jpeg' = 'png') => {
@@ -258,6 +308,101 @@ export default function GalleryPage() {
         }
     };
 
+    // Handle Adding Tag to Image
+    const handleAddImageTag = async () => {
+        if (!user || !selectedImage || !newImageTag.trim()) return;
+
+        const tag = newImageTag.trim().toLowerCase();
+        if (selectedImage.tags?.includes(tag)) {
+            setNewImageTag('');
+            return;
+        }
+
+        setIsUpdatingTags(true);
+        try {
+            const imageRef = doc(db, 'users', user.uid, 'images', selectedImage.id);
+            await updateDoc(imageRef, {
+                tags: arrayUnion(tag)
+            });
+
+            // Update local state
+            const updatedTags = [...(selectedImage.tags || []), tag];
+            const updatedImage = { ...selectedImage, tags: updatedTags };
+            setSelectedImage(updatedImage);
+            setImages(prev => prev.map(img => img.id === selectedImage.id ? updatedImage : img));
+            setNewImageTag('');
+            showToast('Tag added', 'success');
+        } catch (error) {
+            console.error('Failed to add tag:', error);
+            showToast('Failed to add tag', 'error');
+        } finally {
+            setIsUpdatingTags(false);
+        }
+    };
+
+    // Handle Removing Tag from Image
+    const handleRemoveImageTag = async (tag: string) => {
+        if (!user || !selectedImage) return;
+
+        setIsUpdatingTags(true);
+        try {
+            const imageRef = doc(db, 'users', user.uid, 'images', selectedImage.id);
+            await updateDoc(imageRef, {
+                tags: arrayRemove(tag)
+            });
+
+            // Update local state
+            const updatedTags = (selectedImage.tags || []).filter(t => t !== tag);
+            const updatedImage = { ...selectedImage, tags: updatedTags };
+            setSelectedImage(updatedImage);
+            setImages(prev => prev.map(img => img.id === selectedImage.id ? updatedImage : img));
+            showToast('Tag removed', 'success');
+        } catch (error) {
+            console.error('Failed to remove tag:', error);
+            showToast('Failed to remove tag', 'error');
+        } finally {
+            setIsUpdatingTags(false);
+        }
+    };
+
+    // Modal Navigation
+    const handleNextImage = () => {
+        if (!selectedImage) return;
+        const index = filteredImages.findIndex(img => img.id === selectedImage.id);
+        if (index < filteredImages.length - 1) {
+            setSelectedImage(filteredImages[index + 1]);
+        }
+    };
+
+    const handlePrevImage = () => {
+        if (!selectedImage) return;
+        const index = filteredImages.findIndex(img => img.id === selectedImage.id);
+        if (index > 0) {
+            setSelectedImage(filteredImages[index - 1]);
+        }
+    };
+
+    // Keyboard Navigation
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (!selectedImage) return;
+
+            // Don't navigate if typing in an input
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+            if (e.key === 'ArrowRight') {
+                handleNextImage();
+            } else if (e.key === 'ArrowLeft') {
+                handlePrevImage();
+            } else if (e.key === 'Escape') {
+                setSelectedImage(null);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedImage, filteredImages]);
+
     const handleDelete = async (imageId: string) => {
         if (!user || !confirm('Are you sure you want to delete this image?')) return;
 
@@ -272,6 +417,35 @@ export default function GalleryPage() {
             console.error('Delete error:', error);
         } finally {
             setDeletingId(null);
+        }
+    };
+
+    const toggleImageSelection = (imageId: string) => {
+        setSelectedImageIds(prev => {
+            const next = new Set(prev);
+            if (next.has(imageId)) next.delete(imageId);
+            else next.add(imageId);
+            return next;
+        });
+    };
+
+    const handleBatchDelete = async () => {
+        if (!user || selectedImageIds.size === 0) return;
+        if (!confirm(`Delete ${selectedImageIds.size} image(s)? This cannot be undone.`)) return;
+        setBatchDeleting(true);
+        try {
+            await Promise.all(Array.from(selectedImageIds).map(id =>
+                deleteDoc(doc(db, 'users', user.uid, 'images', id))
+            ));
+            setImages(prev => prev.filter(img => !selectedImageIds.has(img.id)));
+            setSelectedImageIds(new Set());
+            setSelectionMode(false);
+            showToast('Batch delete complete!', 'success');
+        } catch (error) {
+            console.error('Batch delete error:', error);
+            showToast('Failed to delete some images', 'error');
+        } finally {
+            setBatchDeleting(false);
         }
     };
 
@@ -297,6 +471,7 @@ export default function GalleryPage() {
                 userId: user.uid,
                 name: newCollectionName.trim(),
                 imageCount: 0,
+                privacy: 'private',
                 createdAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 } as any,
                 updatedAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 } as any,
             };
@@ -496,6 +671,7 @@ export default function GalleryPage() {
                     </Link>
 
                     <div className="flex items-center gap-4">
+                        <GlobalSearch />
                         <Link href="/generate" className="btn-primary text-sm px-4 py-2">
                             + Generate New
                         </Link>
@@ -597,6 +773,37 @@ export default function GalleryPage() {
                                         {isGrouped ? 'Grouped' : 'Grid'}
                                     </button>
 
+                                    {/* Select Mode Toggle */}
+                                    <button
+                                        onClick={() => {
+                                            setSelectionMode(!selectionMode);
+                                            if (selectionMode) setSelectedImageIds(new Set());
+                                        }}
+                                        className={`px-3 py-2 rounded-lg text-sm font-medium border border-border transition-all flex items-center gap-2 ${selectionMode
+                                            ? 'bg-accent text-white border-accent shadow-lg shadow-accent/20'
+                                            : 'bg-background-secondary text-foreground hover:bg-background-secondary/80'
+                                            }`}
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                        </svg>
+                                        {selectionMode ? 'Cancel' : 'Select'}
+                                    </button>
+
+                                    {/* Tag Filter */}
+                                    <div className="h-6 w-px bg-border mx-2" />
+
+                                    <select
+                                        value={filterTag}
+                                        onChange={(e) => setFilterTag(e.target.value)}
+                                        className="px-3 py-2 bg-background-secondary border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground"
+                                    >
+                                        <option value="all">All Tags</option>
+                                        {Array.from(new Set(collections.flatMap(c => c.tags || []))).sort().map(tag => (
+                                            <option key={tag} value={tag}>#{tag}</option>
+                                        ))}
+                                    </select>
+
                                     <div className="h-6 w-px bg-border mx-2" />
 
                                     <select
@@ -622,8 +829,98 @@ export default function GalleryPage() {
                                         <option value="4:3">4:3 Standard</option>
                                         <option value="3:4">3:4 Portrait</option>
                                     </select>
+
+                                    {/* Advanced Filters Toggle */}
+                                    <div className="h-6 w-px bg-border mx-2" />
+                                    <button
+                                        onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                                        className={`px-3 py-2 rounded-lg text-sm font-medium border border-border transition-all flex items-center gap-2 ${showAdvancedFilters || filterSeed || filterGuidanceMin || filterGuidanceMax || filterHasNegativePrompt !== 'all'
+                                            ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20'
+                                            : 'bg-background-secondary text-foreground hover:bg-background-secondary/80'
+                                            }`}
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                                        </svg>
+                                        Advanced
+                                    </button>
                                 </div>
                             </div>
+
+                            {/* Advanced Filters Panel */}
+                            {showAdvancedFilters && (
+                                <div className="p-4 glass-card bg-background-secondary/30 rounded-xl animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h3 className="text-xs font-bold uppercase tracking-widest text-foreground-muted">Advanced Filters</h3>
+                                        <button
+                                            onClick={() => {
+                                                setFilterSeed('');
+                                                setFilterGuidanceMin('');
+                                                setFilterGuidanceMax('');
+                                                setFilterHasNegativePrompt('all');
+                                            }}
+                                            className="text-xs text-primary hover:underline font-medium"
+                                        >
+                                            Clear All
+                                        </button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-4 items-end">
+                                        {/* Seed Filter */}
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-[10px] font-bold uppercase text-foreground-muted">Seed</label>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. 42"
+                                                value={filterSeed}
+                                                onChange={(e) => setFilterSeed(e.target.value)}
+                                                className="w-28 px-3 py-2 bg-background-secondary border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder:text-foreground-muted"
+                                            />
+                                        </div>
+
+                                        {/* Guidance Scale Range */}
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-[10px] font-bold uppercase text-foreground-muted">Guidance Scale</label>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="number"
+                                                    placeholder="Min"
+                                                    value={filterGuidanceMin}
+                                                    onChange={(e) => setFilterGuidanceMin(e.target.value)}
+                                                    step="0.5"
+                                                    min="0"
+                                                    max="20"
+                                                    className="w-20 px-3 py-2 bg-background-secondary border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder:text-foreground-muted"
+                                                />
+                                                <span className="text-foreground-muted text-xs">—</span>
+                                                <input
+                                                    type="number"
+                                                    placeholder="Max"
+                                                    value={filterGuidanceMax}
+                                                    onChange={(e) => setFilterGuidanceMax(e.target.value)}
+                                                    step="0.5"
+                                                    min="0"
+                                                    max="20"
+                                                    className="w-20 px-3 py-2 bg-background-secondary border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder:text-foreground-muted"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Negative Prompt Filter */}
+                                        <div className="flex flex-col gap-1">
+                                            <label className="text-[10px] font-bold uppercase text-foreground-muted">Negative Prompt</label>
+                                            <select
+                                                value={filterHasNegativePrompt}
+                                                onChange={(e) => setFilterHasNegativePrompt(e.target.value as any)}
+                                                className="px-3 py-2 bg-background-secondary border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground"
+                                            >
+                                                <option value="all">Any</option>
+                                                <option value="yes">Has Negative Prompt</option>
+                                                <option value="no">No Negative Prompt</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {loadingImages ? (
@@ -670,13 +967,25 @@ export default function GalleryPage() {
                                                 key={key}
                                                 className="group relative rounded-xl overflow-hidden bg-background-secondary cursor-pointer hover:ring-2 hover:ring-primary transition-all shadow-lg"
                                                 onClick={() => {
-                                                    if (isSingle) {
+                                                    if (selectionMode) {
+                                                        groupImages.forEach(img => toggleImageSelection(img.id));
+                                                    } else if (isSingle) {
                                                         setSelectedImage(firstImage);
                                                     } else {
                                                         setSelectedGroup(groupImages);
                                                     }
                                                 }}
                                             >
+                                                {/* Selection checkbox */}
+                                                {selectionMode && (
+                                                    <div className="absolute top-2 left-2 z-20">
+                                                        <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${groupImages.some(img => selectedImageIds.has(img.id)) ? 'bg-primary border-primary' : 'border-white/60 bg-black/30'}`}>
+                                                            {groupImages.some(img => selectedImageIds.has(img.id)) && (
+                                                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
                                                 {/* Stack effect for multiple images */}
                                                 {!isSingle && (
                                                     <div className="absolute top-0 right-0 p-2 z-10">
@@ -755,8 +1064,18 @@ export default function GalleryPage() {
                                         <div
                                             key={image.id}
                                             className="group relative rounded-xl overflow-hidden bg-background-secondary cursor-pointer hover:ring-2 hover:ring-primary transition-all shadow-lg"
-                                            onClick={() => setSelectedImage(image)}
+                                            onClick={() => selectionMode ? toggleImageSelection(image.id) : setSelectedImage(image)}
                                         >
+                                            {/* Selection checkbox */}
+                                            {selectionMode && (
+                                                <div className="absolute top-2 left-2 z-20">
+                                                    <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${selectedImageIds.has(image.id) ? 'bg-primary border-primary' : 'border-white/60 bg-black/30'}`}>
+                                                        {selectedImageIds.has(image.id) && (
+                                                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
                                             <div className="aspect-square">
                                                 <img
                                                     src={image.imageUrl}
@@ -852,8 +1171,30 @@ export default function GalleryPage() {
                         // So when we set selectedImage(null), the Group Modal condition becoming true again will re-render it.
                     }}
                 >
+                    {/* Navigation Buttons - Outside the main modal content but inside the overlay */}
+                    <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 flex justify-between pointer-events-none">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); handlePrevImage(); }}
+                            className="w-12 h-12 flex items-center justify-center bg-black/50 hover:bg-black/80 text-white rounded-full transition-all pointer-events-auto shadow-lg border border-white/10 group"
+                            title="Previous Image (Arrow Left)"
+                        >
+                            <svg className="w-6 h-6 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); handleNextImage(); }}
+                            className="w-12 h-12 flex items-center justify-center bg-black/50 hover:bg-black/80 text-white rounded-full transition-all pointer-events-auto shadow-lg border border-white/10 group"
+                            title="Next Image (Arrow Right)"
+                        >
+                            <svg className="w-6 h-6 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 19l7-7-7-7" />
+                            </svg>
+                        </button>
+                    </div>
+
                     <div
-                        className="bg-background rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden"
+                        className="bg-background rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden relative"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="flex flex-col md:flex-row min-h-0 flex-1">
@@ -1000,6 +1341,56 @@ export default function GalleryPage() {
                                                     {selectedImage.promptSetID || 'No Set ID'}
                                                 </p>
                                             )}
+                                        </div>
+
+                                        <div className="pt-2 border-t border-border/50">
+                                            <label className="text-xs text-foreground-muted uppercase tracking-wide flex items-center justify-between mb-2">
+                                                Tags
+                                                {isUpdatingTags && <div className="spinner-xs" />}
+                                            </label>
+
+                                            <div className="flex flex-wrap gap-1.5 mb-3">
+                                                {(selectedImage.tags || []).map(tag => (
+                                                    <span
+                                                        key={tag}
+                                                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-[11px] font-medium rounded-full border border-primary/20 group/tag"
+                                                    >
+                                                        #{tag}
+                                                        <button
+                                                            onClick={() => handleRemoveImageTag(tag)}
+                                                            className="hover:text-red-500 transition-colors"
+                                                            title="Remove tag"
+                                                        >
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                            </svg>
+                                                        </button>
+                                                    </span>
+                                                ))}
+                                                {(selectedImage.tags || []).length === 0 && (
+                                                    <span className="text-xs text-foreground-muted italic">No tags added</span>
+                                                )}
+                                            </div>
+
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    value={newImageTag}
+                                                    onChange={(e) => setNewImageTag(e.target.value)}
+                                                    onKeyDown={(e) => e.key === 'Enter' && handleAddImageTag()}
+                                                    placeholder="Add a tag..."
+                                                    className="w-full bg-background-secondary border border-border rounded-lg pl-3 pr-10 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground"
+                                                />
+                                                <button
+                                                    onClick={handleAddImageTag}
+                                                    disabled={!newImageTag.trim() || isUpdatingTags}
+                                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-primary hover:text-primary-hover disabled:opacity-50"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                                    </svg>
+                                                </button>
+                                            </div>
                                         </div>
 
                                         <div>
@@ -1193,6 +1584,7 @@ export default function GalleryPage() {
                                                                             id: newColRef.id,
                                                                             name,
                                                                             userId: user!.uid,
+                                                                            privacy: 'private',
                                                                             createdAt: { seconds: Date.now() / 1000 } as any,
                                                                             updatedAt: { seconds: Date.now() / 1000 } as any,
                                                                             imageCount: 0
@@ -1306,6 +1698,43 @@ export default function GalleryPage() {
                             </div>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Floating Batch Action Bar */}
+            {selectionMode && selectedImageIds.size > 0 && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] bg-background/95 backdrop-blur-xl border border-border shadow-2xl rounded-2xl px-6 py-3 flex items-center gap-4 animate-in slide-in-from-bottom-4 duration-300">
+                    <span className="text-sm font-bold text-foreground">
+                        {selectedImageIds.size} selected
+                    </span>
+                    <div className="h-5 w-px bg-border" />
+                    <button
+                        onClick={() => setSelectedImageIds(new Set(filteredImages.map(img => img.id)))}
+                        className="text-xs font-medium text-primary hover:underline"
+                    >
+                        Select All
+                    </button>
+                    <button
+                        onClick={() => setSelectedImageIds(new Set())}
+                        className="text-xs font-medium text-foreground-muted hover:underline"
+                    >
+                        Deselect All
+                    </button>
+                    <div className="h-5 w-px bg-border" />
+                    <button
+                        onClick={handleBatchDelete}
+                        disabled={batchDeleting}
+                        className="px-4 py-2 bg-error hover:bg-error/90 text-white text-sm font-bold rounded-lg transition-all flex items-center gap-2 disabled:opacity-50"
+                    >
+                        {batchDeleting ? (
+                            <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                        ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        )}
+                        Delete Selected
+                    </button>
                 </div>
             )}
         </div>

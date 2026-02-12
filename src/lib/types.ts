@@ -8,7 +8,7 @@ export type FirestoreTimestamp = any;
 export interface Notification {
     id: string;
     userId: string; // The person receiving the notification
-    type: 'vote' | 'comment' | 'follow' | 'system';
+    type: 'vote' | 'comment' | 'follow' | 'mention' | 'system';
     actorId: string; // The person who triggered the notification
     actorName: string;
     actorPhotoURL?: string;
@@ -27,6 +27,7 @@ export interface UserProfile {
     uid: string;
     email: string;
     displayName: string | null;
+    username?: string; // Unique handle for @mentions
     photoURL: string | null;
     role: UserRole;
     actingAs?: UserRole; // For role-switching (admin viewing as member)
@@ -35,6 +36,7 @@ export interface UserProfile {
     totalInfluence?: number; // Sum of all upvotes across league entries
     followerCount?: number;
     followingCount?: number;
+    badges?: string[]; // Achievement tags like 'elite', 'verified'
     bio?: string;
     bannerUrl?: string;
     socialLinks?: {
@@ -46,8 +48,16 @@ export interface UserProfile {
     updatedAt: FirestoreTimestamp;
 }
 
+// Creator Badges Configuration
+export const BADGES: Record<string, { label: string, icon: string, color: string }> = {
+    'elite': { label: 'Elite Creator', icon: '🎖️', color: 'text-yellow-500' },
+    'verified': { label: 'Verified', icon: '✅', color: 'text-blue-500' },
+    'og': { label: 'OG Member', icon: '💎', color: 'text-purple-500' },
+    'staff': { label: 'Staff', icon: '🛡️', color: 'text-error' },
+};
+
 // Admin email for initial setup
-export const ADMIN_EMAILS = ['heidlessemail18@gmail.com'];
+export const ADMIN_EMAILS = ['heidlessemail18@gmail.com', 'heidlessemail17@gmail.com'];
 
 // ============================================
 // Credit System Types
@@ -103,6 +113,9 @@ export interface GenerationSettings {
     promptType: 'freeform' | 'madlibs';
     madlibsData?: MadLibsSelection;
     promptSetID?: string;
+    negativePrompt?: string;
+    seed?: number;
+    guidanceScale?: number;
 }
 
 export interface MadLibsSelection {
@@ -129,6 +142,7 @@ export interface GeneratedImage {
     promptSetID?: string;       // Unique ID for the batch/generation set
     publishedToLeague?: boolean;  // Whether image is published to community league
     leagueEntryId?: string;       // Reference to leagueEntries doc when published
+    tags?: string[];             // Per-image tagging for discovery
 }
 
 // ============================================
@@ -147,6 +161,7 @@ export interface LeagueEntry {
     // Author info (denormalized)
     authorName: string;
     authorPhotoURL: string | null;
+    authorBadges?: string[];
     // League metadata
     publishedAt: FirestoreTimestamp;
     // Engagement
@@ -155,6 +170,7 @@ export interface LeagueEntry {
     reportCount?: number;
     isModerated?: boolean;
     votes: Record<string, boolean>; // userId → true
+    reactions?: Record<string, string[]>; // emoji → [userIds]
 }
 
 export interface LeagueComment {
@@ -163,8 +179,10 @@ export interface LeagueComment {
     userId: string;
     userName: string;
     userPhotoURL: string | null;
+    userBadges?: string[];
     text: string;
     createdAt: FirestoreTimestamp;
+    reportCount?: number;
 }
 
 // ============================================
@@ -178,6 +196,8 @@ export interface Collection {
     description?: string;
     coverImageUrl?: string;
     imageCount: number;
+    privacy: 'public' | 'private';
+    tags?: string[];
     createdAt: FirestoreTimestamp;
     updatedAt: FirestoreTimestamp;
 }

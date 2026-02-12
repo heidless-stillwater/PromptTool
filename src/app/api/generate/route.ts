@@ -91,7 +91,8 @@ export async function POST(request: NextRequest) {
         }
 
         // Check if advanced controls are used (Pro only)
-        const isUsingAdvanced = seed !== undefined || negativePrompt !== undefined || guidanceScale !== undefined;
+        // Note: 7.0 is the default guidance scale, so we allow it for all tiers
+        const isUsingAdvanced = seed !== undefined || (negativePrompt !== undefined && negativePrompt.trim() !== '') || (guidanceScale !== undefined && guidanceScale !== 7.0);
         if (isUsingAdvanced && userProfile.subscription !== 'pro') {
             return NextResponse.json({
                 error: 'Advanced precision controls are Pro-only features'
