@@ -11,7 +11,9 @@ import { useToast } from '@/components/Toast';
 import GlobalSearch from '@/components/GlobalSearch';
 import { useSearchParams } from 'next/navigation';
 
-export default function CollectionsPage() {
+import { Suspense } from 'react';
+
+function CollectionsContent() {
     const { user, loading } = useAuth();
     const { showToast } = useToast();
     const searchParams = useSearchParams();
@@ -248,5 +250,13 @@ export default function CollectionsPage() {
                 </div>
             )}
         </div>
+    );
+}
+
+export default function CollectionsPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="spinner" /></div>}>
+            <CollectionsContent />
+        </Suspense>
     );
 }

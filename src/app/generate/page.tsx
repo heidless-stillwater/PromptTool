@@ -1288,7 +1288,7 @@ function GeneratePageContent() {
                                         </div>
                                         <div className="px-1 overflow-hidden">
                                             <p className="text-[10px] text-foreground-muted line-clamp-2 italic mb-1">
-                                                "{img.prompt}"
+                                                &quot;{img.prompt}&quot;
                                             </p>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-[8px] font-bold uppercase py-0.5 px-1.5 bg-primary/10 text-primary rounded">

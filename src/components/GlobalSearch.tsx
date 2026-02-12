@@ -171,7 +171,7 @@ export default function GlobalSearch() {
                         {results.collections.length === 0 && results.images.length === 0 && !isLoading && (
                             <div className="py-8 text-center">
                                 <div className="text-3xl mb-2 opacity-30">🔍</div>
-                                <div className="text-sm text-foreground-muted">No results found for "{searchQuery}"</div>
+                                <div className="text-sm text-foreground-muted">No results found for &quot;{searchQuery}&quot;</div>
                             </div>
                         )}
                     </div>

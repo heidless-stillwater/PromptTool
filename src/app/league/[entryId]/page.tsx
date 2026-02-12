@@ -1,11 +1,15 @@
 import { Metadata } from 'next';
 import { adminDb } from '@/lib/firebase-admin';
-import { redirect } from 'next/navigation';
+import EntryRedirectClient from './EntryRedirectClient';
 
 interface PageProps {
     params: {
         entryId: string;
     };
+}
+
+export function generateStaticParams() {
+    return [{ entryId: '1' }];
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -51,8 +55,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     }
 }
 
+export const dynamic = 'force-static';
+export const dynamicParams = false;
+
 export default function EntryRedirectPage({ params }: PageProps) {
-    // Client-side redirect to the main league page with the entry modal open
-    const { entryId } = params;
-    redirect(`/league?entryId=${entryId}`);
+    return <EntryRedirectClient entryId={params.entryId} />;
 }

@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { displayName, username, bio, socialLinks, bannerUrl } = body;
+        const { displayName, username, bio, socialLinks, bannerUrl, photoURL } = body;
 
         // Basic Validation
         if (displayName && displayName.trim().length > 50) {
@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
         if (bio !== undefined) updateData.bio = bio;
         if (socialLinks !== undefined) updateData.socialLinks = socialLinks;
         if (bannerUrl !== undefined) updateData.bannerUrl = bannerUrl;
+        if (photoURL !== undefined) updateData.photoURL = photoURL;
 
         await adminDb.collection('users').doc(userId).update(updateData);
 

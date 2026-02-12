@@ -7,9 +7,28 @@ import { ToastProvider } from '@/components/Toast';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-    title: 'AI Image Studio - Transform Your Ideas Into Art',
+    title: {
+        default: 'AI Image Studio - Transform Your Ideas Into Art',
+        template: '%s | AI Image Studio',
+    },
     description: 'Create stunning AI-generated images from text prompts. Professional-quality results with multiple styles and resolutions.',
     keywords: 'AI, image generation, art, prompts, creative, digital art',
+    openGraph: {
+        title: 'AI Image Studio - Transform Your Ideas Into Art',
+        description: 'Create stunning AI-generated images from text prompts. Professional-quality results with multiple styles and resolutions.',
+        siteName: 'AI Image Studio',
+        type: 'website',
+        locale: 'en_US',
+    },
+    twitter: {
+        card: 'summary',
+        title: 'AI Image Studio - Transform Your Ideas Into Art',
+        description: 'Create stunning AI-generated images from text prompts.',
+    },
+    robots: {
+        index: true,
+        follow: true,
+    },
 };
 
 export default function RootLayout({

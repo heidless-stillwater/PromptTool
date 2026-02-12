@@ -49,8 +49,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Update last login and any changed fields
             const updatedProfile: UserProfile = {
                 ...existingProfile,
-                displayName: firebaseUser.displayName,
-                photoURL: firebaseUser.photoURL,
+                // Only update if missing, otherwise respect user's custom changes
+                displayName: existingProfile.displayName || firebaseUser.displayName,
+                photoURL: existingProfile.photoURL || firebaseUser.photoURL,
                 subscription: existingProfile.subscription || 'free',
                 audienceMode: existingProfile.audienceMode || 'casual',
                 updatedAt: Timestamp.now(),

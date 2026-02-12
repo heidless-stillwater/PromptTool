@@ -5,6 +5,7 @@
     "scripts": {
         "dev": "next dev",
         "build": "next build",
+        "build:export": "mv src/app/api src/api-temp && next build && mv src/api-temp src/app/api",
         "start": "next start",
         "lint": "next lint"
     },

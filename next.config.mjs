@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    // output: 'export', // Uncomment for Firebase Hosting deployment
-    // trailingSlash: true,
+    output: 'export', // Uncomment for Firebase Hosting deployment
+    trailingSlash: true,
     images: {
         unoptimized: true,
         remotePatterns: [
