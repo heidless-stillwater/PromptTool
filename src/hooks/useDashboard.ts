@@ -23,7 +23,7 @@ import { useToast } from '@/components/Toast';
 import { GeneratedImage, CreditTransaction, Collection } from '@/lib/types';
 
 export function useDashboard() {
-    const { user, profile, credits, loading: authLoading, signOut, switchRole, effectiveRole, setAudienceMode } = useAuth();
+    const { user, profile, credits, loading: authLoading, signOut, switchRole, effectiveRole, setAudienceMode, isAdmin, isSu } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
     const { showToast } = useToast();
@@ -309,6 +309,7 @@ export function useDashboard() {
         collections, loadingImages, loadingLeague, loadingHistory, isHistoryExpanded,
         isGrouped, selectionMode, selectedIds, isBulkDeleting, isBulkPublishing,
         isBulkCollecting, isBulkTagging, isCollectionModalOpen, isTagModalOpen, effectiveRole,
+        isAdmin, isSu,
 
         // Actions
         signOut, switchRole, setAudienceMode, setIsHistoryExpanded, setIsGrouped,

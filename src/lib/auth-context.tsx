@@ -25,6 +25,8 @@ interface AuthContextType {
     switchRole: (role: UserRole) => Promise<void>;
     setAudienceMode: (mode: AudienceMode) => Promise<void>;
     effectiveRole: UserRole;
+    isAdmin: boolean;
+    isSu: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,6 +40,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Determine effective role (considering role-switching)
     const effectiveRole: UserRole = profile?.actingAs || profile?.role || 'member';
+    const isAdmin = profile?.role === 'admin' || profile?.role === 'su';
+    const isSu = profile?.role === 'su';
 
     // Create or update user profile
     const createOrUpdateProfile = async (firebaseUser: User): Promise<UserProfile> => {
@@ -152,6 +156,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
             setError(null);
             const provider = new GoogleAuthProvider();
+            // Force account selection every time
+            provider.setCustomParameters({
+                prompt: 'select_account'
+            });
             await signInWithPopup(auth, provider);
         } catch (err: any) {
             setError(err.message);
@@ -276,6 +284,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 switchRole,
                 setAudienceMode,
                 effectiveRole,
+                isAdmin,
+                isSu,
             }}
         >
             {children}

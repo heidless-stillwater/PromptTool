@@ -32,7 +32,7 @@ function DashboardContent() {
         toggleSelectionMode, toggleImageSelection, toggleImageGroupSelection,
         handleSelectAll, handleBulkDelete, handleBulkAddToCollection,
         handleBulkPublishToLeague, handleBulkAddTags, setIsCollectionModalOpen,
-        setIsTagModalOpen, groupImagesByPromptSet, setSelectedIds
+        setIsTagModalOpen, groupImagesByPromptSet, setSelectedIds, isAdmin, isSu
     } = useDashboard();
 
     if (authLoading) {
@@ -49,7 +49,7 @@ function DashboardContent() {
         ? Math.max(0, credits.dailyAllowance - credits.dailyAllowanceUsed)
         : 0;
 
-    const isAdminOrSu = profile.role === 'admin' || profile.role === 'su';
+    const isAdminOrSu = isAdmin;
 
     return (
         <div className="min-h-screen">

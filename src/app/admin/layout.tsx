@@ -15,19 +15,17 @@ const ADMIN_NAV_ITEMS = [
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-    const { user, profile, loading } = useAuth();
+    const { user, profile, loading, isAdmin } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
 
-    const isAdminOrSu = profile?.role === 'admin' || profile?.role === 'su';
-
     useEffect(() => {
-        if (!loading && (!user || !isAdminOrSu)) {
+        if (!loading && (!user || !isAdmin)) {
             router.push('/dashboard');
         }
-    }, [user, profile, loading, isAdminOrSu, router]);
+    }, [user, profile, loading, isAdmin, router]);
 
-    if (loading || !user || !isAdminOrSu) {
+    if (loading || !user || !isAdmin) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <Icons.spinner className="w-8 h-8 animate-spin text-primary" />
