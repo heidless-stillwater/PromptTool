@@ -3,6 +3,10 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { CURATED_FONTS } from '@/lib/fonts';
 import { FontOption } from '@/lib/types';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
+import { Icons } from '@/components/ui/Icons';
 
 interface TextOverlayEditorProps {
     imageUrl: string;
@@ -126,7 +130,7 @@ export default function TextOverlayEditor({ imageUrl, onClose, onSave }: TextOve
                     </div>
 
                     <div className="relative aspect-auto bg-black rounded-lg overflow-hidden flex items-center justify-center cursor-crosshair border border-border/50">
-                        {!imageLoaded && <div className="spinner" />}
+                        {!imageLoaded && <Icons.spinner className="w-8 h-8 animate-spin text-primary" />}
                         <canvas
                             ref={canvasRef}
                             onClick={handleCanvasClick}
@@ -143,39 +147,37 @@ export default function TextOverlayEditor({ imageUrl, onClose, onSave }: TextOve
                             <textarea
                                 value={text}
                                 onChange={(e) => setText(e.target.value)}
-                                className="input-field min-h-[100px] resize-none"
+                                className="w-full px-4 py-3 rounded-xl bg-background-secondary border border-border text-foreground transition-all duration-200 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 placeholder:text-foreground-muted min-h-[100px] resize-none"
                                 placeholder="Enter text..."
                             />
                         </div>
 
                         <div>
                             <label className="block text-sm font-medium mb-1.5 text-foreground-muted uppercase tracking-wider">Font Family</label>
-                            <select
+                            <Select
                                 value={selectedFont.family}
-                                onChange={(e) => {
+                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                                     const font = CURATED_FONTS.find(f => f.family === e.target.value);
                                     if (font) setSelectedFont(font);
                                 }}
-                                className="select-field"
                             >
                                 {CURATED_FONTS.map(font => (
                                     <option key={font.family} value={font.family} style={{ fontFamily: font.family }}>
                                         {font.family}
                                     </option>
                                 ))}
-                            </select>
+                            </Select>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium mb-1.5 text-foreground-muted uppercase tracking-wider">Size</label>
-                                <input
+                                <Input
                                     type="number"
                                     value={fontSize}
-                                    onChange={(e) => setFontSize(Number(e.target.value))}
-                                    className="input-field"
-                                    min="10"
-                                    max="500"
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFontSize(Number(e.target.value))}
+                                    min={10}
+                                    max={500}
                                 />
                             </div>
                             <div>
@@ -193,18 +195,19 @@ export default function TextOverlayEditor({ imageUrl, onClose, onSave }: TextOve
                     </div>
 
                     <div className="mt-auto pt-6 border-t border-border flex flex-col gap-3">
-                        <button
+                        <Button
                             onClick={handleExport}
-                            className="btn-primary w-full py-4 text-lg"
+                            className="w-full py-4 text-lg"
                         >
                             Apply & Download
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                            variant="secondary"
                             onClick={onClose}
-                            className="btn-secondary w-full"
+                            className="w-full"
                         >
                             Cancel
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </div>

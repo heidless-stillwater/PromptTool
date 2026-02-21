@@ -34,6 +34,10 @@
         ".next/types/**/*.ts"
     ],
     "exclude": [
-        "node_modules"
+        "node_modules",
+        "check_user.ts",
+        "find_heidless_uid.ts",
+        "find_image.ts",
+        "test-gemini.ts"
     ]
 }

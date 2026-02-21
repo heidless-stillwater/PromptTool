@@ -30,6 +30,16 @@ if (!getApps().length) {
 adminAuth = getAuth(adminApp);
 // Use named database
 adminDb = getFirestore(adminApp, databaseId);
+if (adminApp.options.projectId) { // Basic check to ensure app is valid
+    try {
+        adminDb.settings({ ignoreUndefinedProperties: true });
+    } catch (e) {
+        // Ignore "already initialized" errors in dev mode
+        if (!(e as any).message?.includes('already been initialized')) {
+            throw e;
+        }
+    }
+}
 adminStorage = getStorage(adminApp);
 
 export { adminApp, adminAuth, adminDb, adminStorage };

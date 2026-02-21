@@ -5,8 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import Link from 'next/link';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Icons } from '@/components/ui/Icons';
+import { cn } from '@/lib/utils';
 
 interface AnalyticsStats {
     totalUpvotes: number;
@@ -33,6 +36,10 @@ export default function AnalyticsPage() {
     const [entryData, setEntryData] = useState<any[]>([]);
     const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
     const [isFetching, setIsFetching] = useState(true);
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
+        key: 'engagement',
+        direction: 'desc'
+    });
 
     useEffect(() => {
         if (!loading && !user) {
@@ -108,10 +115,48 @@ export default function AnalyticsPage() {
         }
     }, [user]);
 
+    const handleSort = (key: string) => {
+        setSortConfig(prev => ({
+            key,
+            direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc'
+        }));
+    };
+
+    const sortedEntries = [...entryData].sort((a, b) => {
+        const { key, direction } = sortConfig;
+
+        let valA: any;
+        let valB: any;
+
+        if (key === 'engagement') {
+            valA = (a.voteCount || 0) + (a.commentCount || 0);
+            valB = (b.voteCount || 0) + (b.commentCount || 0);
+        } else if (key === 'publishedAt') {
+            valA = a.publishedAt?.toDate ? a.publishedAt.toDate().getTime() : new Date(a.publishedAt).getTime();
+            valB = b.publishedAt?.toDate ? b.publishedAt.toDate().getTime() : new Date(b.publishedAt).getTime();
+        } else if (key === 'prompt') {
+            valA = (a[key] || '').toString();
+            valB = (b[key] || '').toString();
+            return direction === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        } else {
+            valA = Number(a[key] || 0);
+            valB = Number(b[key] || 0);
+        }
+
+        if (valA < valB) return direction === 'asc' ? -1 : 1;
+        if (valA > valB) return direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    const SortIndicator = ({ columnKey }: { columnKey: string }) => {
+        if (sortConfig.key !== columnKey) return <span className="ml-1 opacity-20 text-[10px]">↕</span>;
+        return <span className="ml-1 text-primary text-[10px]">{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>;
+    };
+
     if (loading || isFetching) {
         return (
             <div className="min-h-screen flex items-center justify-center">
-                <div className="spinner" />
+                <Icons.spinner className="w-10 h-10 animate-spin text-primary" />
             </div>
         );
     }
@@ -121,42 +166,45 @@ export default function AnalyticsPage() {
     return (
         <div className="min-h-screen pb-20">
             {/* Header */}
-            <header className="sticky top-0 z-50 glass-card border-b border-border">
+            <Card variant="glass" className="sticky top-0 z-50 rounded-none border-x-0 border-t-0 border-b border-border">
                 <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <Link href="/dashboard" className="p-2 hover:bg-background-secondary rounded-xl transition-colors">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                <path d="M19 12H5M12 19l-7-7 7-7" />
-                            </svg>
-                        </Link>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => router.push('/dashboard')}
+                            className="hover:bg-background-secondary rounded-xl"
+                        >
+                            <Icons.arrowLeft size={20} />
+                        </Button>
                         <h1 className="text-xl font-bold">Creator Analytics</h1>
                     </div>
                 </div>
-            </header>
+            </Card>
 
             <main className="max-w-7xl mx-auto px-4 py-8">
                 {/* Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-                    <div className="card bg-primary/5 border-primary/20">
+                    <Card className="bg-primary/5 border-primary/20">
                         <p className="text-sm font-bold uppercase tracking-widest text-primary mb-1">Total Reach</p>
                         <p className="text-4xl font-black">{stats.totalReach}</p>
                         <p className="text-xs text-foreground-muted mt-2">Combined engagement</p>
-                    </div>
-                    <div className="card">
+                    </Card>
+                    <Card>
                         <p className="text-sm font-bold uppercase tracking-widest text-foreground-muted mb-1">Upvotes</p>
                         <p className="text-4xl font-black">❤️ {stats.totalUpvotes}</p>
                         <p className="text-xs text-foreground-muted mt-2">Total likes received</p>
-                    </div>
-                    <div className="card">
+                    </Card>
+                    <Card>
                         <p className="text-sm font-bold uppercase tracking-widest text-foreground-muted mb-1">Comments</p>
                         <p className="text-4xl font-black">💬 {stats.totalComments}</p>
                         <p className="text-xs text-foreground-muted mt-2">Discussion contribution</p>
-                    </div>
-                    <div className="card">
+                    </Card>
+                    <Card>
                         <p className="text-sm font-bold uppercase tracking-widest text-foreground-muted mb-1">League Entries</p>
                         <p className="text-4xl font-black">🏆 {stats.totalEntries}</p>
                         <p className="text-xs text-foreground-muted mt-2">Content published</p>
-                    </div>
+                    </Card>
                 </div>
 
                 {/* Visualizations */}
@@ -165,7 +213,7 @@ export default function AnalyticsPage() {
                         <h2 className="text-2xl font-bold">Engagement Trends</h2>
                         <span className="text-sm text-foreground-muted font-medium">Last 30 days</span>
                     </div>
-                    <div className="glass-card h-[350px] w-full pt-8 pb-4 pr-6">
+                    <Card variant="glass" className="h-[350px] w-full pt-8 pb-4 pr-6">
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={chartData}>
                                 <defs>
@@ -207,70 +255,120 @@ export default function AnalyticsPage() {
                                 />
                             </AreaChart>
                         </ResponsiveContainer>
-                    </div>
+                    </Card>
                 </section>
 
                 {/* Content Performance */}
                 <section className="space-y-6">
                     <div className="flex items-center justify-between">
                         <h2 className="text-2xl font-bold">Content Performance</h2>
-                        <span className="text-sm text-foreground-muted font-medium">Sorted by engagement</span>
+                        <span className="text-sm text-foreground-muted font-medium">
+                            Sorted by {sortConfig.key === 'engagement' ? 'engagement' :
+                                sortConfig.key === 'voteCount' ? 'upvotes' :
+                                    sortConfig.key === 'commentCount' ? 'comments' :
+                                        sortConfig.key === 'prompt' ? 'prompt' : 'date'} ({sortConfig.direction})
+                        </span>
                     </div>
 
                     {entryData.length === 0 ? (
-                        <div className="card text-center py-20 grayscale opacity-50">
+                        <Card className="text-center py-20 grayscale opacity-50">
                             <div className="text-6xl mb-4">📉</div>
                             <h3 className="text-xl font-bold mb-2">No data yet</h3>
                             <p className="text-foreground-muted mb-6">Publish images to the League to start seeing analytics!</p>
-                            <Link href="/league" className="btn-primary inline-block">Visit League</Link>
-                        </div>
+                            <Button onClick={() => router.push('/league')}>Visit League</Button>
+                        </Card>
                     ) : (
-                        <div className="glass-card overflow-hidden">
+                        <Card variant="glass" className="overflow-hidden">
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="border-b border-border bg-background-secondary/50">
-                                            <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider">Preview</th>
-                                            <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider">Prompt</th>
-                                            <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-center">Upvotes</th>
-                                            <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-center">Comments</th>
-                                            <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-right">Engagement</th>
+                                            <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider w-20">Preview</th>
+                                            <th
+                                                className="px-6 py-4 text-xs font-bold uppercase tracking-wider cursor-pointer hover:bg-white/5 transition-colors group"
+                                                onClick={() => handleSort('prompt')}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    Prompt <SortIndicator columnKey="prompt" />
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-center cursor-pointer hover:bg-white/5 transition-colors group"
+                                                onClick={() => handleSort('publishedAt')}
+                                            >
+                                                <div className="flex items-center justify-center gap-2">
+                                                    Published <SortIndicator columnKey="publishedAt" />
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-center cursor-pointer hover:bg-white/5 transition-colors group"
+                                                onClick={() => handleSort('voteCount')}
+                                            >
+                                                <div className="flex items-center justify-center gap-2">
+                                                    Upvotes <SortIndicator columnKey="voteCount" />
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-center cursor-pointer hover:bg-white/5 transition-colors group"
+                                                onClick={() => handleSort('commentCount')}
+                                            >
+                                                <div className="flex items-center justify-center gap-2">
+                                                    Comments <SortIndicator columnKey="commentCount" />
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-right cursor-pointer hover:bg-white/5 transition-colors group"
+                                                onClick={() => handleSort('engagement')}
+                                            >
+                                                <div className="flex items-center justify-end gap-2">
+                                                    Engagement <SortIndicator columnKey="engagement" />
+                                                </div>
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-border">
-                                        {entryData.map((entry) => {
+                                        {sortedEntries.map((entry) => {
                                             const engagement = (entry.voteCount || 0) + (entry.commentCount || 0);
                                             const maxEngagement = stats.totalReach || 1;
                                             const barWidth = Math.max(5, (engagement / maxEngagement) * 100);
+                                            const pubDate = new Date(entry.publishedAt?.toDate ? entry.publishedAt.toDate() : entry.publishedAt);
 
                                             return (
                                                 <tr key={entry.id} className="hover:bg-primary/5 transition-colors group">
                                                     <td className="px-6 py-4">
-                                                        <div className="w-16 h-10 rounded-lg overflow-hidden border border-border group-hover:scale-110 transition-transform">
-                                                            <img src={entry.imageUrl} alt="" className="w-full h-full object-cover" />
+                                                        <div className="w-16 h-10 rounded-lg overflow-hidden border border-border group-hover:scale-110 transition-transform bg-background-tertiary">
+                                                            {(() => {
+                                                                const isVid = !!(entry.videoUrl || entry.settings?.modality === 'video');
+                                                                if (isVid) {
+                                                                    return <video src={entry.videoUrl || entry.imageUrl} className="w-full h-full object-cover" muted playsInline preload="metadata" />;
+                                                                }
+                                                                return <img src={entry.imageUrl} alt="" className="w-full h-full object-cover" />;
+                                                            })()}
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        <p className="text-sm font-medium line-clamp-1 max-w-xs">{entry.prompt}</p>
-                                                        <p className="text-[10px] text-foreground-muted uppercase tracking-tighter mt-0.5">
-                                                            {new Date(entry.publishedAt?.toDate ? entry.publishedAt.toDate() : entry.publishedAt).toLocaleDateString()}
-                                                        </p>
+                                                        <p className="text-sm font-medium line-clamp-1 max-w-[200px]" title={entry.prompt}>{entry.prompt}</p>
                                                     </td>
-                                                    <td className="px-6 py-4 text-center font-bold">
+                                                    <td className="px-6 py-4 text-center">
+                                                        <span className="text-xs text-foreground-muted font-bold whitespace-nowrap">
+                                                            {pubDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center font-bold text-lg">
                                                         {entry.voteCount || 0}
                                                     </td>
-                                                    <td className="px-6 py-4 text-center font-bold">
+                                                    <td className="px-6 py-4 text-center font-bold text-lg">
                                                         {entry.commentCount || 0}
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center justify-end gap-3">
-                                                            <div className="flex-1 max-w-[100px] h-1.5 bg-background-tertiary rounded-full overflow-hidden">
+                                                            <div className="hidden sm:flex flex-1 max-w-[80px] h-1.5 bg-background-tertiary rounded-full overflow-hidden">
                                                                 <div
                                                                     className="h-full bg-primary rounded-full"
                                                                     style={{ width: `${barWidth}%` }}
                                                                 />
                                                             </div>
-                                                            <span className="text-sm font-black w-8 text-right">{engagement}</span>
+                                                            <span className="text-lg font-black w-8 text-right">{engagement}</span>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -279,7 +377,7 @@ export default function AnalyticsPage() {
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
+                        </Card>
                     )}
                 </section>
             </main>

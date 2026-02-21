@@ -6,6 +6,9 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { Notification } from '@/lib/types';
 import Link from 'next/link';
+import { Card } from '@/components/ui/Card';
+
+import { useToast } from '@/components/Toast';
 
 export default function NotificationBell() {
     const { user } = useAuth();
@@ -13,6 +16,8 @@ export default function NotificationBell() {
     const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const { showToast } = useToast();
+    const isFirstLoad = useRef(true);
 
     useEffect(() => {
         if (!user) return;
@@ -27,12 +32,28 @@ export default function NotificationBell() {
                 ...doc.data()
             } as Notification));
 
+            // Real-time toast for new notifications
+            if (!isFirstLoad.current) {
+                const newUnread = fetched.filter(n => !n.read && !notifications.some(existing => existing.id === n.id));
+                if (newUnread.length > 0) {
+                    newUnread.forEach(n => {
+                        const message = n.type === 'vote' ? `${n.actorName} upvoted your creation!` :
+                            n.type === 'comment' ? `${n.actorName} commented on your work` :
+                                n.type === 'follow' ? `${n.actorName} started following you` :
+                                    n.type === 'mention' ? `${n.actorName} mentioned you!` :
+                                        'New interaction available';
+                        showToast(message, 'info');
+                    });
+                }
+            }
+
             setNotifications(fetched);
             setUnreadCount(fetched.filter(n => !n.read).length);
+            isFirstLoad.current = false;
         });
 
         return () => unsubscribe();
-    }, [user]);
+    }, [user, notifications, showToast]);
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -140,7 +161,7 @@ export default function NotificationBell() {
             </button>
 
             {isOpen && (
-                <div className="absolute right-0 mt-3 w-80 sm:w-96 glass-card rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+                <Card variant="glass" className="absolute right-0 mt-3 w-80 sm:w-96 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300 p-0">
                     <div className="p-4 border-b border-border flex items-center justify-between bg-primary/5">
                         <h3 className="font-bold">Notifications</h3>
                         {unreadCount > 0 && (
@@ -172,11 +193,11 @@ export default function NotificationBell() {
                                         className={`flex items-start gap-4 p-4 transition-colors hover:bg-primary/5 group ${!notif.read ? 'bg-primary/5 border-l-4 border-primary' : ''}`}
                                     >
                                         <div className="relative flex-shrink-0">
-                                            {notif.actorPhotoURL ? (
-                                                <img src={notif.actorPhotoURL} alt={notif.actorName} className="w-10 h-10 rounded-full border border-border" />
+                                            {notif.actorPhotoURL && notif.actorPhotoURL !== 'null' ? (
+                                                <img src={notif.actorPhotoURL} alt={notif.actorName || 'User'} className="w-10 h-10 rounded-full border border-border" />
                                             ) : (
                                                 <div className="w-10 h-10 rounded-full bg-background-tertiary flex items-center justify-center text-xs font-bold">
-                                                    {notif.actorName.charAt(0)}
+                                                    {(notif.actorName || 'A').charAt(0).toUpperCase()}
                                                 </div>
                                             )}
                                             <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-background rounded-full flex items-center justify-center text-[10px] shadow-sm ring-2 ring-background">
@@ -209,7 +230,7 @@ export default function NotificationBell() {
                     >
                         View all activity
                     </Link>
-                </div>
+                </Card>
             )}
         </div>
     );

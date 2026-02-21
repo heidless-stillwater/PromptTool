@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 
 interface ConfirmationModalProps {
     isOpen: boolean;
@@ -35,11 +37,13 @@ export default function ConfirmationModal({
 
     if (!shouldRender && !isOpen) return null;
 
-    const typeStyles = {
-        danger: 'bg-error text-white hover:bg-error/90 shadow-error/20',
-        warning: 'bg-primary text-white hover:bg-primary/90 shadow-primary/20',
-        info: 'bg-primary text-white hover:bg-primary/90 shadow-primary/20'
-    };
+    const variantMap = {
+        danger: 'danger',
+        warning: 'primary', // approximating warning to primary for now, or could define warning variant
+        info: 'primary'
+    } as const;
+
+    const buttonVariant = variantMap[type] || 'primary';
 
     return (
         <div
@@ -53,8 +57,9 @@ export default function ConfirmationModal({
             />
 
             {/* Modal Content */}
-            <div
-                className={`relative glass-card p-6 max-w-sm w-full shadow-2xl border-border transition-all duration-300 ${isOpen ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'}`}
+            <Card
+                variant="glass"
+                className={`relative p-6 max-w-sm w-full shadow-2xl border-border transition-all duration-300 ${isOpen ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'}`}
             >
                 <div className="mb-4">
                     <h3 className="text-xl font-bold">{title}</h3>
@@ -66,26 +71,25 @@ export default function ConfirmationModal({
                 </div>
 
                 <div className="flex gap-3">
-                    <button
+                    <Button
+                        variant="secondary"
                         onClick={onCancel}
                         disabled={isLoading}
-                        className="flex-1 py-3 px-4 rounded-xl font-bold bg-background-secondary text-foreground-muted hover:text-foreground transition-all disabled:opacity-50"
+                        className="flex-1"
                     >
                         {cancelLabel}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                        variant={buttonVariant}
                         onClick={onConfirm}
                         disabled={isLoading}
-                        className={`flex-1 py-3 px-4 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 ${typeStyles[type]}`}
+                        isLoading={isLoading}
+                        className="flex-1 shadow-lg"
                     >
-                        {isLoading ? (
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                            confirmLabel
-                        )}
-                    </button>
+                        {confirmLabel}
+                    </Button>
                 </div>
-            </div>
+            </Card>
         </div>
     );
 }

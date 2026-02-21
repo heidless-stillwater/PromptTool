@@ -2,6 +2,11 @@
 
 import { Collection } from '@/lib/types';
 import { useState } from 'react';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Icons } from '@/components/ui/Icons';
+import { cn } from '@/lib/utils';
 
 interface CollectionSelectModalProps {
     isOpen: boolean;
@@ -34,30 +39,26 @@ export default function CollectionSelectModal({
                 className="absolute inset-0 bg-background/80 backdrop-blur-sm"
                 onClick={onClose}
             />
-            <div className="relative w-full max-w-md glass-card p-6 shadow-2xl border-primary/20 animate-in fade-in zoom-in duration-200">
+            <Card variant="glass" className="relative w-full max-w-md p-6 shadow-2xl border-primary/20 animate-in fade-in zoom-in duration-200">
                 <div className="flex items-center justify-between mb-6">
                     <h2 className="text-xl font-bold">{title}</h2>
-                    <button
+                    <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={onClose}
                         className="p-2 hover:bg-background-secondary rounded-lg transition-colors"
                     >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M18 6L6 18M6 6l12 12" />
-                        </svg>
-                    </button>
+                        <Icons.close size={20} />
+                    </Button>
                 </div>
 
                 <div className="relative mb-4">
-                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="11" cy="11" r="8" />
-                        <path d="M21 21l-4.35-4.35" />
-                    </svg>
-                    <input
-                        type="text"
+                    <Input
                         placeholder="Search collections..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 bg-background-secondary border border-border rounded-lg outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                        className="text-sm"
+                        icon={<Icons.search size={16} className="text-foreground-muted" />}
                     />
                 </div>
 
@@ -89,20 +90,21 @@ export default function CollectionSelectModal({
                 </div>
 
                 <div className="mt-6 flex justify-end gap-3">
-                    <button
+                    <Button
+                        variant="secondary"
                         onClick={onClose}
-                        className="btn-secondary px-4 py-2 text-sm"
+                        className="text-sm px-4 py-2"
                     >
                         Cancel
-                    </button>
+                    </Button>
                 </div>
 
                 {isProcessing && (
                     <div className="absolute inset-0 bg-background/40 backdrop-blur-[1px] flex items-center justify-center rounded-2xl">
-                        <div className="spinner" />
+                        <Icons.spinner className="w-8 h-8 animate-spin text-primary" />
                     </div>
                 )}
-            </div>
+            </Card>
         </div>
     );
 }

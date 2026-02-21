@@ -1,15 +1,21 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { collection, query, orderBy, limit, getDocs, where, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, where, Timestamp, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { UserProfile } from '@/lib/types';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/Toast';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Icons } from '@/components/ui/Icons';
+import { cn } from '@/lib/utils';
 
 export default function LeaderboardPage() {
-    const { user: currentUser, profile } = useAuth();
+    const { user: currentUser, profile, loading: authLoading } = useAuth();
+    const router = useRouter();
     const { showToast } = useToast();
     const [topCreators, setTopCreators] = useState<UserProfile[]>([]);
     const [timeframe, setTimeframe] = useState<'all-time' | 'weekly'>('all-time');
@@ -18,6 +24,9 @@ export default function LeaderboardPage() {
     const [isMigrating, setIsMigrating] = useState(false);
 
     const fetchLeaderboard = useCallback(async () => {
+        // Don't fetch if auth is still loading to avoid race conditions/premature 403s
+        if (authLoading) return;
+
         try {
             setLoading(true);
             setQueryError(null);
@@ -38,6 +47,7 @@ export default function LeaderboardPage() {
 
                 setTopCreators(creators.filter(c => (c.totalInfluence || 0) > 0));
             } else {
+                // ... rest of the weekly logic remains the same ...
                 // Weekly Logic: Query the new 'votes' collection for votes cast in the last 7 days
                 const now = new Date();
                 const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -45,7 +55,8 @@ export default function LeaderboardPage() {
                 const votesRef = collection(db, 'votes');
                 const q = query(
                     votesRef,
-                    where('createdAt', '>=', Timestamp.fromDate(sevenDaysAgo))
+                    where('createdAt', '>=', Timestamp.fromDate(sevenDaysAgo)),
+                    orderBy('createdAt', 'desc')
                 );
 
                 const snapshot = await getDocs(q);
@@ -58,24 +69,25 @@ export default function LeaderboardPage() {
                 }> = {};
 
                 // We need to fetch author details for these votes
-                // For efficiency, we'll collect all unique author IDs first
                 const authorIds = new Set<string>();
                 snapshot.docs.forEach(doc => {
                     const data = doc.data();
                     if (data.authorId) authorIds.add(data.authorId);
                 });
 
-                // Fetch author profiles in parallel buckets if there are many
-                // For now, we'll assume a reasonable number of active authors this week
                 const profilePromises = Array.from(authorIds).map(async (authorId) => {
-                    const userDoc = await getDocs(query(collection(db, 'users'), where('__name__', '==', authorId)));
-                    if (!userDoc.empty) {
-                        const userData = userDoc.docs[0].data();
-                        return {
-                            uid: authorId,
-                            displayName: userData.displayName || 'Unknown',
-                            photoURL: userData.photoURL || null
-                        };
+                    try {
+                        const userDoc = await getDoc(doc(db, 'users', authorId));
+                        if (userDoc.exists()) {
+                            const userData = userDoc.data();
+                            return {
+                                uid: authorId,
+                                displayName: userData.displayName || 'Unknown',
+                                photoURL: userData.photoURL || null
+                            };
+                        }
+                    } catch (e) {
+                        console.error(`[Leaderboard] Error fetching profile for ${authorId}:`, e);
                     }
                     return null;
                 });
@@ -83,6 +95,7 @@ export default function LeaderboardPage() {
                 const profiles = await Promise.all(profilePromises);
                 const profilesMap = new Map(profiles.filter(p => p !== null).map(p => [p!.uid, p!]));
 
+                // Process votes
                 snapshot.docs.forEach(doc => {
                     const data = doc.data();
                     const authorId = data.authorId;
@@ -96,10 +109,9 @@ export default function LeaderboardPage() {
                             photo: authorProfile?.photoURL || null
                         };
                     }
-                    authorStats[authorId].score += 1;
+                    authorStats[authorId].score += 1 * (data.value || 1);
                 });
 
-                // Convert to UserProfile array
                 const weeklyCreators: UserProfile[] = Object.entries(authorStats)
                     .map(([uid, stats]) => ({
                         uid,
@@ -119,11 +131,13 @@ export default function LeaderboardPage() {
             }
         } catch (error: any) {
             console.error('[Leaderboard] Error fetching:', error);
-            setQueryError(error.message);
+            // Include raw error code and message for better debugging
+            const detailedError = error.code ? `[${error.code}] ${error.message}` : error.message;
+            setQueryError(detailedError);
         } finally {
             setLoading(false);
         }
-    }, [timeframe]);
+    }, [timeframe, authLoading]);
 
     useEffect(() => {
         fetchLeaderboard();
@@ -135,8 +149,7 @@ export default function LeaderboardPage() {
         try {
             setIsMigrating(true);
             const token = await currentUser.getIdToken();
-            const res = await fetch('/api/admin/migrate-influence', {
-                method: 'POST',
+            const res = await fetch('/api/admin/migrate-influence/', {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -157,7 +170,7 @@ export default function LeaderboardPage() {
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
-                <div className="spinner" />
+                <Icons.spinner className="w-10 h-10 animate-spin text-primary" />
             </div>
         );
     }
@@ -168,7 +181,7 @@ export default function LeaderboardPage() {
     return (
         <div className="min-h-screen pb-20">
             {/* Header */}
-            <header className="sticky top-0 z-50 glass-card border-b border-border">
+            <Card variant="glass" className="sticky top-0 z-50 rounded-none border-x-0 border-t-0 border-b border-border">
                 <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <Link href="/league" className="text-xl font-bold gradient-text">
@@ -179,12 +192,13 @@ export default function LeaderboardPage() {
                     </div>
 
                     <div className="flex items-center gap-4">
-                        <Link href="/league" className="btn-secondary text-sm px-4 py-2">
-                            ← Back to Gallery
-                        </Link>
+                        <Button variant="secondary" onClick={() => router.push('/league')} size="sm">
+                            <Icons.arrowLeft size={16} className="mr-2" />
+                            Back to Gallery
+                        </Button>
                     </div>
                 </div>
-            </header>
+            </Card>
 
             <main className="max-w-4xl mx-auto px-4 py-12">
                 <div className="text-center mb-16 relative">
@@ -221,16 +235,17 @@ export default function LeaderboardPage() {
                     {/* Admin Recalculate Button */}
                     {currentUser && (profile?.role === 'admin' || profile?.role === 'su') && (
                         <div className="mt-8">
-                            <button
+                            <Button
+                                variant="secondary"
                                 onClick={handleMigrate}
                                 disabled={isMigrating}
-                                className="btn-secondary text-xs px-4 py-2 border-primary/20 hover:border-primary flex items-center gap-2 mx-auto"
+                                isLoading={isMigrating}
+                                size="sm"
+                                className="border-primary/20 hover:border-primary mx-auto"
                             >
-                                {isMigrating ? (
-                                    <span className="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                                ) : '✨'}
+                                {isMigrating ? null : <Icons.sparkles size={14} className="mr-2" />}
                                 Recalculate Influence Stats
-                            </button>
+                            </Button>
                         </div>
                     )}
                 </div>
@@ -238,16 +253,24 @@ export default function LeaderboardPage() {
                 {/* Queries Error Alert */}
                 {queryError && (
                     <div className="mb-12 p-6 bg-error/10 border border-error/20 rounded-2xl text-error text-sm flex items-start gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
-                        <svg className="w-6 h-6 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                        </svg>
+                        <Icons.error size={24} className="flex-shrink-0 mt-0.5" />
                         <div className="flex-1">
                             <h3 className="font-bold text-base mb-1">Index Required or Query Error</h3>
                             <p className="opacity-90 leading-relaxed">
                                 {queryError}
                                 {queryError.includes('index') && (
                                     <span className="block mt-2 p-3 bg-error/5 rounded-lg font-medium border border-error/10">
-                                        Firestore needs a composite index to sort creators. If a link appeared in the console, please click it to create the index.
+                                        Firestore needs a composite index to sort creators.
+                                        {queryError.includes('https://') ? (
+                                            <span className="block mt-1">
+                                                Click this link to create it:
+                                                <a href={queryError.split('https://')[1].split(' ')[0]} target="_blank" rel="noopener noreferrer" className="ml-1 underline break-all">
+                                                    https://{queryError.split('https://')[1].split(' ')[0]}
+                                                </a>
+                                            </span>
+                                        ) : (
+                                            " If a link appeared in the console, please click it to create the index."
+                                        )}
                                     </span>
                                 )}
                             </p>
@@ -256,14 +279,14 @@ export default function LeaderboardPage() {
                 )}
 
                 {topCreators.length === 0 ? (
-                    <div className="text-center py-20 glass-card rounded-3xl">
+                    <Card variant="glass" className="text-center py-20 rounded-3xl">
                         <div className="text-6xl mb-6">🏆</div>
                         <h3 className="text-2xl font-bold mb-2">The podium is empty!</h3>
                         <p className="text-foreground-muted">Be the first to publish and gain influence.</p>
-                        <Link href="/dashboard" className="btn-primary mt-8 inline-block">
+                        <Button onClick={() => router.push('/dashboard')} className="mt-8 inline-flex">
                             Start Creating
-                        </Link>
-                    </div>
+                        </Button>
+                    </Card>
                 ) : (
                     <>
                         {/* Podium */}
@@ -282,11 +305,20 @@ export default function LeaderboardPage() {
                                         )}
                                         <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center text-white font-black z-20 shadow-lg">2</div>
                                     </Link>
-                                    <div className="text-center glass-card p-6 w-full rounded-2xl border-b-8 border-slate-300/30">
+                                    <Card variant="glass" className="text-center p-6 w-full rounded-2xl border-b-8 border-slate-300/30">
                                         <h3 className="font-bold text-lg line-clamp-1">{podium[1].displayName}</h3>
-                                        <p className="text-primary font-black text-2xl mt-1">{podium[1].totalInfluence}</p>
-                                        <p className="text-[10px] uppercase font-bold text-foreground-muted">Influence</p>
-                                    </div>
+                                        <div className="flex items-center justify-center gap-4 mt-2">
+                                            <div className="text-center">
+                                                <p className="text-primary font-black text-2xl">{podium[1].totalInfluence}</p>
+                                                <p className="text-[8px] uppercase font-bold text-foreground-muted">Influence</p>
+                                            </div>
+                                            <div className="w-px h-8 bg-border" />
+                                            <div className="text-center">
+                                                <p className="text-foreground font-black text-2xl">{podium[1].publishedCount || 0}</p>
+                                                <p className="text-[8px] uppercase font-bold text-foreground-muted">Images</p>
+                                            </div>
+                                        </div>
+                                    </Card>
                                 </div>
                             )}
 
@@ -304,11 +336,20 @@ export default function LeaderboardPage() {
                                         )}
                                         <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-yellow-400 rounded-full flex items-center justify-center text-white text-xl font-black z-20 shadow-xl shadow-yellow-400/20">👑</div>
                                     </Link>
-                                    <div className="text-center glass-card p-8 w-full rounded-2xl border-b-8 border-yellow-400/30">
+                                    <Card variant="glass" className="text-center p-8 w-full rounded-2xl border-b-8 border-yellow-400/30">
                                         <h3 className="font-bold text-xl line-clamp-1">{podium[0].displayName}</h3>
-                                        <p className="text-primary font-black text-4xl mt-1">{podium[0].totalInfluence}</p>
-                                        <p className="text-[10px] uppercase font-bold text-foreground-muted tracking-widest">{timeframe === 'weekly' ? 'Weekly Score' : 'Master Influencer'}</p>
-                                    </div>
+                                        <div className="flex items-center justify-center gap-6 mt-2">
+                                            <div className="text-center">
+                                                <p className="text-primary font-black text-4xl">{podium[0].totalInfluence}</p>
+                                                <p className="text-[8px] uppercase font-bold text-foreground-muted tracking-widest">{timeframe === 'weekly' ? 'Weekly' : 'Influence'}</p>
+                                            </div>
+                                            <div className="w-px h-12 bg-border" />
+                                            <div className="text-center">
+                                                <p className="text-foreground font-black text-4xl">{podium[0].publishedCount || 0}</p>
+                                                <p className="text-[8px] uppercase font-bold text-foreground-muted tracking-widest">Creations</p>
+                                            </div>
+                                        </div>
+                                    </Card>
                                 </div>
                             )}
 
@@ -326,21 +367,31 @@ export default function LeaderboardPage() {
                                         )}
                                         <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-orange-300 rounded-full flex items-center justify-center text-white font-black z-20 shadow-lg">3</div>
                                     </Link>
-                                    <div className="text-center glass-card p-4 w-full rounded-2xl border-b-8 border-orange-300/30">
+                                    <Card variant="glass" className="text-center p-4 w-full rounded-2xl border-b-8 border-orange-300/30">
                                         <h3 className="font-bold text-base line-clamp-1">{podium[2].displayName}</h3>
-                                        <p className="text-primary font-black text-xl mt-1">{podium[2].totalInfluence}</p>
-                                        <p className="text-[10px] uppercase font-bold text-foreground-muted">Influence</p>
-                                    </div>
+                                        <div className="flex items-center justify-center gap-3 mt-1">
+                                            <div className="text-center">
+                                                <p className="text-primary font-black text-xl">{podium[2].totalInfluence}</p>
+                                                <p className="text-[8px] uppercase font-bold text-foreground-muted">Influence</p>
+                                            </div>
+                                            <div className="w-px h-6 bg-border" />
+                                            <div className="text-center">
+                                                <p className="text-foreground font-black text-xl">{podium[2].publishedCount || 0}</p>
+                                                <p className="text-[8px] uppercase font-bold text-foreground-muted">Images</p>
+                                            </div>
+                                        </div>
+                                    </Card>
                                 </div>
                             )}
                         </div>
 
                         {/* List view for the rest */}
-                        <div className="glass-card rounded-3xl overflow-hidden shadow-xl border-border/50">
-                            <div className="bg-background-secondary/50 px-8 py-4 border-b border-border flex items-center justify-between text-xs font-black uppercase tracking-widest text-foreground-muted">
-                                <span>Ranking</span>
-                                <div className="flex-1 px-12">Creator</div>
-                                <span>{timeframe === 'weekly' ? 'Weekly Score' : 'Influence Points'}</span>
+                        <Card variant="glass" className="rounded-3xl overflow-hidden shadow-xl border-border/50">
+                            <div className="bg-background-secondary/50 px-8 py-4 border-b border-border grid grid-cols-12 text-xs font-black uppercase tracking-widest text-foreground-muted items-center">
+                                <span className="col-span-1 text-center">Rank</span>
+                                <div className="col-span-6 px-12">Creator</div>
+                                <span className="col-span-2 text-center">Images</span>
+                                <span className="col-span-3 text-right">{timeframe === 'weekly' ? 'Weekly Score' : 'Influence Points'}</span>
                             </div>
 
                             <div className="divide-y divide-border/50">
@@ -348,13 +399,13 @@ export default function LeaderboardPage() {
                                     <Link
                                         key={creator.uid}
                                         href={`/profile/${creator.uid}`}
-                                        className="flex items-center px-8 py-5 hover:bg-primary/5 transition-colors group"
+                                        className="grid grid-cols-12 items-center px-8 py-5 hover:bg-primary/5 transition-colors group"
                                     >
-                                        <div className="w-8 text-xl font-black text-foreground-muted group-hover:text-primary transition-colors">
+                                        <div className="col-span-1 text-center text-xl font-black text-foreground-muted group-hover:text-primary transition-colors">
                                             #{index + 4}
                                         </div>
 
-                                        <div className="flex-1 flex items-center gap-4 px-12">
+                                        <div className="col-span-6 flex items-center gap-4 px-12">
                                             {creator.photoURL ? (
                                                 <img src={creator.photoURL} alt={creator.displayName || 'Creator Avatar'} className="w-10 h-10 rounded-full border border-border" />
                                             ) : (
@@ -368,14 +419,22 @@ export default function LeaderboardPage() {
                                             </div>
                                         </div>
 
-                                        <div className="text-2xl font-black text-primary flex items-center gap-2">
-                                            {creator.totalInfluence}
+                                        <div className="col-span-2 text-center">
+                                            <span className="text-lg font-bold text-foreground">
+                                                {creator.publishedCount || 0}
+                                            </span>
+                                        </div>
+
+                                        <div className="col-span-3 text-right flex items-center justify-end gap-2">
+                                            <span className="text-2xl font-black text-primary">
+                                                {creator.totalInfluence}
+                                            </span>
                                             <span className="text-xl">✨</span>
                                         </div>
                                     </Link>
                                 ))}
                             </div>
-                        </div>
+                        </Card>
                     </>
                 )}
             </main>

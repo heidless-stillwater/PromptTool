@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Icons } from '@/components/ui/Icons';
 
 export default function EntryRedirectClient({ entryId }: { entryId: string }) {
     const router = useRouter();
@@ -12,7 +13,7 @@ export default function EntryRedirectClient({ entryId }: { entryId: string }) {
 
     return (
         <div className="min-h-screen flex items-center justify-center">
-            <div className="spinner" />
+            <Icons.spinner className="w-8 h-8 animate-spin text-primary" />
         </div>
     );
 }

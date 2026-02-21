@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LeagueComment, BADGES } from '@/lib/types';
@@ -9,6 +9,9 @@ import { formatTimeAgo } from '@/lib/date-utils';
 import { useToast } from '@/components/Toast';
 import { collection, query, where, limit, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { Button } from '@/components/ui/Button';
+import { Icons } from '@/components/ui/Icons';
+import { cn } from '@/lib/utils';
 
 interface CommentSectionProps {
     entryId: string;
@@ -160,9 +163,7 @@ export default function CommentSection({
     return (
         <div className="pt-2 border-t border-border">
             <h4 className="font-bold text-sm mb-3 flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
+                <Icons.comment size={16} />
                 Comments ({comments.length})
             </h4>
 
@@ -175,15 +176,17 @@ export default function CommentSection({
                                 key={suggestion.uid}
                                 onClick={() => handleSelectMention(suggestion.username)}
                                 onMouseEnter={() => setSuggestionIndex(idx)}
-                                className={`w-full flex items-center gap-2 p-2 text-sm transition-colors ${idx === suggestionIndex ? 'bg-primary/20 text-primary' : 'hover:bg-primary/10'
-                                    }`}
+                                className={cn(
+                                    "w-full flex items-center gap-2 p-2 text-sm transition-colors",
+                                    idx === suggestionIndex ? 'bg-primary/20 text-primary' : 'hover:bg-primary/10'
+                                )}
                             >
                                 <div className="w-6 h-6 rounded-full overflow-hidden bg-background-secondary flex-shrink-0">
-                                    {suggestion.photoURL ? (
+                                    {suggestion.photoURL && suggestion.photoURL !== 'null' ? (
                                         <img src={suggestion.photoURL} alt="" className="w-full h-full object-cover" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-foreground-muted">
-                                            {suggestion.username?.[0]?.toUpperCase()}
+                                            {(suggestion.username || 'A')[0]?.toUpperCase()}
                                         </div>
                                     )}
                                 </div>
@@ -207,7 +210,7 @@ export default function CommentSection({
                         onClick={(e) => setCursorPos(e.currentTarget.selectionStart || 0)}
                         placeholder="Add a comment... (Type @ to mention)"
                         maxLength={500}
-                        className="flex-1 bg-background-secondary border border-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder:text-foreground-muted"
+                        className="flex-1 bg-background-secondary border border-border rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder:text-foreground-muted transition-all"
                         onKeyDown={(e) => {
                             if (showSuggestions) {
                                 if (e.key === 'ArrowDown') {
@@ -228,26 +231,21 @@ export default function CommentSection({
                             }
                         }}
                     />
-                    <button
+                    <Button
                         onClick={handleSubmit}
                         disabled={submitting || !newComment.trim()}
-                        className="btn-primary px-4 py-2 text-sm disabled:opacity-50"
+                        isLoading={submitting}
+                        className="px-4 py-2 text-sm h-full"
                     >
-                        {submitting ? (
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                            </svg>
-                        )}
-                    </button>
+                        {!submitting && <Icons.arrowUp size={16} className="rotate-90" />}
+                    </Button>
                 </div>
             </div>
 
             {/* Comments List */}
             {loading ? (
                 <div className="flex justify-center py-4">
-                    <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    <Icons.spinner className="w-5 h-5 animate-spin text-primary" />
                 </div>
             ) : comments.length === 0 ? (
                 <p className="text-sm text-foreground-muted italic text-center py-4">
@@ -261,15 +259,15 @@ export default function CommentSection({
                                 href={`/profile/${comment.userId}`}
                                 className="flex-shrink-0 hover:opacity-80 transition-opacity"
                             >
-                                {comment.userPhotoURL ? (
+                                {comment.userPhotoURL && comment.userPhotoURL !== 'null' ? (
                                     <img
                                         src={comment.userPhotoURL}
-                                        alt={comment.userName}
+                                        alt={comment.userName || 'User'}
                                         className="w-7 h-7 rounded-full border border-border"
                                     />
                                 ) : (
                                     <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                                        {comment.userName.charAt(0).toUpperCase()}
+                                        {(comment.userName || 'A').charAt(0).toUpperCase()}
                                     </div>
                                 )}
                             </Link>
@@ -299,9 +297,7 @@ export default function CommentSection({
                                     className="p-1 text-foreground-muted hover:text-error opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                                     title="Delete comment"
                                 >
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
+                                    <Icons.delete size={14} />
                                 </button>
                             )}
                         </div>

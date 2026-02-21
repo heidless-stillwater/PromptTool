@@ -10,6 +10,11 @@ import GalleryToolbar from '@/components/gallery/GalleryToolbar';
 import GalleryGrid from '@/components/gallery/GalleryGrid';
 import ImageDetailModal from '@/components/gallery/ImageDetailModal';
 import ImageGroupModal from '@/components/gallery/ImageGroupModal';
+import ConfirmationModal from '@/components/ConfirmationModal';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { Icons } from '@/components/ui/Icons';
 
 export default function GalleryPage() {
     const { user, loading: authLoading } = useAuth();
@@ -21,7 +26,10 @@ export default function GalleryPage() {
         images,
         loadingImages,
         selectedGroup,
-        selectedImage
+        selectedImage,
+        confirmationState,
+        confirmDelete,
+        cancelDelete
     } = gallery;
 
     useEffect(() => {
@@ -32,7 +40,7 @@ export default function GalleryPage() {
     }, [user, fetchImages, fetchCollections]);
 
     if (authLoading) {
-        return <div className="min-h-screen flex items-center justify-center"><div className="spinner" /></div>;
+        return <div className="min-h-screen flex items-center justify-center"><Icons.spinner className="w-8 h-8 animate-spin text-primary" /></div>;
     }
 
     if (!user) {
@@ -44,7 +52,7 @@ export default function GalleryPage() {
     }
 
     return (
-        <div className="min-h-screen pt-20 pb-12 px-4 md:px-8">
+        <div className="min-h-screen pt-20 pb-12 px-4 md:px-8 bg-black text-white">
             <div className="max-w-[1920px] mx-auto flex flex-col lg:flex-row gap-8">
                 {/* Collection Sidebar */}
                 <GallerySidebar
@@ -57,22 +65,28 @@ export default function GalleryPage() {
                 <main className="flex-1 min-w-0">
                     <div className="flex flex-col gap-6">
                         {/* Header */}
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <div>
-                                <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm text-foreground-muted hover:text-primary transition-colors mb-4 group">
-                                    <svg className="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                                    </svg>
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                            <div className="space-y-1">
+                                <Link
+                                    href="/dashboard"
+                                    className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-primary transition-all mb-4 group px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 hover:border-primary/30"
+                                >
+                                    <Icons.arrowRight size={12} className="rotate-180 group-hover:-translate-x-1 transition-transform" />
                                     Back to Dashboard
                                 </Link>
-                                <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
-                                    Your Gallery
-                                </h1>
-                                <p className="text-foreground-muted mt-1">
-                                    Manage and organize your generated images
+                                <div className="flex items-center gap-4">
+                                    <h1 className="text-4xl font-black tracking-tighter text-white">
+                                        YOUR GALLERY
+                                    </h1>
+                                    <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 font-black">
+                                        {gallery.filteredImages.length} ITEMS
+                                    </Badge>
+                                </div>
+                                <p className="text-zinc-400 text-sm font-medium uppercase tracking-[0.2em] opacity-60">
+                                    Manage and organize your generated masterpieces
                                 </p>
                             </div>
-                            <div className="w-full md:w-auto">
+                            <div className="w-full md:w-80">
                                 <GlobalSearch />
                             </div>
                         </div>
@@ -113,30 +127,48 @@ export default function GalleryPage() {
 
                         {/* Batch Action Bar */}
                         {gallery.selectionMode && gallery.selectedImageIds.size > 0 && (
-                            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-background border border-border rounded-full shadow-2xl px-6 py-3 flex items-center gap-4 animate-in slide-in-from-bottom-4">
-                                <span className="font-bold text-sm">
-                                    {gallery.selectedImageIds.size} selected
-                                </span>
-                                <div className="h-4 w-px bg-border" />
-                                <button
-                                    onClick={gallery.handleBatchDelete}
-                                    disabled={gallery.batchDeleting}
-                                    className="text-error hover:text-error/80 text-sm font-bold flex items-center gap-2 transition-colors disabled:opacity-50"
-                                >
-                                    {gallery.batchDeleting ? <div className="spinner-xs" /> : (
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                    )}
-                                    Delete
-                                </button>
-                                <div className="h-4 w-px bg-border" />
-                                <button
-                                    onClick={() => gallery.setSelectedImageIds(new Set())}
-                                    className="text-foreground-muted hover:text-foreground text-sm font-bold"
-                                >
-                                    Cancel
-                                </button>
+                            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-bottom-8 duration-500">
+                                <Card className="flex items-center gap-6 px-6 py-4 shadow-2xl border-primary/30 bg-background/95 backdrop-blur-md ring-1 ring-white/5" variant="glass">
+                                    <div className="flex items-center gap-3 pr-6 border-r border-border/50">
+                                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-white font-black text-sm shadow-lg shadow-primary/20 animate-in zoom-in duration-300">
+                                            {gallery.selectedImageIds.size}
+                                        </div>
+                                        <span className="text-sm font-black uppercase tracking-widest text-foreground opacity-80">Selected</span>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <Button
+                                            variant="secondary"
+                                            size="sm"
+                                            onClick={() => {
+                                                const allIds = new Set(gallery.images.map(img => img.id));
+                                                gallery.setSelectedImageIds(allIds);
+                                            }}
+                                            className="h-9 px-4 text-[10px] font-black uppercase tracking-widest bg-background-secondary hover:bg-background-secondary/80"
+                                        >
+                                            Select All
+                                        </Button>
+                                        <Button
+                                            variant="secondary"
+                                            size="sm"
+                                            onClick={() => gallery.setSelectedImageIds(new Set())}
+                                            className="h-9 px-4 text-[10px] font-black uppercase tracking-widest bg-background-secondary hover:bg-background-secondary/80"
+                                        >
+                                            Clear
+                                        </Button>
+                                        <div className="w-px h-6 bg-border/50 mx-1" />
+                                        <Button
+                                            variant="primary"
+                                            size="sm"
+                                            onClick={gallery.handleBatchDelete}
+                                            disabled={gallery.batchDeleting}
+                                            isLoading={gallery.batchDeleting}
+                                            className="!bg-error hover:!bg-error-hover h-9 px-6 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-error/20 border-0"
+                                        >
+                                            <Icons.delete size={14} className="mr-2" />
+                                            Delete
+                                        </Button>
+                                    </div>
+                                </Card>
                             </div>
                         )}
 
@@ -186,21 +218,7 @@ export default function GalleryPage() {
                     onNext={gallery.handleNextImage}
                     onPrev={gallery.handlePrevImage}
                     collections={gallery.collections}
-                    onToggleCollection={gallery.handleToggleCollection}
-                    isEditingPromptSetID={gallery.isEditingPromptSetID}
-                    setIsEditingPromptSetID={gallery.setIsEditingPromptSetID}
-                    editingPromptSetID={gallery.editingPromptSetID}
-                    setEditingPromptSetID={gallery.setEditingPromptSetID}
-                    isSavingPromptSetID={gallery.isSavingPromptSetID}
-                    onUpdatePromptSetID={gallery.handleUpdatePromptSetID}
-                    newImageTag={gallery.newImageTag}
-                    setNewImageTag={gallery.setNewImageTag}
-                    isUpdatingTags={gallery.isUpdatingTags}
-                    onAddTag={gallery.handleAddImageTag}
-                    onRemoveTag={gallery.handleRemoveImageTag}
-                    onLeagueToggle={gallery.handleLeagueToggle}
-                    publishingId={gallery.publishingId}
-                    onDownload={gallery.handleDownload}
+                    onUpdate={gallery.handleUpdateImage}
                     onDelete={gallery.handleDelete}
                     deletingId={gallery.deletingId}
                 />
@@ -223,6 +241,21 @@ export default function GalleryPage() {
                     setCollectionError={gallery.setCollectionError}
                 />
             )}
+
+            {/* Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={!!confirmationState}
+                title={confirmationState?.type === 'batch' ? 'Delete Images' : 'Delete Image'}
+                message={confirmationState?.type === 'batch'
+                    ? `Are you sure you want to delete ${gallery.selectedImageIds.size} images? This action cannot be undone.`
+                    : 'Are you sure you want to delete this image? This action cannot be undone.'}
+                confirmLabel="Delete"
+                cancelLabel="Cancel"
+                onConfirm={confirmDelete}
+                onCancel={cancelDelete}
+                type="danger"
+                isLoading={gallery.deletingId !== null || gallery.batchDeleting}
+            />
         </div>
     );
 }

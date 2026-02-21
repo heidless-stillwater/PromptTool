@@ -7,6 +7,9 @@ import { useAuth } from '@/lib/auth-context';
 import { Notification } from '@/lib/types';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { Icons } from '@/components/ui/Icons';
 
 export default function NotificationsPage() {
     const { user, profile, loading: authLoading } = useAuth();
@@ -86,7 +89,7 @@ export default function NotificationsPage() {
     if (loading || authLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
-                <div className="spinner" />
+                <Icons.spinner className="w-8 h-8 animate-spin text-primary" />
             </div>
         );
     }
@@ -94,19 +97,19 @@ export default function NotificationsPage() {
     return (
         <div className="min-h-screen pb-20">
             {/* Header */}
-            <header className="sticky top-0 z-50 glass-card border-b border-border">
+            <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
                 <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <Link href="/dashboard" className="text-xl font-bold gradient-text">
+                        <Link href="/dashboard" className="text-xl font-bold bg-brand-gradient bg-clip-text text-transparent">
                             Studio Dashboard
                         </Link>
                         <span className="text-border">/</span>
                         <h1 className="text-sm font-bold uppercase tracking-widest text-foreground-muted">Activity History</h1>
                     </div>
 
-                    <Link href="/dashboard" className="btn-secondary text-sm px-4 py-2">
+                    <Button variant="secondary" onClick={() => router.push('/dashboard')} className="text-sm px-4 py-2">
                         ← Back to Studio
-                    </Link>
+                    </Button>
                 </div>
             </header>
 
@@ -118,28 +121,31 @@ export default function NotificationsPage() {
                     </div>
 
                     {notifications.some(n => !n.read) && (
-                        <button
+                        <Button
+                            variant="secondary"
                             onClick={markAllAsRead}
-                            className="btn-secondary text-xs px-4 py-2"
+                            className="text-xs px-4 py-2"
                         >
                             Mark all as read
-                        </button>
+                        </Button>
                     )}
                 </div>
 
                 {notifications.length === 0 ? (
-                    <div className="text-center py-24 glass-card rounded-3xl">
+                    <Card variant="glass" className="text-center py-24 rounded-3xl">
                         <div className="text-7xl mb-6">📬</div>
                         <h3 className="text-2xl font-bold mb-2">No activity yet</h3>
                         <p className="text-foreground-muted max-w-sm mx-auto">
                             When people upvote, comment, or follow you, you&apos;ll see those updates right here.
                         </p>
-                        <Link href="/league" className="btn-primary mt-8 inline-block">
-                            Explore the League
-                        </Link>
-                    </div>
+                        <div className="mt-8 flex justify-center">
+                            <Button onClick={() => router.push('/league')}>
+                                Explore the League
+                            </Button>
+                        </div>
+                    </Card>
                 ) : (
-                    <div className="glass-card rounded-3xl overflow-hidden shadow-xl border-border/50">
+                    <Card variant="glass" className="rounded-3xl overflow-hidden shadow-xl border-border/50 p-0">
                         <div className="divide-y divide-border/50">
                             {notifications.map((notif) => (
                                 <Link
@@ -149,11 +155,11 @@ export default function NotificationsPage() {
                                 >
                                     {/* Actor Photo */}
                                     <div className="relative flex-shrink-0">
-                                        {notif.actorPhotoURL ? (
+                                        {notif.actorPhotoURL && notif.actorPhotoURL !== 'null' ? (
                                             <img src={notif.actorPhotoURL} alt={notif.actorName || 'User Avatar'} className="w-14 h-14 rounded-full border-2 border-border group-hover:border-primary/50 transition-colors shadow-lg" />
                                         ) : (
                                             <div className="w-14 h-14 rounded-full bg-background-tertiary flex items-center justify-center text-xl font-bold border-2 border-border group-hover:border-primary/50 transition-colors">
-                                                {notif.actorName.charAt(0)}
+                                                {(notif.actorName || 'A').charAt(0).toUpperCase()}
                                             </div>
                                         )}
                                         <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-background rounded-full flex items-center justify-center text-sm shadow-xl ring-4 ring-background">
@@ -168,11 +174,19 @@ export default function NotificationsPage() {
                                             {notif.type === 'vote' && <span className="text-foreground-muted"> upvoted your creation</span>}
                                             {notif.type === 'comment' && <span className="text-foreground-muted"> left a comment</span>}
                                             {notif.type === 'follow' && <span className="text-foreground-muted"> started following you</span>}
+                                            {notif.type === 'mention' && <span className="text-foreground-muted"> mentioned you in a comment</span>}
+                                            {notif.type === 'system' && <span className="text-foreground-muted"> sent a system update</span>}
                                         </p>
 
-                                        {notif.type === 'comment' && notif.text && (
+                                        {(notif.type === 'comment' || notif.type === 'mention') && notif.text && (
                                             <p className="mt-2 p-3 bg-background-secondary/50 rounded-xl text-sm italic border-l-4 border-primary/20 text-foreground-muted line-clamp-2">
                                                 &quot;{notif.text}&quot;
+                                            </p>
+                                        )}
+
+                                        {notif.type === 'system' && notif.text && (
+                                            <p className="mt-2 p-3 bg-blue-500/5 rounded-xl text-sm border-l-4 border-blue-500/20 text-foreground-muted">
+                                                {notif.text}
                                             </p>
                                         )}
 
@@ -191,7 +205,7 @@ export default function NotificationsPage() {
                                 </Link>
                             ))}
                         </div>
-                    </div>
+                    </Card>
                 )}
             </main>
         </div>

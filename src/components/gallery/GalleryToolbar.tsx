@@ -1,4 +1,11 @@
 import { Collection } from '@/lib/types';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
+import { Icons } from '@/components/ui/Icons';
+import { Card } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import { cn } from '@/lib/utils';
 
 interface GalleryToolbarProps {
     searchQuery: string;
@@ -45,147 +52,164 @@ export default function GalleryToolbar({
     filterHasNegativePrompt, onFilterHasNegativePromptChange,
     onClearAdvancedFilters
 }: GalleryToolbarProps) {
+    const hasActiveAdvanced = filterSeed || filterGuidanceMin || filterGuidanceMax || filterHasNegativePrompt !== 'all';
+
     return (
         <div className="space-y-6">
-            <div className="flex flex-col md:flex-row gap-4 p-4 glass-card bg-background-secondary/30 rounded-xl">
+            <Card variant="glass" className="p-4 flex flex-col xl:flex-row gap-4 items-center">
                 {/* Search */}
-                <div className="flex-1 relative">
-                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="11" cy="11" r="8" />
-                        <path d="M21 21l-4.35-4.35" />
-                    </svg>
-                    <input
-                        type="text"
-                        placeholder="Search by prompt..."
+                <div className="flex-1 w-full">
+                    <Input
+                        placeholder="Search your library..."
                         value={searchQuery}
                         onChange={(e) => onSearchChange(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 bg-background-secondary border border-border rounded-lg focus:ring-2 focus:ring-primary/50 outline-none text-sm text-foreground placeholder:text-foreground-muted"
+                        className="h-11 text-sm bg-background-secondary/50"
+                        icon={<Icons.search size={18} className="text-foreground-muted/60" />}
                     />
                 </div>
 
                 {/* Filters */}
-                <div className="flex gap-4 items-center overflow-x-auto pb-2 md:pb-0 custom-scrollbar">
-                    <button
-                        onClick={onToggleGrouped}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium border border-border transition-all flex items-center gap-2 whitespace-nowrap ${isGrouped
-                            ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20'
-                            : 'bg-background-secondary text-foreground hover:bg-background-secondary/80'
-                            }`}
-                    >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            {isGrouped ? (
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                            ) : (
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                <div className="flex flex-wrap md:flex-nowrap gap-3 items-center w-full xl:w-auto overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+                    <div className="flex bg-background-secondary/50 rounded-xl p-1 border border-border/50">
+                        <Button
+                            variant={!isGrouped ? 'primary' : 'ghost'}
+                            size="sm"
+                            onClick={() => !isGrouped ? null : onToggleGrouped()}
+                            className={cn(
+                                "rounded-lg text-[10px] h-8 px-4 font-black tracking-widest uppercase transition-all",
+                                !isGrouped ? "shadow-lg shadow-primary/20" : "text-foreground-muted hover:text-foreground"
                             )}
-                        </svg>
-                        {isGrouped ? 'Grouped' : 'Grid'}
-                    </button>
+                        >
+                            <Icons.grid size={14} className="mr-2" />
+                            Grid
+                        </Button>
+                        <Button
+                            variant={isGrouped ? 'primary' : 'ghost'}
+                            size="sm"
+                            onClick={() => isGrouped ? null : onToggleGrouped()}
+                            className={cn(
+                                "rounded-lg text-[10px] h-8 px-4 font-black tracking-widest uppercase transition-all",
+                                isGrouped ? "shadow-lg shadow-primary/20" : "text-foreground-muted hover:text-foreground"
+                            )}
+                        >
+                            <Icons.stack size={14} className="mr-2" />
+                            Sets
+                        </Button>
+                    </div>
 
-                    {/* Select Mode Toggle */}
-                    <button
+                    <div className="h-6 w-px bg-border/50 mx-1 hidden md:block" />
+
+                    <Button
+                        variant={selectionMode ? 'primary' : 'secondary'}
+                        size="sm"
                         onClick={() => {
                             onToggleSelectionMode();
                             if (selectionMode) onClearSelection();
                         }}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium border border-border transition-all flex items-center gap-2 whitespace-nowrap ${selectionMode
-                            ? 'bg-accent text-white border-accent shadow-lg shadow-accent/20'
-                            : 'bg-background-secondary text-foreground hover:bg-background-secondary/80'
-                            }`}
+                        className={cn(
+                            "h-10 px-4 text-[10px] font-black tracking-widest uppercase gap-2 transition-all",
+                            selectionMode ? "bg-accent hover:bg-accent-hover shadow-lg shadow-accent/20 border-accent" : "bg-background-secondary/50"
+                        )}
                     >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                        </svg>
-                        {selectionMode ? 'Cancel' : 'Select'}
-                    </button>
+                        <Icons.check size={14} />
+                        {selectionMode ? 'Finish' : 'Select'}
+                    </Button>
 
-                    {/* Tag Filter */}
-                    <div className="h-6 w-px bg-border mx-2" />
+                    <div className="h-6 w-px bg-border/50 mx-1 hidden md:block" />
 
-                    <select
-                        value={filterTag}
-                        onChange={(e) => onFilterTagChange(e.target.value)}
-                        className="px-3 py-2 bg-background-secondary border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground"
-                    >
-                        <option value="all">All Tags</option>
-                        {Array.from(new Set(collections.flatMap(c => c.tags || []))).sort().map(tag => (
-                            <option key={tag} value={tag}>#{tag}</option>
-                        ))}
-                    </select>
+                    <div className="flex gap-2 items-center flex-1 md:flex-none min-w-[300px]">
+                        <Select
+                            value={filterTag}
+                            onChange={(e) => onFilterTagChange(e.target.value)}
+                            className="h-10 text-[10px] font-black uppercase tracking-widest bg-zinc-900 text-white border-zinc-800"
+                        >
+                            <option value="all">Tags: All</option>
+                            {Array.from(new Set(collections.flatMap(c => c.tags || []))).sort().map(tag => (
+                                <option key={tag} value={tag}>#{tag.toUpperCase()}</option>
+                            ))}
+                        </Select>
 
-                    <div className="h-6 w-px bg-border mx-2" />
+                        <Select
+                            value={filterQuality}
+                            onChange={(e) => onFilterQualityChange(e.target.value as any)}
+                            className="h-10 text-[10px] font-black uppercase tracking-widest bg-zinc-900 text-white border-zinc-800"
+                        >
+                            <option value="all">Quality: All</option>
+                            <option value="standard">Standard</option>
+                            <option value="high">High Def</option>
+                            <option value="ultra">Ultra 4K</option>
+                        </Select>
 
-                    <select
-                        value={filterQuality}
-                        onChange={(e) => onFilterQualityChange(e.target.value as any)}
-                        className="px-3 py-2 bg-background-secondary border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground"
-                    >
-                        <option value="all">All Qualities</option>
-                        <option value="standard">Standard</option>
-                        <option value="high">High</option>
-                        <option value="ultra">Ultra</option>
-                    </select>
+                        <Select
+                            value={filterAspectRatio}
+                            onChange={(e) => onFilterAspectRatioChange(e.target.value)}
+                            className="h-10 text-[10px] font-black uppercase tracking-widest bg-zinc-900 text-white border-zinc-800"
+                        >
+                            <option value="all">Aspect: All</option>
+                            <option value="1:1">1:1 Square</option>
+                            <option value="16:9">16:9 Wide</option>
+                            <option value="9:16">9:16 Tall</option>
+                            <option value="4:3">4:3 Photo</option>
+                            <option value="3:4">3:4 Portrait</option>
+                        </Select>
+                    </div>
 
-                    <select
-                        value={filterAspectRatio}
-                        onChange={(e) => onFilterAspectRatioChange(e.target.value)}
-                        className="px-3 py-2 bg-background-secondary border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground"
-                    >
-                        <option value="all">All Aspects</option>
-                        <option value="1:1">1:1 Square</option>
-                        <option value="16:9">16:9 Landscape</option>
-                        <option value="9:16">9:16 Portrait</option>
-                        <option value="4:3">4:3 Standard</option>
-                        <option value="3:4">3:4 Portrait</option>
-                    </select>
+                    <div className="h-6 w-px bg-border/50 mx-1 hidden md:block" />
 
-                    {/* Advanced Filters Toggle */}
-                    <div className="h-6 w-px bg-border mx-2" />
-                    <button
+                    <Button
+                        variant={(showAdvancedFilters || hasActiveAdvanced) ? 'primary' : 'secondary'}
+                        size="sm"
                         onClick={onToggleAdvancedFilters}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium border border-border transition-all flex items-center gap-2 whitespace-nowrap ${showAdvancedFilters || filterSeed || filterGuidanceMin || filterGuidanceMax || filterHasNegativePrompt !== 'all'
-                            ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20'
-                            : 'bg-background-secondary text-foreground hover:bg-background-secondary/80'
-                            }`}
+                        className={cn(
+                            "h-10 px-4 text-[10px] font-black tracking-widest uppercase gap-2 transition-all relative",
+                            (showAdvancedFilters || hasActiveAdvanced) ? "shadow-lg shadow-primary/20" : "bg-background-secondary/50"
+                        )}
                     >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                        </svg>
+                        <Icons.filter size={14} />
                         Advanced
-                    </button>
+                        {hasActiveAdvanced && (
+                            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-accent rounded-full border-2 border-background animate-pulse" />
+                        )}
+                    </Button>
                 </div>
-            </div>
+            </Card>
 
             {/* Advanced Filters Panel */}
             {showAdvancedFilters && (
-                <div className="p-4 glass-card bg-background-secondary/30 rounded-xl animate-in fade-in slide-in-from-top-2 duration-200">
-                    <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-xs font-bold uppercase tracking-widest text-foreground-muted">Advanced Filters</h3>
-                        <button
-                            onClick={onClearAdvancedFilters}
-                            className="text-xs text-primary hover:underline font-medium"
-                        >
-                            Clear All
-                        </button>
-                    </div>
-                    <div className="flex flex-wrap gap-4 items-end">
-                        {/* Seed Filter */}
-                        <div className="flex flex-col gap-1">
-                            <label className="text-[10px] font-bold uppercase text-foreground-muted">Seed</label>
-                            <input
-                                type="text"
-                                placeholder="e.g. 42"
-                                value={filterSeed}
-                                onChange={(e) => onFilterSeedChange(e.target.value)}
-                                className="w-28 px-3 py-2 bg-background-secondary border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder:text-foreground-muted"
-                            />
+                <Card variant="glass" className="p-6 border-primary/20 bg-primary/[0.03] animate-in fade-in slide-in-from-top-4 duration-300">
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                                <Icons.filter size={16} />
+                            </div>
+                            <div>
+                                <h3 className="text-[10px] font-black uppercase tracking-widest text-foreground">Deep Filtering</h3>
+                                <p className="text-[8px] font-black uppercase tracking-[0.2em] text-foreground-muted mt-0.5">Filter by generation parameters</p>
+                            </div>
                         </div>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={onClearAdvancedFilters}
+                            className="h-8 text-[9px] font-black uppercase tracking-widest text-primary hover:text-primary-hover px-3 bg-primary/5 hover:bg-primary/10"
+                        >
+                            Clear Parameters
+                        </Button>
+                    </div>
 
-                        {/* Guidance Scale Range */}
-                        <div className="flex flex-col gap-1">
-                            <label className="text-[10px] font-bold uppercase text-foreground-muted">Guidance Scale</label>
-                            <div className="flex items-center gap-2">
-                                <input
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                        <Input
+                            label="Specific Seed"
+                            placeholder="e.g. 198234"
+                            value={filterSeed}
+                            onChange={(e) => onFilterSeedChange(e.target.value)}
+                            className="h-10 text-sm bg-background/50"
+                        />
+
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-foreground-muted ml-1 mb-1 block">Guidance Range</label>
+                            <div className="flex items-center gap-3">
+                                <Input
                                     type="number"
                                     placeholder="Min"
                                     value={filterGuidanceMin}
@@ -193,10 +217,10 @@ export default function GalleryToolbar({
                                     step="0.5"
                                     min="0"
                                     max="20"
-                                    className="w-20 px-3 py-2 bg-background-secondary border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder:text-foreground-muted"
+                                    className="h-10 text-xs bg-background/50"
                                 />
-                                <span className="text-foreground-muted text-xs">—</span>
-                                <input
+                                <span className="text-foreground-muted/30 font-black">—</span>
+                                <Input
                                     type="number"
                                     placeholder="Max"
                                     value={filterGuidanceMax}
@@ -204,26 +228,32 @@ export default function GalleryToolbar({
                                     step="0.5"
                                     min="0"
                                     max="20"
-                                    className="w-20 px-3 py-2 bg-background-secondary border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder:text-foreground-muted"
+                                    className="h-10 text-xs bg-background/50"
                                 />
                             </div>
                         </div>
 
-                        {/* Negative Prompt Filter */}
-                        <div className="flex flex-col gap-1">
-                            <label className="text-[10px] font-bold uppercase text-foreground-muted">Negative Prompt</label>
-                            <select
-                                value={filterHasNegativePrompt}
-                                onChange={(e) => onFilterHasNegativePromptChange(e.target.value as any)}
-                                className="px-3 py-2 bg-background-secondary border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground"
-                            >
-                                <option value="all">Any</option>
-                                <option value="yes">Has Negative Prompt</option>
-                                <option value="no">No Negative Prompt</option>
-                            </select>
+                        <Select
+                            label="Negative Prompt"
+                            value={filterHasNegativePrompt}
+                            onChange={(e) => onFilterHasNegativePromptChange(e.target.value as any)}
+                            className="h-10 text-[10px] font-black uppercase tracking-widest bg-zinc-900 text-white border-zinc-800"
+                        >
+                            <option value="all">Ignore Filter</option>
+                            <option value="yes">Only with Negatives</option>
+                            <option value="no">Only without Negatives</option>
+                        </Select>
+
+                        <div className="flex items-end">
+                            <div className="p-4 rounded-xl bg-background/40 border border-border/50 w-full">
+                                <p className="text-[9px] font-bold text-foreground-muted leading-tight">
+                                    <Icons.info size={10} className="inline mr-1 opacity-50 mb-0.5" />
+                                    Advanced filters help you find specific generations within large collections.
+                                </p>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </Card>
             )}
         </div>
     );

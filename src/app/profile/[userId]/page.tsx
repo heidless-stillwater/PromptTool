@@ -1,4 +1,3 @@
-// Client-side content
 import ProfileClient from './ProfileClient';
 
 export function generateStaticParams() {
@@ -6,7 +5,7 @@ export function generateStaticParams() {
 }
 
 export const dynamic = 'force-static';
-export const dynamicParams = false;
+export const dynamicParams = true;
 
 export default function ProfilePage({ params }: { params: { userId: string } }) {
     return <ProfileClient />;

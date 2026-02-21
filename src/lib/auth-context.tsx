@@ -165,6 +165,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             await firebaseSignOut(auth);
             setProfile(null);
             setCredits(null);
+            // Redirect to landing page after sign-out
+            window.location.href = '/';
         } catch (err: any) {
             setError(err.message);
             console.error('Sign out error:', err);

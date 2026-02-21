@@ -8,6 +8,7 @@ import { db } from '@/lib/firebase';
 import { GeneratedImage } from '@/lib/types';
 import ImageEditor from '@/components/ImageEditor';
 import { useToast } from '@/components/Toast';
+import { Button } from '@/components/ui/Button';
 
 function EditPageContent() {
     const { user, profile, loading: authLoading } = useAuth();
@@ -81,7 +82,7 @@ function EditPageContent() {
 
             // Upload via API
             const token = await user.getIdToken();
-            const uploadRes = await fetch('/api/edit/save', {
+            const uploadRes = await fetch('/api/edit/save/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -136,9 +137,9 @@ function EditPageContent() {
                 <div className="text-center space-y-4">
                     <div className="text-6xl">❌</div>
                     <p className="text-foreground-muted">{error || 'Image not found'}</p>
-                    <button onClick={() => router.push('/gallery')} className="btn-primary px-6 py-2">
+                    <Button onClick={() => router.push('/gallery')} className="px-6 py-2">
                         Back to Gallery
-                    </button>
+                    </Button>
                 </div>
             </div>
         );

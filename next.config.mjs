@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    output: 'export', // Uncomment for Firebase Hosting deployment
+    output: process.env.NEXT_EXPORT === 'true' ? 'export' : undefined,
     trailingSlash: true,
     images: {
         unoptimized: true,

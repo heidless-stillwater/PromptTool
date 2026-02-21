@@ -1,4 +1,9 @@
 import { Collection } from '@/lib/types';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Icons } from '@/components/ui/Icons';
+import { Badge } from '@/components/ui/Badge';
+import { cn } from '@/lib/utils';
 
 interface GallerySidebarProps {
     collections: Collection[];
@@ -15,40 +20,63 @@ export default function GallerySidebar({
 }: GallerySidebarProps) {
     return (
         <aside className="w-full lg:w-64 space-y-6">
-            <div className="glass-card p-4 rounded-xl">
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="font-bold text-lg">Collections</h2>
-                    <button
+            <Card className="p-4" variant="glass">
+                <div className="flex items-center justify-between mb-4 px-1">
+                    <h2 className="font-black text-[10px] uppercase tracking-widest text-foreground-muted">Collections</h2>
+                    <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={onCreateCollection}
-                        className="p-1 px-2 text-xs bg-primary/10 text-primary hover:bg-primary/20 rounded-lg font-bold transition-all"
+                        className="h-7 px-2 text-[9px] font-black uppercase tracking-wider gap-1.5 bg-background-secondary/50"
                     >
-                        + New
-                    </button>
+                        <Icons.plus size={10} />
+                        New
+                    </Button>
                 </div>
 
                 <div className="space-y-1">
-                    <button
+                    <Button
+                        variant={!selectedCollectionId ? 'primary' : 'ghost'}
                         onClick={() => onSelectCollection(null)}
-                        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${!selectedCollectionId ? 'bg-primary text-white font-bold' : 'hover:bg-background-secondary text-foreground-muted hover:text-foreground'}`}
+                        className={cn(
+                            "w-full justify-start h-10 px-3 text-sm font-bold transition-all group",
+                            !selectedCollectionId ? "shadow-lg shadow-primary/20" : "text-foreground-muted hover:text-foreground hover:bg-background-secondary/80"
+                        )}
                     >
+                        <Icons.grid size={16} className={cn("mr-2.5 transition-colors", !selectedCollectionId ? "text-white" : "text-foreground-muted group-hover:text-primary")} />
                         All Images
-                    </button>
+                    </Button>
+
                     {collections.map(col => (
-                        <button
+                        <Button
                             key={col.id}
+                            variant={selectedCollectionId === col.id ? 'primary' : 'ghost'}
                             onClick={() => onSelectCollection(col.id)}
-                            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all flex items-center justify-between ${selectedCollectionId === col.id ? 'bg-primary text-white font-bold' : 'hover:bg-background-secondary text-foreground-muted hover:text-foreground'}`}
-                        >
-                            <span className="truncate">{col.name}</span>
-                            {col.imageCount > 0 && (
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${selectedCollectionId === col.id ? 'bg-white/20' : 'bg-background-secondary'}`}>
-                                    {col.imageCount}
-                                </span>
+                            className={cn(
+                                "w-full justify-between h-10 px-3 text-sm font-bold transition-all group",
+                                selectedCollectionId === col.id ? "shadow-lg shadow-primary/20" : "text-foreground-muted hover:text-foreground hover:bg-background-secondary/80"
                             )}
-                        </button>
+                        >
+                            <span className="truncate flex items-center">
+                                <Icons.history size={16} className={cn("mr-2.5 transition-colors opacity-50", selectedCollectionId === col.id ? "text-white opacity-100" : "text-foreground-muted group-hover:text-primary group-hover:opacity-100")} />
+                                {col.name}
+                            </span>
+                            {col.imageCount > 0 && (
+                                <Badge
+                                    variant={selectedCollectionId === col.id ? 'glass' : 'secondary'}
+                                    size="sm"
+                                    className={cn(
+                                        "ml-2 transition-all",
+                                        selectedCollectionId === col.id ? "bg-white/20 border-white/10" : "bg-background-secondary border-transparent text-foreground-muted font-bold"
+                                    )}
+                                >
+                                    {col.imageCount}
+                                </Badge>
+                            )}
+                        </Button>
                     ))}
                 </div>
-            </div>
+            </Card>
         </aside>
     );
 }

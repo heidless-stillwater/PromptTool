@@ -14,7 +14,7 @@ service cloud.firestore {
 
     // Users collection
     match /users/{userId} {
-      allow read, list: if isAuthenticated();
+      allow get, list: if true; // Public Hall of Fame/Portfolios
       allow create: if isOwner(userId);
       allow update: if isOwner(userId);
       
@@ -91,7 +91,7 @@ service cloud.firestore {
 
     // Timestamped votes for weekly leaderboard and analytics
     match /votes/{voteId} {
-      allow read: if isAuthenticated();
+      allow get, list: if true; // Public Hall of Fame
       allow write: if false; // Managed via API
     }
     

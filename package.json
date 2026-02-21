@@ -5,20 +5,25 @@
     "scripts": {
         "dev": "next dev",
         "build": "next build",
-        "build:export": "mv src/app/api src/api-temp && next build && mv src/api-temp src/app/api",
+        "build:export": "mv src/app/api src/api-temp && NEXT_EXPORT=true next build && mv src/api-temp src/app/api",
         "start": "next start",
         "lint": "next lint"
     },
     "dependencies": {
         "@google/genai": "^1.0.0",
         "@stripe/stripe-js": "^2.4.0",
+        "clsx": "^2.1.1",
         "firebase": "^10.8.0",
         "firebase-admin": "^12.0.0",
+        "framer-motion": "^12.34.0",
+        "lucide-react": "^0.564.0",
         "next": "14.2.0",
         "react": "^18.3.0",
         "react-dom": "^18.3.0",
         "recharts": "^3.7.0",
-        "stripe": "^14.14.0"
+        "stripe": "^14.14.0",
+        "tailwind-merge": "^3.4.0",
+        "zod": "^4.3.6"
     },
     "devDependencies": {
         "@types/node": "^20",

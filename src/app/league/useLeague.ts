@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/Toast';
 import { SortMode } from '@/components/league/LeagueHeader';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useLeagueInteractions } from '@/hooks/useLeagueInteractions';
 
 export function useLeague() {
     const { user, profile } = useAuth();
@@ -21,14 +22,21 @@ export function useLeague() {
     const [sortMode, setSortMode] = useState<SortMode>('trending');
     const [queryError, setQueryError] = useState<string | null>(null);
 
-    // Detail modal state
-    const [selectedEntry, setSelectedEntry] = useState<LeagueEntry | null>(null);
-    const [comments, setComments] = useState<LeagueComment[]>([]);
-    const [loadingComments, setLoadingComments] = useState(false);
-    const [votingEntryId, setVotingEntryId] = useState<string | null>(null);
-
-    const [isFollowing, setIsFollowing] = useState(false);
-    const [followLoading, setFollowLoading] = useState(false);
+    const {
+        selectedEntry,
+        setSelectedEntry,
+        comments,
+        loadingComments,
+        votingEntryId,
+        isFollowing,
+        followLoading,
+        handleVote,
+        handleToggleFollow,
+        handleReactUpdate,
+        handleAddComment,
+        handleDeleteComment,
+        handleReport
+    } = useLeagueInteractions(entries, setEntries);
 
     // Fetch league entries
     const fetchEntries = useCallback(async (isLoadMore = false) => {
@@ -86,10 +94,43 @@ export function useLeague() {
                 ...doc.data(),
             } as LeagueEntry));
 
+            // Enrich entries with fresh author profile data (avatars, names, badges)
+            // This fixes stale denormalized data on older entries
+            const uniqueUserIds = Array.from(new Set(fetchedEntries.map(e => e.originalUserId)));
+            const profileMap: Record<string, { displayName?: string; photoURL?: string; badges?: string[] }> = {};
+
+            // Batch fetch user profiles (Firestore getDoc in parallel)
+            await Promise.all(
+                uniqueUserIds.map(async (uid) => {
+                    try {
+                        const userDoc = await getDoc(doc(db, 'users', uid));
+                        if (userDoc.exists()) {
+                            profileMap[uid] = userDoc.data() as any;
+                        }
+                    } catch (err) {
+                        // Silently skip — we still have the denormalized fallback
+                    }
+                })
+            );
+
+            // Merge fresh profile data into entries
+            const enrichedEntries = fetchedEntries.map(entry => {
+                const freshProfile = profileMap[entry.originalUserId];
+                if (freshProfile) {
+                    return {
+                        ...entry,
+                        authorName: freshProfile.displayName || entry.authorName,
+                        authorPhotoURL: freshProfile.photoURL ?? entry.authorPhotoURL,
+                        authorBadges: freshProfile.badges || entry.authorBadges || [],
+                    };
+                }
+                return entry;
+            });
+
             if (isLoadMore) {
-                setEntries(prev => [...prev, ...fetchedEntries]);
+                setEntries(prev => [...prev, ...enrichedEntries]);
             } else {
-                setEntries(fetchedEntries);
+                setEntries(enrichedEntries);
             }
         } catch (error: any) {
             console.error('[League] Error fetching entries:', error);
@@ -133,232 +174,6 @@ export function useLeague() {
             }
         }
     }, [entryIdParam, entries, loadingEntries]);
-
-    // Check following status
-    useEffect(() => {
-        if (!user || !selectedEntry || user.uid === selectedEntry.originalUserId) {
-            setIsFollowing(false);
-            return;
-        }
-
-        const checkFollowing = async () => {
-            try {
-                const followingRef = doc(db, 'users', user.uid, 'following', selectedEntry.originalUserId);
-                const followingSnap = await getDoc(followingRef);
-                setIsFollowing(followingSnap.exists());
-            } catch (err) {
-                console.error('Error checking follow status:', err);
-            }
-        };
-
-        checkFollowing();
-    }, [user, selectedEntry]);
-
-    // Actions
-    const handleToggleFollow = async () => {
-        if (!user || !selectedEntry || followLoading) return;
-        if (user.uid === selectedEntry.originalUserId) return;
-
-        try {
-            setFollowLoading(true);
-            const action = isFollowing ? 'unfollow' : 'follow';
-            const token = await user.getIdToken();
-
-            const res = await fetch('/api/user/follow', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ targetUserId: selectedEntry.originalUserId, action })
-            });
-
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
-
-            setIsFollowing(!isFollowing);
-            showToast(isFollowing ? 'Unfollowed creator' : 'Following creator!', 'success');
-        } catch (error: any) {
-            console.error('[League] Follow error:', error);
-            showToast(error.message || 'Failed to update follow status', 'error');
-        } finally {
-            setFollowLoading(false);
-        }
-    };
-
-    const handleVote = async (entryId: string) => {
-        if (!user) return;
-        setVotingEntryId(entryId);
-
-        try {
-            const token = await user.getIdToken();
-            const res = await fetch('/api/league/vote', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify({ entryId }),
-            });
-
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
-
-            // Optimistic update
-            const updateEntry = (e: LeagueEntry) => {
-                const newVotes = { ...e.votes };
-                if (data.voted) {
-                    newVotes[user.uid] = true;
-                } else {
-                    delete newVotes[user.uid];
-                }
-                return {
-                    ...e,
-                    votes: newVotes,
-                    voteCount: e.voteCount + (data.voted ? 1 : -1),
-                };
-            };
-
-            setEntries(prev => prev.map(e => e.id === entryId ? updateEntry(e) : e));
-
-            if (selectedEntry?.id === entryId) {
-                setSelectedEntry(prev => prev ? updateEntry(prev) : null);
-            }
-
-        } catch (error: any) {
-            console.error('[League] Vote error:', error);
-            showToast(error.message || 'Failed to vote', 'error');
-        } finally {
-            setVotingEntryId(null);
-        }
-    };
-
-    const handleReactUpdate = (entryId: string, emoji: string, reacted: boolean) => {
-        if (!user) return;
-
-        const updateEntry = (e: LeagueEntry) => {
-            const reactions = { ...e.reactions };
-            const users = Array.from(new Set(reactions[emoji] || []));
-
-            if (reacted) {
-                if (!users.includes(user.uid)) users.push(user.uid);
-            } else {
-                const idx = users.indexOf(user.uid);
-                if (idx > -1) users.splice(idx, 1);
-            }
-
-            reactions[emoji] = users;
-            return { ...e, reactions };
-        };
-
-        setEntries(prev => prev.map(e => e.id === entryId ? updateEntry(e) : e));
-        if (selectedEntry?.id === entryId) {
-            setSelectedEntry(prev => prev ? updateEntry(prev) : null);
-        }
-    };
-
-    // Comments
-    useEffect(() => {
-        if (!selectedEntry || !user) {
-            setComments([]);
-            return;
-        }
-
-        setLoadingComments(true);
-        const commentsRef = collection(db, 'leagueEntries', selectedEntry.id, 'comments');
-        const q = query(commentsRef, orderBy('createdAt', 'desc'));
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const fetched = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-            } as LeagueComment));
-            setComments(fetched);
-            setLoadingComments(false);
-        }, (error) => {
-            console.error('[League] Comments snapshot error:', error);
-            setLoadingComments(false);
-        });
-
-        return () => unsubscribe();
-    }, [selectedEntry, user]);
-
-    const handleAddComment = async (text: string) => {
-        if (!user || !selectedEntry || !text.trim()) return;
-
-        try {
-            const token = await user.getIdToken();
-            const res = await fetch('/api/league/comment', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify({ entryId: selectedEntry.id, text: text.trim() }),
-            });
-
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
-
-            setEntries(prev => prev.map(e =>
-                e.id === selectedEntry.id ? { ...e, commentCount: e.commentCount + 1 } : e
-            ));
-            setSelectedEntry(prev => prev ? { ...prev, commentCount: prev.commentCount + 1 } : null);
-
-            showToast('Comment added!', 'success');
-        } catch (error: any) {
-            console.error('[League] Comment error:', error);
-            showToast(error.message || 'Failed to add comment', 'error');
-            throw error;
-        }
-    };
-
-    const handleDeleteComment = async (commentId: string) => {
-        if (!user || !selectedEntry) return;
-        if (!confirm('Delete this comment?')) return;
-
-        try {
-            const token = await user.getIdToken();
-            await fetch(`/api/league/comment?entryId=${selectedEntry.id}&commentId=${commentId}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
-
-            setEntries(prev => prev.map(e =>
-                e.id === selectedEntry.id ? { ...e, commentCount: Math.max(0, e.commentCount - 1) } : e
-            ));
-            setSelectedEntry(prev => prev ? { ...prev, commentCount: Math.max(0, prev.commentCount - 1) } : null);
-
-            showToast('Comment deleted', 'success');
-        } catch (error: any) {
-            console.error('[League] Delete comment error:', error);
-            showToast(error.message || 'Failed to delete comment', 'error');
-            throw error;
-        }
-    };
-
-    const handleReport = async (entryId: string) => {
-        if (!user) return;
-        try {
-            const token = await user.getIdToken();
-            const res = await fetch('/api/league/report', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ entryId })
-            });
-
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
-
-            showToast(data.message, 'success');
-        } catch (err: any) {
-            showToast(err.message || 'Failed to report content', 'error');
-            throw err;
-        }
-    };
 
     return {
         user,

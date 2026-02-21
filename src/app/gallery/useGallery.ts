@@ -66,16 +66,16 @@ export function useGallery() {
             }
 
             const imagesRef = collection(db, 'users', user.uid, 'images');
-            let q = query(imagesRef, orderBy('createdAt', 'desc'), limit(24));
+            let q = query(imagesRef, orderBy('createdAt', 'desc'), limit(48));
 
             if (isLoadMore && lastVisibleRef.current) {
-                q = query(imagesRef, orderBy('createdAt', 'desc'), startAfter(lastVisibleRef.current), limit(24));
+                q = query(imagesRef, orderBy('createdAt', 'desc'), startAfter(lastVisibleRef.current), limit(48));
             }
 
             const snapshot = await getDocs(q);
             const lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1];
             lastVisibleRef.current = lastVisibleDoc;
-            setHasMore(snapshot.docs.length === 24);
+            setHasMore(snapshot.docs.length === 48);
 
             const fetchedImages: GeneratedImage[] = snapshot.docs.map(doc => {
                 const data = doc.data() as GeneratedImage;
@@ -120,8 +120,11 @@ export function useGallery() {
     }, [user]);
 
     // Actions
-    const handleDelete = async (imageId: string) => {
-        if (!user || !confirm('Are you sure you want to delete this image?')) return;
+    const [confirmationState, setConfirmationState] = useState<{ type: 'single' | 'batch', id?: string } | null>(null);
+
+    // Actions
+    const performDelete = async (imageId: string) => {
+        if (!user) return;
 
         setDeletingId(imageId);
         try {
@@ -130,16 +133,18 @@ export function useGallery() {
             if (selectedImage?.id === imageId) {
                 setSelectedImage(null);
             }
+            showToast('Image deleted successfully', 'success');
         } catch (error) {
             console.error('Delete error:', error);
+            showToast('Failed to delete image', 'error');
         } finally {
             setDeletingId(null);
         }
     };
 
-    const handleBatchDelete = async () => {
+    const performBatchDelete = async () => {
         if (!user || selectedImageIds.size === 0) return;
-        if (!confirm(`Delete ${selectedImageIds.size} image(s)? This cannot be undone.`)) return;
+
         setBatchDeleting(true);
         try {
             await Promise.all(Array.from(selectedImageIds).map(id =>
@@ -155,6 +160,30 @@ export function useGallery() {
         } finally {
             setBatchDeleting(false);
         }
+    };
+
+    const handleDelete = (imageId: string) => {
+        setConfirmationState({ type: 'single', id: imageId });
+    };
+
+    const handleBatchDelete = () => {
+        if (selectedImageIds.size === 0) return;
+        setConfirmationState({ type: 'batch' });
+    };
+
+    const confirmDelete = async () => {
+        if (!confirmationState) return;
+
+        if (confirmationState.type === 'single' && confirmationState.id) {
+            await performDelete(confirmationState.id);
+        } else if (confirmationState.type === 'batch') {
+            await performBatchDelete();
+        }
+        setConfirmationState(null);
+    };
+
+    const cancelDelete = () => {
+        setConfirmationState(null);
     };
 
     const handleCreateCollection = async () => {
@@ -203,7 +232,7 @@ export function useGallery() {
         setPublishingId(image.id);
         try {
             const token = await user.getIdToken();
-            const res = await fetch('/api/league/publish', {
+            const res = await fetch('/api/league/publish/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -445,7 +474,7 @@ export function useGallery() {
         try {
             console.log('[Gallery] Initiating download for image:', image.id);
             const filename = `studio-image-${image.id}.${format}`;
-            const proxyUrl = `/api/download?url=${encodeURIComponent(image.imageUrl)}&filename=${encodeURIComponent(filename)}`;
+            const proxyUrl = `/api/download/?url=${encodeURIComponent(image.imageUrl)}&filename=${encodeURIComponent(filename)}`;
 
             const link = document.createElement('a');
             link.href = proxyUrl;
@@ -476,6 +505,13 @@ export function useGallery() {
         });
         return groups;
     }, []);
+
+    const handleUpdateImage = (updatedImage: GeneratedImage) => {
+        setImages(prev => prev.map(img => img.id === updatedImage.id ? updatedImage : img));
+        if (selectedImage?.id === updatedImage.id) {
+            setSelectedImage(updatedImage);
+        }
+    };
 
     // Filter Logic
     const filteredImages = images.filter(img => {
@@ -553,6 +589,7 @@ export function useGallery() {
         setImages,
         handleAddImageTag, handleRemoveImageTag,
         handleUpdatePromptSetID, handleToggleCollection, handleBatchToggleCollection,
-        handleDownload, handleNextImage, handlePrevImage
+        handleDownload, handleNextImage, handlePrevImage, handleUpdateImage,
+        confirmationState, confirmDelete, cancelDelete
     };
 }

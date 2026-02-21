@@ -42,9 +42,137 @@ export interface GenerateImageResult {
 
 export class NanoBananaService {
     private client: GoogleGenAI;
+    private apiKey: string;
 
     constructor(apiKey: string) {
         this.client = new GoogleGenAI({ apiKey });
+        this.apiKey = apiKey;
+    }
+
+    async generateVideo(options: { prompt: string; aspectRatio: AspectRatio; onProgress?: (current: number, total: number) => void }): Promise<GenerateImageResult> {
+        const { prompt, aspectRatio, onProgress } = options;
+        const model = 'models/veo-2.0-generate-001';
+
+        try {
+            // Map aspect ratio for Veo
+            // Veo supports string formats like '16:9', '9:16', '1:1', '4:3', '3:4'
+            // Our types match directly for common ones.
+            const veoAspectRatio = aspectRatio;
+
+            // 1. Initial Request
+            // Using raw fetch because predictLongRunning is not standard in SDK yet
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${model}:predictLongRunning?key=${this.apiKey}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    instances: [
+                        { prompt }
+                    ],
+                    parameters: {
+                        sampleCount: 1,
+                        aspectRatio: veoAspectRatio
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Veo API Error (${response.status}): ${errorText}`);
+            }
+
+            const initialData = await response.json();
+            const operationName = initialData.name; // e.g., "models/.../operations/..."
+
+            if (!operationName) {
+                throw new Error('No operation name returned from Veo API');
+            }
+
+            // 2. Poll for completion
+            let pollData;
+            const startTime = Date.now();
+            const timeout = 180000; // 3 minutes timeout (video gen is slow)
+
+            while (true) {
+                if (Date.now() - startTime > timeout) {
+                    throw new Error('Video generation timed out');
+                }
+
+                // Wait 5 seconds between polls
+                await new Promise(resolve => setTimeout(resolve, 5000));
+
+                const pollResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${operationName}?key=${this.apiKey}`);
+                if (!pollResponse.ok) {
+                    throw new Error(`Polling failed: ${pollResponse.statusText}`);
+                }
+
+                pollData = await pollResponse.json();
+
+                if (pollData.done) {
+                    break;
+                }
+
+                // Optional progress update? 
+                // Veo doesn't expose % progress easily, but we can fake it or just pulse.
+                if (onProgress) onProgress(0, 1);
+            }
+
+            if (pollData.error) {
+                throw new Error(`Veo Generation Failed: ${pollData.error.message || JSON.stringify(pollData.error)}`);
+            }
+
+            // 3. Extract Video
+            // The result is usually in response.result (for older LRO) or response (for new LRO)
+            // Based on test, it returns:
+            // "response": { "@type": "...", "generateVideoResponse": { "generatedSamples": [ { "video": { "uri": "..." } } ] } }
+            // Note: The field might be `result` or `response` depending on API version. 
+            // Our test output showed `response` at top level inside the operation JSON, returning `uri`.
+
+            const videoUri = pollData.response?.generateVideoResponse?.generatedSamples?.[0]?.video?.uri;
+
+            if (!videoUri) {
+                console.error('Full Poll Data:', JSON.stringify(pollData, null, 2));
+                throw new Error('No video URI found in completed operation');
+            }
+
+            // 4. Download Video Content
+            // The URI is likely a public or authenticated download link.
+            // Usually for Generative Language API, we can fetch it directly (maybe with key).
+            const downloadUrl = `${videoUri}&key=${this.apiKey}`; // Try appending key just in case
+
+            const videoRes = await fetch(downloadUrl);
+            if (!videoRes.ok) {
+                // Try without extra key param if 400/403?
+                // Actually the URI from test output already has some params.
+                // Let's assume standard fetch works.
+                const retryRes = await fetch(videoUri);
+                if (!retryRes.ok) {
+                    throw new Error(`Failed to download video content: ${videoRes.statusText}`);
+                }
+                return {
+                    success: true,
+                    images: [{
+                        data: Buffer.from(await retryRes.arrayBuffer()).toString('base64'),
+                        mimeType: 'video/mp4'
+                    }]
+                };
+            }
+
+            const videoBuffer = await videoRes.arrayBuffer();
+
+            return {
+                success: true,
+                images: [{
+                    data: Buffer.from(videoBuffer).toString('base64'),
+                    mimeType: 'video/mp4' // Verify header? usually video/mp4
+                }]
+            };
+
+        } catch (error: any) {
+            console.error('Veo video generation error:', error);
+            return { success: false, error: error.message || 'Video generation failed' };
+        }
     }
 
     async generateImage(options: GenerateImageOptions): Promise<GenerateImageResult> {
@@ -67,7 +195,7 @@ export class NanoBananaService {
                         attempts++;
                         // Build config
                         const config: any = {
-                            responseModalities: ['Image'],
+                            responseModalities: ['IMAGE'],
                             safetySettings: [
                                 { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
                                 { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },

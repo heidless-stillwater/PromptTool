@@ -17,6 +17,10 @@
         ],
         "rewrites": [
             {
+                "source": "/profile/**",
+                "destination": "/profile/1/index.html"
+            },
+            {
                 "source": "**",
                 "destination": "/index.html"
             }

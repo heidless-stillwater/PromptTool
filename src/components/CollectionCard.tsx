@@ -4,6 +4,12 @@ import { Collection } from '@/lib/types';
 import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import SmartImage from '@/components/SmartImage';
+import { Card } from '@/components/ui/Card';
+import { Icons } from '@/components/ui/Icons';
+import { Input } from '@/components/ui/Input';
+import { Badge } from '@/components/ui/Badge';
+import { cn } from '@/lib/utils';
 
 interface CollectionCardProps {
     collection: Collection;
@@ -19,7 +25,6 @@ export default function CollectionCard({ collection, onDelete, onRename, onToggl
     const [renameValue, setRenameValue] = useState(collection.name);
     const menuRef = useRef<HTMLDivElement>(null);
 
-    // Close menu when clicking outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -39,74 +44,82 @@ export default function CollectionCard({ collection, onDelete, onRename, onToggl
     };
 
     const handleDelete = () => {
-        if (window.confirm('Are you sure you want to delete this collection? Images will not be deleted.')) {
+        if (window.confirm('Are you sure you want to delete this collection? Images will stay in your gallery.')) {
             onDelete?.(collection.id);
         }
         setIsMenuOpen(false);
     };
 
     return (
-        <div className="card group relative p-0 hover:border-primary/50 transition-all">
-            {/* Clickable Area to Navigate */}
+        <Card variant="glass" className="group relative p-0 overflow-hidden border-border/50 hover:border-primary/50 transition-all duration-300 rounded-[2rem]">
+            {/* Clickable Image Area */}
             <Link
                 href={`/collections/${collection.id}`}
-                className="block aspect-[4/3] bg-background-secondary relative overflow-hidden rounded-t-2xl"
+                className="block aspect-[4/3] bg-background-secondary relative overflow-hidden"
             >
                 {collection.coverImageUrl ? (
-                    <img
+                    <SmartImage
                         src={collection.coverImageUrl}
                         alt={collection.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                     />
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center text-foreground-muted bg-background-secondary">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                        </svg>
+                    <div className="w-full h-full flex items-center justify-center text-foreground-muted bg-background-secondary/50">
+                        <Icons.stack className="w-12 h-12 opacity-20" />
                     </div>
                 )}
 
+                {/* Overlays */}
+                <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
                 {/* Privacy Badge */}
-                <div className="absolute top-3 left-3">
-                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase backdrop-blur-md shadow-sm ${collection.privacy === 'public'
-                        ? 'bg-success/20 text-success border border-success/30'
-                        : 'bg-black/50 text-white border border-white/20'
-                        }`}>
+                <div className="absolute top-4 left-4">
+                    <Badge
+                        variant={collection.privacy === 'public' ? 'success' : 'glass'}
+                        className="gap-1.5 shadow-lg backdrop-blur-md"
+                    >
+                        {collection.privacy === 'public' ? <Icons.globe size={10} /> : <Icons.shield size={10} />}
                         {collection.privacy === 'public' ? 'Public' : 'Private'}
-                    </span>
+                    </Badge>
                 </div>
             </Link>
 
             {/* Info Section */}
-            <div className="p-4 relative">
-                <div className="flex justify-between items-start">
-                    <div className="flex-1 min-w-0 mr-8">
+            <div className="p-6 relative">
+                <div className="flex justify-between items-start gap-4">
+                    <div className="flex-1 min-w-0">
                         {isRenaming ? (
-                            <form onSubmit={handleRenameSubmit} className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                <input
+                            <form onSubmit={handleRenameSubmit} className="flex items-center gap-2">
+                                <Input
                                     type="text"
                                     value={renameValue}
                                     onChange={(e) => setRenameValue(e.target.value)}
                                     autoFocus
                                     onBlur={() => setIsRenaming(false)}
-                                    className="w-full bg-background border border-primary rounded px-1 py-0.5 text-sm font-bold ml-[-5px]"
+                                    className="h-8 text-sm font-black px-2 py-1"
                                 />
                             </form>
                         ) : (
-                            <Link href={`/collections/${collection.id}`} className="block">
-                                <h3 className="font-bold truncate hover:text-primary transition-colors" title={collection.name}>
+                            <Link href={`/collections/${collection.id}`} className="block group/title">
+                                <h3 className="text-base font-black tracking-tight truncate group-hover/title:text-primary transition-colors">
                                     {collection.name}
                                 </h3>
                             </Link>
                         )}
-                        <p className="text-xs text-foreground-muted mt-1">
-                            {collection.imageCount} image{collection.imageCount !== 1 ? 's' : ''}
-                        </p>
+                        <div className="flex items-center gap-2 mt-1.5">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-foreground-muted opacity-60">
+                                {collection.imageCount || 0} Assets
+                            </span>
+                            <div className="w-1 h-1 rounded-full bg-border" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-primary/70">
+                                Collection
+                            </span>
+                        </div>
 
                         {/* Tags Display */}
                         {collection.tags && collection.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-3">
-                                {collection.tags.slice(0, 3).map(tag => (
+                            <div className="flex flex-wrap gap-1.5 mt-4">
+                                {collection.tags.slice(0, 2).map(tag => (
                                     <button
                                         key={tag}
                                         onClick={(e) => {
@@ -114,14 +127,14 @@ export default function CollectionCard({ collection, onDelete, onRename, onToggl
                                             e.stopPropagation();
                                             router.push(`/gallery?tag=${tag}`);
                                         }}
-                                        className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 hover:bg-primary hover:text-white transition-all cursor-pointer"
+                                        className="text-[9px] font-black uppercase px-2 py-1 rounded-lg bg-background-secondary border border-border/50 text-foreground-muted hover:border-primary/30 hover:text-primary transition-all"
                                     >
                                         #{tag}
                                     </button>
                                 ))}
-                                {collection.tags.length > 3 && (
-                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-background-secondary text-foreground-muted border border-border">
-                                        +{collection.tags.length - 3}
+                                {collection.tags.length > 2 && (
+                                    <span className="text-[9px] font-black uppercase px-2 py-1 rounded-lg bg-background-secondary text-foreground-muted opacity-40">
+                                        +{collection.tags.length - 2}
                                     </span>
                                 )}
                             </div>
@@ -129,34 +142,30 @@ export default function CollectionCard({ collection, onDelete, onRename, onToggl
                     </div>
 
                     {/* Menu Button */}
-                    <div className="absolute top-4 right-2" ref={menuRef}>
+                    <div className="relative" ref={menuRef}>
                         <button
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setIsMenuOpen(!isMenuOpen);
                             }}
-                            className="p-1.5 hover:bg-background-secondary rounded-lg text-foreground-muted hover:text-foreground transition-colors"
+                            className="p-2 hover:bg-background-secondary rounded-xl text-foreground-muted hover:text-foreground transition-all border border-transparent hover:border-border"
                         >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <circle cx="12" cy="12" r="1" />
-                                <circle cx="12" cy="5" r="1" />
-                                <circle cx="12" cy="19" r="1" />
-                            </svg>
+                            <Icons.more size={18} />
                         </button>
 
                         {/* Dropdown Menu */}
                         {isMenuOpen && (
-                            <div className="absolute right-0 top-full mt-1 w-40 bg-background-tertiary border border-border rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+                            <div className="absolute right-0 top-full mt-2 w-48 bg-background-secondary border border-border/50 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right backdrop-blur-xl">
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         setIsRenaming(true);
                                         setIsMenuOpen(false);
                                     }}
-                                    className="w-full text-left px-4 py-2.5 text-xs hover:bg-background-secondary flex items-center gap-2"
+                                    className="w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest hover:bg-primary/5 hover:text-primary flex items-center gap-3 transition-colors"
                                 >
-                                    <span>✏️</span> Rename
+                                    <Icons.settings size={14} /> Rename
                                 </button>
                                 <button
                                     onClick={(e) => {
@@ -164,34 +173,35 @@ export default function CollectionCard({ collection, onDelete, onRename, onToggl
                                         onTogglePrivacy?.(collection.id, collection.privacy);
                                         setIsMenuOpen(false);
                                     }}
-                                    className="w-full text-left px-4 py-2.5 text-xs hover:bg-background-secondary flex items-center gap-2"
+                                    className="w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest hover:bg-primary/5 hover:text-primary flex items-center gap-3 transition-colors"
                                 >
-                                    <span>{collection.privacy === 'public' ? '🔒 Make Private' : '🌍 Make Public'}</span>
+                                    {collection.privacy === 'public' ? <Icons.shield size={14} /> : <Icons.globe size={14} />}
+                                    {collection.privacy === 'public' ? 'Make Private' : 'Make Public'}
                                 </button>
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         router.push(`/collections/${collection.id}`);
                                     }}
-                                    className="w-full text-left px-4 py-2.5 text-xs hover:bg-background-secondary flex items-center gap-2"
+                                    className="w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest hover:bg-primary/5 hover:text-primary flex items-center gap-3 transition-colors"
                                 >
-                                    <span>🏷️</span> Edit Tags
+                                    <Icons.grid size={14} /> Manage Assets
                                 </button>
-                                <div className="h-px bg-border my-1" />
+                                <div className="h-px bg-border/50 mx-4" />
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         handleDelete();
                                     }}
-                                    className="w-full text-left px-4 py-2.5 text-xs hover:bg-error/10 text-error flex items-center gap-2"
+                                    className="w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest hover:bg-error/5 text-error flex items-center gap-3 transition-colors"
                                 >
-                                    <span>🗑️</span> Delete
+                                    <Icons.delete size={14} /> Delete
                                 </button>
                             </div>
                         )}
                     </div>
                 </div>
             </div>
-        </div>
+        </Card>
     );
 }

@@ -4,6 +4,10 @@ import { useAuth } from '@/lib/auth-context';
 import { SUBSCRIPTION_PLANS, SubscriptionTier } from '@/lib/types';
 import Link from 'next/link';
 import { useState } from 'react';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Icons } from '@/components/ui/Icons';
+import { Badge } from '@/components/ui/Badge';
 
 export default function PricingPage() {
     const { user, profile, loading } = useAuth();
@@ -21,7 +25,7 @@ export default function PricingPage() {
 
         try {
             const idToken = await user.getIdToken();
-            const response = await fetch('/api/stripe/checkout', {
+            const response = await fetch('/api/stripe/checkout/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -48,7 +52,7 @@ export default function PricingPage() {
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
-                <div className="spinner" />
+                <Icons.spinner className="w-8 h-8 animate-spin text-primary" />
             </div>
         );
     }
@@ -56,16 +60,16 @@ export default function PricingPage() {
     return (
         <div className="min-h-screen bg-background text-foreground">
             {/* Nav */}
-            <header className="sticky top-0 z-50 glass-card border-b border-border">
+            <Card variant="glass" className="sticky top-0 z-50 border-b border-border rounded-none p-0">
                 <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
                     <Link href="/dashboard" className="text-xl font-bold gradient-text">
                         AI Image Studio
                     </Link>
-                    <Link href="/dashboard" className="text-sm font-medium hover:text-primary transition-colors">
-                        ← Back to Dashboard
+                    <Link href="/dashboard" className="inline-flex items-center gap-2 text-sm font-medium hover:text-primary transition-colors">
+                        <Icons.arrowLeft size={14} /> Back to Dashboard
                     </Link>
                 </div>
-            </header>
+            </Card>
 
             <main className="max-w-7xl mx-auto px-4 py-16">
                 <div className="text-center mb-16">
@@ -90,17 +94,18 @@ export default function PricingPage() {
                         const isFree = plan.id === 'free';
 
                         return (
-                            <div
+                            <Card
                                 key={plan.id}
-                                className={`relative group p-8 rounded-3xl border transition-all duration-300 ${isPro
-                                        ? 'bg-accent/5 border-accent/20 shadow-[0_0_40px_rgba(217,70,239,0.1)] scale-105 z-10'
-                                        : 'bg-background-secondary border-border hover:border-primary/30'
+                                variant={isPro ? 'glass' : 'default'}
+                                className={`relative group p-8 rounded-3xl transition-all duration-300 ${isPro
+                                    ? 'bg-accent/5 border-accent/20 shadow-[0_0_40px_rgba(217,70,239,0.1)] scale-105 z-10'
+                                    : 'bg-background-secondary border-border hover:border-primary/30'
                                     }`}
                             >
                                 {isPro && (
-                                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-accent text-white text-[10px] font-bold uppercase tracking-widest rounded-full shadow-lg shadow-accent/20">
+                                    <Badge variant="accent" className="absolute -top-4 left-1/2 -translate-x-1/2 shadow-lg shadow-accent/20 rounded-full px-4 py-1">
                                         Best Value
-                                    </div>
+                                    </Badge>
                                 )}
 
                                 <div className="mb-8">
@@ -116,40 +121,28 @@ export default function PricingPage() {
                                 <ul className="space-y-4 mb-8">
                                     {plan.features.map((feature, i) => (
                                         <li key={i} className="flex gap-3 text-sm">
-                                            <svg className={`shrink-0 w-5 h-5 ${isPro ? 'text-accent' : 'text-primary'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                                                <path d="M20 6L9 17l-5-5" />
-                                            </svg>
+                                            <Icons.check className={`shrink-0 w-5 h-5 ${isPro ? 'text-accent' : 'text-primary'}`} />
                                             <span className="text-foreground-muted group-hover:text-foreground transition-colors">{feature}</span>
                                         </li>
                                     ))}
                                 </ul>
 
-                                <button
+                                <Button
                                     onClick={() => !isCurrent && !isFree && handleUpgrade(plan.id)}
                                     disabled={isCurrent || isFree || processingPlan === plan.id}
-                                    className={`w-full py-4 rounded-xl font-bold transition-all duration-300 ${isCurrent
-                                            ? 'bg-foreground/5 text-foreground-muted cursor-default border border-border'
-                                            : isFree
-                                                ? 'bg-foreground/5 text-foreground-muted cursor-default'
-                                                : isPro
-                                                    ? 'bg-accent text-white hover:shadow-lg hover:shadow-accent/30 hover:-translate-y-1'
-                                                    : 'bg-primary text-white hover:shadow-lg hover:shadow-primary/30 hover:-translate-y-1'
+                                    isLoading={processingPlan === plan.id}
+                                    className={`w-full py-4 h-14 rounded-xl font-bold transition-all duration-300 ${isCurrent
+                                        ? 'bg-foreground/5 text-foreground-muted cursor-default border border-border hover:bg-foreground/5'
+                                        : isFree
+                                            ? 'bg-foreground/5 text-foreground-muted cursor-default hover:bg-foreground/5'
+                                            : isPro
+                                                ? 'bg-accent text-white hover:shadow-lg hover:shadow-accent/30 hover:-translate-y-1 hover:bg-accent'
+                                                : 'bg-primary text-white hover:shadow-lg hover:shadow-primary/30 hover:-translate-y-1'
                                         }`}
                                 >
-                                    {processingPlan === plan.id ? (
-                                        <span className="flex items-center justify-center gap-2">
-                                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                            Processing...
-                                        </span>
-                                    ) : isCurrent ? (
-                                        'Active Plan'
-                                    ) : isFree ? (
-                                        'Default'
-                                    ) : (
-                                        `Upgrade to ${plan.name}`
-                                    )}
-                                </button>
-                            </div>
+                                    {isCurrent ? 'Active Plan' : isFree ? 'Default' : `Upgrade to ${plan.name}`}
+                                </Button>
+                            </Card>
                         );
                     })}
                 </div>

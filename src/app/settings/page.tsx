@@ -5,9 +5,13 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useToast } from '@/components/Toast';
-import NotificationBell from '@/components/NotificationBell';
+import { Icons } from '@/components/ui/Icons';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { Input } from '@/components/ui/Input';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { cn } from '@/lib/utils';
 
 export default function SettingsPage() {
     const { user, profile, loading } = useAuth();
@@ -106,7 +110,7 @@ export default function SettingsPage() {
             }
 
             const token = await user.getIdToken();
-            const res = await fetch('/api/user/profile', {
+            const res = await fetch('/api/user/profile/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -142,243 +146,318 @@ export default function SettingsPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="spinner" />
+            <div className="min-h-screen flex items-center justify-center bg-background">
+                <div className="flex flex-col items-center gap-4">
+                    <Icons.spinner className="w-10 h-10 animate-spin text-primary" />
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted">Loading Settings</p>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen">
+        <div className="min-h-screen bg-background text-foreground">
             {/* Header */}
-            <header className="sticky top-0 z-50 glass-card border-b border-border">
-                <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-                    <Link href="/dashboard" className="text-xl font-bold gradient-text">
-                        AI Image Studio
-                    </Link>
-
+            <Card variant="glass" className="sticky top-0 z-50 border-x-0 border-t-0 rounded-none border-b border-border p-0">
+                <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <NotificationBell />
-                        <Link href="/league" className="btn-secondary text-sm px-4 py-2 flex items-center gap-2">
-                            <span>🏆</span> Community League
+                        <Link href="/dashboard">
+                            <Button variant="secondary" size="icon" className="w-9 h-9">
+                                <Icons.arrowLeft size={18} />
+                            </Button>
                         </Link>
-                        <Link href="/dashboard" className="btn-secondary text-sm px-4 py-2">
-                            ← Dashboard
+                        <Link href="/dashboard" className="text-xl font-black tracking-tighter gradient-text hover:opacity-80 transition-opacity">
+                            STILLWATER<span className="text-foreground"> STUDIO</span>
+                        </Link>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <Link href="/league">
+                            <Button variant="secondary" size="sm" className="h-9 gap-2 font-black uppercase tracking-widest text-[10px]">
+                                <Icons.trophy size={14} className="text-primary" />
+                                <span className="hidden sm:inline">League</span>
+                            </Button>
+                        </Link>
+                        <div className="h-6 w-px bg-border/50 mx-1" />
+                        <Link href="/dashboard">
+                            <Button variant="primary" size="sm" className="h-9 px-4 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20">
+                                Dashboard
+                            </Button>
                         </Link>
                     </div>
                 </div>
-            </header>
+            </Card>
 
-            <main className="max-w-3xl mx-auto px-4 py-12">
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <h1 className="text-4xl font-bold">Profile Settings</h1>
-                        <p className="text-foreground-muted mt-2">Personalize how others see you in the community.</p>
+            <main className="max-w-4xl mx-auto px-4 py-16">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-16 relative">
+                    <div className="absolute top-0 left-0 w-64 h-64 bg-primary/10 blur-[100px] -ml-32 -mt-32 rounded-full pointer-events-none" />
+                    <div className="relative">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-1 h-4 bg-primary rounded-full" />
+                            <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground-muted">Account Controls</h2>
+                        </div>
+                        <h1 className="text-5xl font-black tracking-tighter uppercase">Profile <span className="text-primary">Settings</span></h1>
+                        <p className="text-foreground-muted mt-3 text-sm max-w-lg">Manage your public identity, social presence, and creator preferences across the Stillwater ecosystem.</p>
                     </div>
-                    {user && (
-                        <Link
-                            href={`/profile/${user.uid}`}
-                            className="text-primary font-bold hover:underline flex items-center gap-2"
-                        >
-                            View Public Profile →
-                        </Link>
+
+                    {user?.email && (
+                        <Card variant="glass" className="p-6 border-primary/20 shadow-2xl shadow-primary/5 flex items-center gap-5 md:self-end">
+                            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+                                <Icons.user size={24} />
+                            </div>
+                            <div>
+                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-primary mb-1">Authenticated via Google</p>
+                                <p className="text-sm font-black text-foreground">{user.email}</p>
+                            </div>
+                        </Card>
                     )}
                 </div>
 
-                <form onSubmit={handleSave} className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <form onSubmit={handleSave} className="space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
                     {/* Banner */}
-                    <div className="glass-card overflow-hidden">
-                        <div className="relative group cursor-pointer">
-                            <div className="w-full h-48 bg-gradient-to-r from-primary/20 via-purple-500/10 to-primary/5 overflow-hidden">
+                    <Card className="overflow-hidden border-border/50 group">
+                        <div
+                            className={cn(
+                                "relative cursor-pointer bg-background-tertiary overflow-hidden transition-all duration-500",
+                                !(bannerPreview || bannerUrl) ? 'h-64' : 'h-auto min-h-[240px]'
+                            )}
+                        >
+                            <div className="w-full h-full">
                                 {(bannerPreview || bannerUrl) ? (
                                     <img
                                         src={bannerPreview || bannerUrl}
                                         alt="Profile Banner"
-                                        className="w-full h-full object-cover"
+                                        className="w-full h-full object-cover block transition-transform duration-700 group-hover:scale-105"
                                     />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                        <span className="text-foreground-muted text-sm">No banner image</span>
+                                    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-primary/10 via-background-tertiary to-background-secondary p-8 text-center gap-4">
+                                        <div className="w-16 h-16 rounded-3xl bg-background flex items-center justify-center shadow-lg border border-border/50">
+                                            <Icons.image size={32} className="text-primary/40" />
+                                        </div>
+                                        <p className="text-foreground-muted text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Click to upload brand banner</p>
                                     </div>
                                 )}
-                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <span className="text-white text-sm font-bold uppercase tracking-widest">Change Banner</span>
+                                <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 backdrop-blur-[2px]">
+                                    <div className="flex flex-col items-center gap-3">
+                                        <div className="p-4 rounded-full bg-white/10 border border-white/20 backdrop-blur-md">
+                                            <Icons.plus className="text-white" size={24} />
+                                        </div>
+                                        <span className="text-white text-[10px] font-black uppercase tracking-[0.3em]">Update Banner</span>
+                                    </div>
                                 </div>
                             </div>
                             <input
                                 type="file"
                                 accept="image/*"
                                 onChange={handleBannerChange}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
                             />
                         </div>
-                        <div className="px-8 py-3 flex items-center justify-between">
-                            <h2 className="text-xl font-bold flex items-center gap-2">
-                                <span>🖼️</span> Profile Banner
-                            </h2>
-                            <p className="text-xs text-foreground-muted">Click to upload. 16:9 recommended. Max 10MB.</p>
+                        <div className="px-8 py-5 flex items-center justify-between bg-background-secondary/50">
+                            <div className="flex items-center gap-3">
+                                <Icons.image className="text-primary" size={18} />
+                                <h2 className="text-sm font-black uppercase tracking-widest text-foreground">Profile Banner</h2>
+                            </div>
+                            <p className="text-[9px] font-black uppercase tracking-widest text-foreground-muted opacity-60">16:9 Recommended • PNG/JPG • Max 10MB</p>
                         </div>
-                    </div>
+                    </Card>
 
                     {/* Basic Info */}
-                    <div className="glass-card p-8 space-y-6">
-                        <h2 className="text-xl font-bold flex items-center gap-2">
-                            <span>👤</span> Public Identity
-                        </h2>
+                    <Card className="p-10 border-border/50 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[80px] -mr-32 -mt-32 rounded-full pointer-events-none" />
 
-                        <div className="space-y-4">
-                            <div className="flex flex-col items-center sm:flex-row gap-6 mb-6">
-                                <div className="relative group cursor-pointer">
-                                    <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-primary/20 bg-primary/5">
+                        <div className="flex items-center justify-between mb-10">
+                            <div className="flex items-center gap-3">
+                                <div className="w-1 h-4 bg-primary rounded-full" />
+                                <h2 className="text-sm font-black uppercase tracking-widest text-foreground">Public Identity</h2>
+                            </div>
+                            {user && (
+                                <Link href={`/profile/${user.uid}`}>
+                                    <Button variant="secondary" size="sm" className="h-9 gap-2 font-black uppercase tracking-widest text-[9px] border-primary/20">
+                                        View Live Profile <Icons.external size={12} />
+                                    </Button>
+                                </Link>
+                            )}
+                        </div>
+
+                        <div className="space-y-8">
+                            <div className="flex flex-col items-center sm:flex-row gap-8 mb-4">
+                                <div className="relative group cursor-pointer avatar-upload">
+                                    <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                                    <div className="w-32 h-32 rounded-full overflow-hidden border-[6px] border-background bg-background-tertiary relative z-10 shadow-xl group-hover:rotate-3 transition-transform duration-500">
                                         <img
                                             src={avatarPreview || photoURL || `https://ui-avatars.com/api/?name=${displayName || 'User'}&background=random`}
                                             alt="Avatar"
-                                            className="w-full h-full object-cover"
+                                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                                         />
-                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <span className="text-white text-xs font-bold uppercase tracking-widest">Change</span>
+                                        <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                            <Icons.plus className="text-white mb-1" size={16} />
+                                            <span className="text-white text-[9px] font-black uppercase tracking-widest">Update</span>
                                         </div>
                                     </div>
                                     <input
                                         type="file"
                                         accept="image/*"
                                         onChange={handleFileChange}
-                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
                                     />
                                 </div>
-                                <div className="text-center sm:text-left">
-                                    <h3 className="font-bold text-foreground">Profile Picture</h3>
-                                    <p className="text-sm text-foreground-muted mt-1">
-                                        Click image to upload. Max 5MB.
+                                <div className="text-center sm:text-left flex-1 space-y-2">
+                                    <h3 className="font-black uppercase tracking-widest text-sm text-foreground">Creator Avatar</h3>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-foreground-muted opacity-60">
+                                        Max 5MB • PNG/JPG/WebP • Square Recommended
+                                    </p>
+                                    {profile?.email && (
+                                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-background-secondary border border-border/50">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+                                            <span className="text-[9px] text-foreground-muted font-black uppercase tracking-widest">
+                                                Verified: {profile.email}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div className="space-y-3">
+                                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted ml-1">
+                                        Display Name
+                                    </label>
+                                    <Input
+                                        value={displayName}
+                                        onChange={(e) => setDisplayName(e.target.value)}
+                                        maxLength={50}
+                                        placeholder="Stillwater Creator"
+                                        className="h-12 bg-background-secondary/50"
+                                    />
+                                    <div className="flex justify-end">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-foreground-muted opacity-40">{displayName.length}/50</span>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted ml-1">
+                                        Unique Username
+                                    </label>
+                                    <div className="relative">
+                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-primary font-black z-10">@</div>
+                                        <Input
+                                            value={username}
+                                            onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                                            maxLength={20}
+                                            placeholder="your_handle"
+                                            className="h-12 pl-10 bg-background-secondary/50"
+                                        />
+                                    </div>
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-foreground-muted opacity-60 leading-relaxed px-1">
+                                        Lowercase letters, numbers, and underscores only.
                                     </p>
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-bold uppercase tracking-widest text-foreground-muted mb-2">
-                                    Display Name
-                                </label>
-                                <input
-                                    type="text"
-                                    value={displayName}
-                                    onChange={(e) => setDisplayName(e.target.value)}
-                                    maxLength={50}
-                                    placeholder="Your public name"
-                                    className="input-field"
-                                />
-                                <p className="text-[10px] text-foreground-muted mt-1 text-right">
-                                    {displayName.length}/50
-                                </p>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-bold uppercase tracking-widest text-foreground-muted mb-2">
-                                    Unique Username (Handle)
-                                </label>
-                                <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted">@</span>
-                                    <input
-                                        type="text"
-                                        value={username}
-                                        onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                                        maxLength={20}
-                                        placeholder="your_handle"
-                                        className="input-field pl-10"
-                                    />
-                                </div>
-                                <p className="text-[10px] text-foreground-muted mt-1">
-                                    Used for @mentions in comments. 3-20 characters, lowercase letters, numbers, and underscores only.
-                                </p>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-bold uppercase tracking-widest text-foreground-muted mb-2">
-                                    About You (Bio)
+                            <div className="space-y-3">
+                                <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted ml-1">
+                                    Creator Bio
                                 </label>
                                 <textarea
                                     value={bio}
                                     onChange={(e) => setBio(e.target.value)}
                                     maxLength={500}
-                                    placeholder="Tell the community about yourself, your style, or your inspiration..."
-                                    className="input-field h-32 resize-none"
+                                    placeholder="Share your creative vision, preferred styles, or artistic journey with the community..."
+                                    className="w-full bg-background-secondary/50 border border-border rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all outline-none min-h-[140px] resize-none leading-relaxed"
                                 />
-                                <p className="text-[10px] text-foreground-muted mt-1 text-right">
-                                    {bio.length}/500
-                                </p>
+                                <div className="flex justify-end">
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-foreground-muted opacity-40">{bio.length}/500</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    </Card>
 
                     {/* Social Links */}
-                    <div className="glass-card p-8 space-y-6">
-                        <h2 className="text-xl font-bold flex items-center gap-2">
-                            <span>🔗</span> Social Presence
-                        </h2>
+                    <Card className="p-10 border-border/50">
+                        <div className="flex items-center gap-3 mb-10">
+                            <div className="w-1 h-4 bg-primary rounded-full" />
+                            <h2 className="text-sm font-black uppercase tracking-widest text-foreground">Social Presence</h2>
+                        </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label className="block text-sm font-bold uppercase tracking-widest text-foreground-muted mb-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="space-y-3">
+                                <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted ml-1">
                                     X (Twitter) Handle
                                 </label>
                                 <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted">@</span>
-                                    <input
-                                        type="text"
+                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted pointer-events-none z-10">
+                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
+                                    </div>
+                                    <Input
                                         value={socialLinks.twitter}
-                                        onChange={(e) => setSocialLinks(prev => ({ ...prev, twitter: e.target.value }))}
+                                        onChange={(e) => setSocialLinks(prev => ({ ...prev, twitter: e.target.value.replace(/^@/, '') }))}
                                         placeholder="username"
-                                        className="input-field pl-10"
+                                        className="h-12 pl-12 bg-background-secondary/50"
                                     />
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-bold uppercase tracking-widest text-foreground-muted mb-2">
+                            <div className="space-y-3">
+                                <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted ml-1">
                                     Instagram Handle
                                 </label>
                                 <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted">@</span>
-                                    <input
-                                        type="text"
+                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted pointer-events-none z-10">
+                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M7.75 2h8.5A5.75 5.75 0 0 1 22 7.75v8.5A5.75 5.75 0 0 1 16.25 22h-8.5A5.75 5.75 0 0 1 2 16.25v-8.5A5.75 5.75 0 0 1 7.75 2zm0 1.5a4.25 4.25 0 0 0-4.25 4.25v8.5a4.25 4.25 0 0 0 4.25 4.25h8.5a4.25 4.25 0 0 0 4.25-4.25v-8.5a4.25 4.25 0 0 0-4.25-4.25h-8.5zM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm0 1.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm5.25-.75a1 1 0 1 1 0 2 1 1 0 0 1 0-2z" /></svg>
+                                    </div>
+                                    <Input
                                         value={socialLinks.instagram}
-                                        onChange={(e) => setSocialLinks(prev => ({ ...prev, instagram: e.target.value }))}
+                                        onChange={(e) => setSocialLinks(prev => ({ ...prev, instagram: e.target.value.replace(/^@/, '') }))}
                                         placeholder="username"
-                                        className="input-field pl-10"
+                                        className="h-12 pl-12 bg-background-secondary/50"
                                     />
                                 </div>
                             </div>
 
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-bold uppercase tracking-widest text-foreground-muted mb-2">
-                                    Personal Website
+                            <div className="md:col-span-2 space-y-3">
+                                <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted ml-1">
+                                    Personal Portfolio Website
                                 </label>
-                                <input
-                                    type="url"
-                                    value={socialLinks.website}
-                                    onChange={(e) => setSocialLinks(prev => ({ ...prev, website: e.target.value }))}
-                                    placeholder="https://yourportfolio.com"
-                                    className="input-field"
-                                />
+                                <div className="relative">
+                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted pointer-events-none z-10">
+                                        <Icons.globe size={16} />
+                                    </div>
+                                    <Input
+                                        type="url"
+                                        value={socialLinks.website}
+                                        onChange={(e) => setSocialLinks(prev => ({ ...prev, website: e.target.value }))}
+                                        placeholder="https://yourportfolio.com"
+                                        className="h-12 pl-12 bg-background-secondary/50"
+                                    />
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    </Card>
 
                     {/* Save Button */}
-                    <div className="flex justify-end">
-                        <button
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-4">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-foreground-muted opacity-60">
+                            Confirm all changes before committing to live profile.
+                        </p>
+                        <Button
                             type="submit"
                             disabled={isSaving}
-                            className="btn-primary px-12 py-4 font-black uppercase tracking-widest shadow-xl shadow-primary/20 flex items-center gap-3"
+                            variant="primary"
+                            className="w-full sm:w-auto px-12 h-14 font-black uppercase tracking-[0.25em] text-[11px] shadow-2xl shadow-primary/30 group"
                         >
                             {isSaving ? (
                                 <>
-                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                    Updating...
+                                    <Icons.spinner className="w-5 h-5 animate-spin mr-3" />
+                                    Synchronizing...
                                 </>
                             ) : (
-                                'Save Profile Changes'
+                                <>
+                                    Sync Profile Changes
+                                    <Icons.check className="ml-3 opacity-0 group-hover:opacity-100 transition-opacity" size={16} />
+                                </>
                             )}
-                        </button>
+                        </Button>
                     </div>
                 </form>
             </main>

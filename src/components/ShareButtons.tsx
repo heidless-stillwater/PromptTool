@@ -3,15 +3,21 @@ import { useState } from 'react';
 interface ShareButtonsProps {
     imageUrl: string;
     prompt: string;
+    entryId?: string;
     className?: string;
 }
 
-export default function ShareButtons({ imageUrl, prompt, className = '' }: ShareButtonsProps) {
+export default function ShareButtons({ imageUrl, prompt, entryId, className = '' }: ShareButtonsProps) {
     const [copied, setCopied] = useState(false);
+
+    // Determine the primary share URL
+    const shareUrl = entryId
+        ? `${window.location.origin}/league/${entryId}`
+        : imageUrl;
 
     const handleCopyLink = async () => {
         try {
-            await navigator.clipboard.writeText(imageUrl);
+            await navigator.clipboard.writeText(shareUrl);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
@@ -20,14 +26,14 @@ export default function ShareButtons({ imageUrl, prompt, className = '' }: Share
     };
 
     const handleShareTwitter = () => {
-        const text = `Check out this AI art I generated! 🎨✨\n\nPrompt: "${prompt.length > 100 ? prompt.substring(0, 97) + '...' : prompt}"\n\n`;
-        const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(imageUrl)}`;
+        const text = `Check out this AI art! 🎨✨\n\nPrompt: "${prompt.length > 100 ? prompt.substring(0, 97) + '...' : prompt}"\n\n`;
+        const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`;
         window.open(url, '_blank', 'width=600,height=400');
     };
 
     const handleShareReddit = () => {
         const title = `AI Art: ${prompt.length > 50 ? prompt.substring(0, 47) + '...' : prompt}`;
-        const url = `https://www.reddit.com/submit?url=${encodeURIComponent(imageUrl)}&title=${encodeURIComponent(title)}`;
+        const url = `https://www.reddit.com/submit?url=${encodeURIComponent(shareUrl)}&title=${encodeURIComponent(title)}`;
         window.open(url, '_blank', 'width=800,height=600');
     };
 

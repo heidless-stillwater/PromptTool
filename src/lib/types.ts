@@ -34,6 +34,7 @@ export interface UserProfile {
     subscription: SubscriptionTier;
     audienceMode: AudienceMode;
     totalInfluence?: number; // Sum of all upvotes across league entries
+    publishedCount?: number; // Total number of images published to the league
     followerCount?: number;
     followingCount?: number;
     badges?: string[]; // Achievement tags like 'elite', 'verified'
@@ -89,9 +90,11 @@ export const CREDIT_COSTS = {
     standard: 1,  // 1024px
     high: 3,      // 2K
     ultra: 5,     // 4K (Pro only)
+    video: 10,    // 5-second video (Pro only)
 } as const;
 
-export type ImageQuality = keyof typeof CREDIT_COSTS;
+export type ImageQuality = 'standard' | 'high' | 'ultra';
+export type MediaModality = 'image' | 'video';
 
 // Daily allowance by subscription
 export const DAILY_ALLOWANCE = {
@@ -107,7 +110,8 @@ export const DAILY_ALLOWANCE = {
 export type AspectRatio = '1:1' | '4:3' | '16:9' | '9:16' | '3:4';
 
 export interface GenerationSettings {
-    quality: ImageQuality;
+    modality: MediaModality;
+    quality: ImageQuality | 'video';
     aspectRatio: AspectRatio;
     prompt: string;
     promptType: 'freeform' | 'madlibs';
@@ -131,8 +135,10 @@ export interface GeneratedImage {
     userId: string;
     prompt: string;
     settings: GenerationSettings;
-    imageUrl: string;
+    imageUrl: string; // Used for thumbnails/images
+    videoUrl?: string; // Used if modality is video
     storagePath: string;
+    videoStoragePath?: string;
     creditsCost: number;
     createdAt: FirestoreTimestamp;
     downloadCount: number;
@@ -143,6 +149,7 @@ export interface GeneratedImage {
     publishedToLeague?: boolean;  // Whether image is published to community league
     leagueEntryId?: string;       // Reference to leagueEntries doc when published
     tags?: string[];             // Per-image tagging for discovery
+    duration?: number;           // Video duration in seconds
 }
 
 // ============================================
@@ -156,6 +163,8 @@ export interface LeagueEntry {
     originalUserId: string;
     // Denormalized image data
     imageUrl: string;
+    videoUrl?: string;
+    duration?: number;
     prompt: string;
     settings: GenerationSettings;
     // Author info (denormalized)
@@ -260,6 +269,7 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
             '50 credits daily',
             '500 bonus credits monthly',
             'All quality levels incl. 4K',
+            'Video generation (5-sec)',
             'Professional + Casual modes',
             'Batch generation',
             'Priority support',

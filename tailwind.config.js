@@ -8,18 +8,19 @@ module.exports = {
     theme: {
         extend: {
             colors: {
+                // Core Brand Palette
                 primary: {
                     50: '#f0f9ff',
                     100: '#e0f2fe',
                     200: '#bae6fd',
                     300: '#7dd3fc',
                     400: '#38bdf8',
-                    500: '#0ea5e9',
-                    600: '#0284c7',
-                    700: '#0369a1',
-                    800: '#075985',
-                    900: '#0c4a6e',
-                    950: '#082f49',
+                    500: '#6366f1', // Balanced with --primary
+                    600: '#4f46e5',
+                    700: '#4338ca',
+                    800: '#3730a3',
+                    900: '#312e81',
+                    950: '#1e1b4b',
                     DEFAULT: 'var(--primary)',
                 },
                 accent: {
@@ -39,6 +40,7 @@ module.exports = {
                 background: {
                     DEFAULT: 'var(--background)',
                     secondary: 'var(--background-secondary)',
+                    tertiary: '#181825',
                 },
                 foreground: {
                     DEFAULT: 'var(--foreground)',
@@ -53,10 +55,26 @@ module.exports = {
                 warning: 'var(--warning)',
                 error: 'var(--error)',
             },
+            borderRadius: {
+                '3xl': '1.5rem',
+                '4xl': '2rem',
+                '5xl': '2.5rem',
+            },
             backgroundImage: {
                 'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
                 'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
+                'brand-gradient': 'linear-gradient(135deg, var(--primary), var(--accent))',
             },
+            animation: {
+                'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                'float': 'float 3s ease-in-out infinite',
+            },
+            keyframes: {
+                float: {
+                    '0%, 100%': { transform: 'translateY(0px)' },
+                    '50%': { transform: 'translateY(-10px)' },
+                }
+            }
         },
     },
     plugins: [],

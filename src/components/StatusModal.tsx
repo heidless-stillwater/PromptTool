@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/Button';
 
 export type ModalStatus = 'idle' | 'saving' | 'success' | 'error';
 
@@ -32,7 +33,7 @@ export default function StatusModal({ status, message, onClose }: StatusModalPro
             />
 
             {/* Modal Content */}
-            <div className="relative glass-card p-8 max-w-sm w-full shadow-2xl shadow-primary/20 border-primary/20 animate-in zoom-in-95 duration-300 text-center">
+            <div className="relative bg-background-secondary border border-border p-8 max-w-sm w-full shadow-2xl shadow-primary/20 rounded-3xl animate-in zoom-in-95 duration-300 text-center">
                 <div className="mb-6 flex justify-center">
                     {status === 'saving' && (
                         <div className="relative w-16 h-16">
@@ -53,13 +54,13 @@ export default function StatusModal({ status, message, onClose }: StatusModalPro
                     )}
                 </div>
 
-                <h3 className="text-xl font-bold mb-2">
+                <h3 className="text-xl font-bold mb-2 uppercase tracking-tight">
                     {status === 'saving' && 'Saving Changes...'}
                     {status === 'success' && 'Configuration Saved'}
                     {status === 'error' && 'Something Went Wrong'}
                 </h3>
 
-                <p className="text-foreground-muted mb-8 text-sm">
+                <p className="text-foreground-muted mb-8 text-sm font-medium">
                     {message || (
                         status === 'saving' ? 'Updating global system settings, please wait.' :
                             status === 'success' ? 'The updates have been applied successfully across the platform.' :
@@ -68,12 +69,12 @@ export default function StatusModal({ status, message, onClose }: StatusModalPro
                 </p>
 
                 {(status === 'success' || status === 'error') && (
-                    <button
+                    <Button
                         onClick={onClose}
-                        className="btn-primary w-full py-3 font-bold uppercase tracking-widest text-sm"
+                        className="w-full h-12 rounded-xl text-[10px] font-black uppercase tracking-widest"
                     >
                         {status === 'success' ? 'Got it' : 'Try Again'}
-                    </button>
+                    </Button>
                 )}
             </div>
         </div>

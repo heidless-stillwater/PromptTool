@@ -1,11 +1,13 @@
-// Image Generation API Route
+// Image & Video Generation API Route
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, adminStorage } from '@/lib/firebase-admin';
 import { getNanoBananaService } from '@/lib/services/nanobanana';
-import { CREDIT_COSTS, ImageQuality, AspectRatio, GeneratedImage, MadLibsSelection, SUBSCRIPTION_PLANS } from '@/lib/types';
+import { GenerationService } from '@/lib/services/generation';
+import { CREDIT_COSTS, ImageQuality, AspectRatio, GeneratedImage, MadLibsSelection, SUBSCRIPTION_PLANS, MediaModality } from '@/lib/types';
+import { generationSchema } from '@/lib/validations/generation';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 
-export const maxDuration = 60; // Allow up to 60 seconds for execution (Vercel Pro/Hobby limit)
+export const maxDuration = 300; // Allow up to 5 minutes for execution (Veo generation takes time)
 
 interface GenerateRequest {
     prompt: string;
@@ -22,6 +24,7 @@ interface GenerateRequest {
     sourceImageId?: string;       // Original image ID for variation tracking
     promptSetID?: string;         // Unique ID for the batch/generation set
     collectionIds?: string[];     // Collections to add generated images to
+    modality?: MediaModality;     // image | video
 }
 
 export async function POST(request: NextRequest) {
@@ -44,8 +47,7 @@ export async function POST(request: NextRequest) {
             userId = decodedCookie.uid;
         }
 
-        // For development, allow requests with UID in body
-        const body: GenerateRequest & { uid?: string } = await request.json();
+        const body = await request.json();
 
         if (!userId && body.uid) {
             userId = body.uid;
@@ -55,208 +57,98 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'User ID required' }, { status: 401 });
         }
 
+        // 1. Zod Validation
+        const result = generationSchema.safeParse(body);
+        if (!result.success) {
+            return NextResponse.json({
+                error: result.error.issues[0].message,
+                details: result.error.issues
+            }, { status: 400 });
+        }
+
+        const validatedData = result.data;
         const {
             prompt, quality, aspectRatio, promptType, madlibsData,
-            count = 1, seed, negativePrompt, guidanceScale,
+            count, seed, negativePrompt, guidanceScale,
             referenceImage, referenceMimeType, sourceImageId, promptSetID,
-            collectionIds
-        } = body;
+            collectionIds, modality
+        } = validatedData;
 
-        // Validate request
-        if (!prompt || !quality || !aspectRatio) {
-            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-        }
+        // 1. Validate Tier Constraints
+        await GenerationService.validateTier(userId, validatedData);
 
-        // Get user profile to check subscription
-        const userDoc = await adminDb.collection('users').doc(userId).get();
-        if (!userDoc.exists) {
-            return NextResponse.json({ error: 'User not found' }, { status: 404 });
-        }
+        // 2. Validate Credits
+        const validation = await GenerationService.validateCredits(userId, modality, modality === 'video' ? 'video' : quality, count);
 
-        const userProfile = userDoc.data()!;
-        const plan = SUBSCRIPTION_PLANS[userProfile.subscription as keyof typeof SUBSCRIPTION_PLANS];
-
-        // Check if quality is allowed
-        if (!plan.allowedQualities.includes(quality)) {
-            return NextResponse.json({
-                error: `${quality} quality requires ${quality === 'ultra' ? 'Pro' : 'Standard'} subscription`
-            }, { status: 403 });
-        }
-
-        // Check if batch is allowed (Pro only)
-        if (count > 1 && userProfile.subscription !== 'pro') {
-            return NextResponse.json({
-                error: 'Batch generation is a Pro-only feature'
-            }, { status: 403 });
-        }
-
-        // Check if advanced controls are used (Pro only)
-        // Note: 7.0 is the default guidance scale, so we allow it for all tiers
-        const isUsingAdvanced = seed !== undefined || (negativePrompt !== undefined && negativePrompt.trim() !== '') || (guidanceScale !== undefined && guidanceScale !== 7.0);
-        if (isUsingAdvanced && userProfile.subscription !== 'pro') {
-            return NextResponse.json({
-                error: 'Advanced precision controls are Pro-only features'
-            }, { status: 403 });
-        }
-
-        // Get and validate credits
-        const creditsRef = adminDb.collection('users').doc(userId).collection('data').doc('credits');
-        const creditsDoc = await creditsRef.get();
-
-        if (!creditsDoc.exists) {
-            return NextResponse.json({ error: 'Credits not found' }, { status: 404 });
-        }
-
-        const credits = creditsDoc.data()!;
-        const singleCost = CREDIT_COSTS[quality];
-        const totalCost = singleCost * count;
-
-        // Check for daily reset
-        const lastReset = credits.lastDailyReset.toDate();
-        const today = new Date();
-        const isNewDay = lastReset.toDateString() !== today.toDateString();
-
-        let currentDailyUsed = isNewDay ? 0 : credits.dailyAllowanceUsed;
-        const remainingDaily = Math.max(0, credits.dailyAllowance - currentDailyUsed);
-        const totalAvailable = credits.balance + remainingDaily;
-
-        if (totalAvailable < totalCost) {
-            return NextResponse.json({
-                error: `Insufficient credits. Need ${totalCost}, have ${totalAvailable}`
-            }, { status: 402 });
-        }
+        const isUsingAdvanced = seed !== undefined ||
+            (negativePrompt !== undefined && negativePrompt.trim() !== '') ||
+            (guidanceScale !== undefined && guidanceScale !== 7.0);
 
         // Create a TransformStream for SSE
         const encoder = new TextEncoder();
         const transformStream = new TransformStream();
         const writer = transformStream.writable.getWriter();
 
-        // Helper to send SSE data
         const sendEvent = async (data: any) => {
             await writer.write(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
         };
 
-        // Start generation process in the background (but don't wait for completion before returning the stream)
         (async () => {
             try {
-                // Generate images
                 const nanoBananaService = getNanoBananaService();
-                const result = await nanoBananaService.generateImage({
-                    prompt,
-                    quality,
-                    aspectRatio,
-                    count,
-                    seed,
-                    negativePrompt,
-                    guidanceScale,
-                    referenceImage,
-                    referenceMimeType,
-                    onProgress: (current, total) => {
-                        sendEvent({ type: 'progress', current, total, message: `Generated ${current} of ${total} images...` });
-                    }
-                });
+                let result;
+
+                if (modality === 'video') {
+                    result = await nanoBananaService.generateVideo({
+                        prompt,
+                        aspectRatio,
+                        onProgress: (current, total) => {
+                            sendEvent({ type: 'progress', current, total, message: `Generating video...` });
+                        }
+                    });
+                } else {
+                    result = await nanoBananaService.generateImage({
+                        prompt, quality, aspectRatio, count, seed, negativePrompt, guidanceScale,
+                        referenceImage, referenceMimeType,
+                        onProgress: (current, total) => {
+                            sendEvent({ type: 'progress', current, total, message: `Generated ${current} of ${total} images...` });
+                        }
+                    });
+                }
 
                 if (!result.success || !result.images || result.images.length === 0) {
-                    await sendEvent({ type: 'error', error: result.error || 'Image generation failed' });
+                    await sendEvent({ type: 'error', error: result.error || 'Generation failed' });
                     await writer.close();
                     return;
                 }
 
-                const actualCount = result.images.length;
-                const actualTotalCost = singleCost * actualCount;
+                const generatedMediaData: GeneratedImage[] = [];
 
-                // Process images
-                const bucket = adminStorage.bucket();
-                const generatedImagesData: GeneratedImage[] = [];
-
+                // 3. Save Media
                 for (let i = 0; i < result.images.length; i++) {
-                    const img = result.images[i];
-                    const filename = `users/${userId}/images/${Date.now()}-${Math.random().toString(36).substring(7)}.png`;
-                    const file = bucket.file(filename);
-                    const imageBuffer = Buffer.from(img.data, 'base64');
-
-                    await file.save(imageBuffer, {
-                        metadata: {
-                            contentType: img.mimeType || 'image/png',
-                        },
+                    const mediaData = await GenerationService.saveMedia(userId, result.images[i], {
+                        prompt, quality, aspectRatio, promptType, madlibsData, seed, negativePrompt, guidanceScale,
+                        sourceImageId, promptSetID, collectionIds, requestedModality: modality, modality
                     });
 
-                    await file.makePublic();
-                    const imageUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
-
-                    const settings: any = {
-                        quality,
-                        aspectRatio,
-                        prompt,
-                        promptType,
-                    };
-                    if (madlibsData) {
-                        settings.madlibsData = madlibsData;
-                    }
-                    if (seed !== undefined) settings.seed = seed;
-                    if (negativePrompt) settings.negativePrompt = negativePrompt;
-                    if (guidanceScale !== undefined) settings.guidanceScale = guidanceScale;
-
-                    const imageData: Omit<GeneratedImage, 'id'> = {
-                        userId,
-                        prompt,
-                        settings,
-                        imageUrl,
-                        storagePath: filename,
-                        creditsCost: singleCost,
-                        createdAt: Timestamp.now(),
-                        downloadCount: 0,
-                        ...(sourceImageId && { sourceImageId }),
-                        ...(promptSetID && { promptSetID }),
-                        ...(collectionIds && { collectionIds }),
-                    };
-
-                    const imageDoc = await adminDb.collection('users').doc(userId).collection('images').add(imageData);
-                    generatedImagesData.push({ ...imageData, id: imageDoc.id });
-
-                    // Send individual image completion event
-                    await sendEvent({ type: 'image_ready', image: { ...imageData, id: imageDoc.id }, index: i });
+                    generatedMediaData.push(mediaData);
+                    await sendEvent({ type: 'image_ready', image: mediaData, index: i });
                 }
 
-                // Deduct credits
-                const dailyDeduction = Math.min(actualTotalCost, remainingDaily);
-                const balanceDeduction = actualTotalCost - dailyDeduction;
-
-                await creditsRef.update({
-                    balance: FieldValue.increment(-balanceDeduction),
-                    dailyAllowanceUsed: isNewDay ? dailyDeduction : FieldValue.increment(dailyDeduction),
-                    lastDailyReset: isNewDay ? Timestamp.now() : credits.lastDailyReset,
-                    totalUsed: FieldValue.increment(actualTotalCost),
+                // 4. Deduct Credits
+                const newBalance = await GenerationService.deductCredits(validation, result.images.length, {
+                    modality, quality, aspectRatio, promptType, isAdvanced: isUsingAdvanced,
+                    prompt, firstImageUrl: generatedMediaData[0]?.imageUrl
                 });
 
-                // Add credit transaction
-                await adminDb.collection('users').doc(userId).collection('creditHistory').add({
-                    type: 'usage',
-                    amount: -actualTotalCost,
-                    description: `Generation (${actualCount} images, ${quality} quality)`,
-                    metadata: {
-                        quality,
-                        aspectRatio,
-                        promptType,
-                        count: actualCount,
-                        isAdvanced: isUsingAdvanced,
-                        imageUrl: generatedImagesData[0]?.imageUrl // Capture first image URL for history
-                    },
-                    createdAt: Timestamp.now(),
-                });
-
-                // Get updated credits
-                const updatedCredits = (await creditsRef.get()).data()!;
-                const newBalance = updatedCredits.balance + Math.max(0, updatedCredits.dailyAllowance - updatedCredits.dailyAllowanceUsed);
-
-                // Send final completion event
+                // 5. Complete
                 await sendEvent({
                     type: 'complete',
                     success: true,
-                    images: generatedImagesData,
-                    creditsUsed: actualTotalCost,
+                    images: generatedMediaData,
+                    creditsUsed: validation.costs.single * result.images.length,
                     remainingBalance: newBalance,
-                    warning: actualCount < count ? `Only ${actualCount} of ${count} images were generated successfully.` : undefined,
+                    warning: result.images.length < count ? `Only ${result.images.length} of ${count} generations were successful.` : undefined,
                 });
 
             } catch (err: any) {

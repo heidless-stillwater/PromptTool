@@ -1,6 +1,10 @@
 'use client';
 
 import { CreditTransaction, GeneratedImage } from '@/lib/types';
+import { Card } from '@/components/ui/Card';
+import { Icons } from '@/components/ui/Icons';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/Button';
 
 interface CreditActivityProps {
     isExpanded: boolean;
@@ -19,39 +23,42 @@ export default function CreditActivity({
 }: CreditActivityProps) {
     return (
         <section className="mb-12">
-            <button
+            <Card
+                variant="glass"
+                className="w-full flex items-center justify-between p-6 cursor-pointer hover:border-primary/50 transition-all group"
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full flex items-center justify-between p-6 glass-card rounded-2xl hover:border-primary/50 transition-all group"
             >
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+                        <Icons.clock size={24} />
                     </div>
                     <div className="text-left">
                         <h3 className="text-xl font-bold">Credit Activity</h3>
                         <p className="text-xs text-foreground-muted">View your recent credit usage and transactions</p>
                     </div>
                 </div>
-                <div className={`p-2 rounded-lg bg-background-secondary border border-border transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <path d="M19 9l-7 7-7-7" />
-                    </svg>
+                <div className={cn(
+                    "p-2 rounded-lg bg-background-secondary border border-border transition-transform duration-300",
+                    isExpanded && "rotate-180"
+                )}>
+                    <Icons.arrowDown size={20} />
                 </div>
-            </button>
+            </Card>
 
-            <div className={`transition-all duration-500 overflow-hidden ${isExpanded ? 'max-h-[500px] mt-4 opacity-100' : 'max-h-0 opacity-0'}`}>
+            <div className={cn(
+                "transition-all duration-500 overflow-hidden",
+                isExpanded ? "max-h-[500px] mt-4 opacity-100" : "max-h-0 opacity-0"
+            )}>
                 {loading ? (
                     <div className="flex justify-center py-8">
-                        <div className="spinner" />
+                        <Icons.spinner className="w-8 h-8 animate-spin text-primary" />
                     </div>
                 ) : history.length === 0 ? (
-                    <div className="card text-center py-8 text-foreground-muted">
+                    <Card className="text-center py-8 text-foreground-muted">
                         No recent credit activity
-                    </div>
+                    </Card>
                 ) : (
-                    <div className="glass-card overflow-hidden">
+                    <Card variant="glass" className="overflow-hidden">
                         <div className="overflow-x-auto max-h-[400px] overflow-y-auto custom-scrollbar">
                             <table className="w-full text-left border-collapse">
                                 <thead>
@@ -90,7 +97,7 @@ export default function CreditActivity({
                                                     )}
                                                 </td>
                                                 <td className="px-4 py-4 text-sm font-medium">
-                                                    <p className="line-clamp-1">{tx.description}</p>
+                                                    <p className="line-clamp-1">{tx.metadata?.prompt || tx.description}</p>
                                                     {tx.type === 'usage' && tx.metadata?.quality && (
                                                         <span className="mt-1 inline-block px-1.5 py-0.5 bg-background-secondary border border-border rounded text-[10px] uppercase">
                                                             {tx.metadata.quality}
@@ -106,7 +113,7 @@ export default function CreditActivity({
                                 </tbody>
                             </table>
                         </div>
-                    </div>
+                    </Card>
                 )}
             </div>
         </section>

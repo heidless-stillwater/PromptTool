@@ -4,10 +4,27 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense, useCallback, useRef } from 'react';
 import { PROMPT_CATEGORIES, buildPromptFromMadLibs, FEATURED_PROMPTS } from '@/lib/prompt-templates';
-import { ImageQuality, AspectRatio, MadLibsSelection, CREDIT_COSTS, SUBSCRIPTION_PLANS, GeneratedImage } from '@/lib/types';
+import { ImageQuality, AspectRatio, MadLibsSelection, CREDIT_COSTS, SUBSCRIPTION_PLANS, GeneratedImage, MediaModality } from '@/lib/types';
 import Link from 'next/link';
 import TextOverlayEditor from '@/components/TextOverlayEditor';
+import ReactionPicker from '@/components/ReactionPicker';
 import ShareButtons from '@/components/ShareButtons';
+import Tooltip from '@/components/Tooltip';
+import { Icons } from '@/components/ui/Icons';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
+import { cn } from '@/lib/utils';
+
+// Sub-components
+import GenerateHeader from '@/components/generate/GenerateHeader';
+import HistorySidebar from '@/components/generate/HistorySidebar';
+import PromptSection from '@/components/generate/PromptSection';
+import SettingsSection from '@/components/generate/SettingsSection';
+import AdvancedControls from '@/components/generate/AdvancedControls';
+import PreviewSection from '@/components/generate/PreviewSection';
 
 type PromptMode = 'freeform' | 'madlibs' | 'featured';
 
@@ -25,7 +42,7 @@ export default function GeneratePage() {
     return (
         <Suspense fallback={
             <div className="min-h-screen flex items-center justify-center">
-                <div className="spinner" />
+                <Icons.spinner className="w-8 h-8 animate-spin text-primary" />
             </div>
         }>
             <GeneratePageContent />
@@ -47,8 +64,9 @@ function GeneratePageContent() {
         mood: '',
         setting: '',
     });
-    const [quality, setQuality] = useState<ImageQuality>('standard');
+    const [quality, setQuality] = useState<ImageQuality | 'video'>('standard');
     const [aspectRatio, setAspectRatio] = useState<AspectRatio>('4:3');
+    const [modality, setModality] = useState<MediaModality>('image');
     const [batchSize, setBatchSize] = useState<number>(1);
     const [generating, setGenerating] = useState(false);
     const [error, setError] = useState('');
@@ -97,6 +115,7 @@ function GeneratePageContent() {
                     if (localState.guidanceScale) setGuidanceScale(localState.guidanceScale);
                     if (localState.promptMode) setPromptMode(localState.promptMode as PromptMode);
                     if (localState.madLibs) setMadLibs(localState.madLibs);
+                    if (localState.modality) setModality(localState.modality as MediaModality);
                 }
             } catch (e) {
                 console.warn('Failed to hydrate local session state', e);
@@ -126,6 +145,7 @@ function GeneratePageContent() {
                             if (cloudData.guidanceScale) setGuidanceScale(cloudData.guidanceScale);
                             if (cloudData.promptMode) setPromptMode(cloudData.promptMode as PromptMode);
                             if (cloudData.madLibs) setMadLibs(cloudData.madLibs);
+                            if (cloudData.modality) setModality(cloudData.modality as MediaModality);
 
                             // Update local storage to match cloud
                             localStorage.setItem('generation_session_v1', JSON.stringify({
@@ -156,6 +176,7 @@ function GeneratePageContent() {
             guidanceScale,
             promptMode,
             madLibs,
+            modality,
             updatedAt: timestamp,
         };
 
@@ -191,6 +212,7 @@ function GeneratePageContent() {
         guidanceScale,
         promptMode,
         madLibs,
+        modality,
         user, // Added user dependency
     ]);
 
@@ -199,6 +221,54 @@ function GeneratePageContent() {
     const refImageId = searchParams.get('ref');
     const [referenceImage, setReferenceImage] = useState<{ id: string; url: string; base64?: string; prompt?: string; promptSetID?: string; collectionIds?: string[] } | null>(null);
     const [loadingReference, setLoadingReference] = useState(false);
+
+    // Helper to extract first frame from video and upload as thumbnail
+    const createVideoThumbnail = async (imageId: string, videoUrl: string) => {
+        try {
+            const video = document.createElement('video');
+            video.src = videoUrl;
+            video.crossOrigin = 'anonymous';
+            video.muted = true;
+            video.playsInline = true;
+
+            await new Promise((resolve, reject) => {
+                video.onloadeddata = resolve;
+                video.onerror = reject;
+                video.load();
+            });
+
+            // Seek to 0.1s to ensure we have a frame (0.0 can sometimes be black)
+            video.currentTime = 0.1;
+            await new Promise((resolve) => {
+                video.onseeked = resolve;
+            });
+
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const thumbnailBase64 = canvas.toDataURL('image/jpeg', 0.8);
+            const duration = video.duration;
+
+            // Upload to API
+            const response = await fetch('/api/generate/thumbnail', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ imageId, thumbnailBase64, duration })
+            });
+
+            if (!response.ok) {
+                console.warn('Failed to upload thumbnail:', await response.text());
+            } else {
+                console.log('Thumbnail uploaded successfully for', imageId);
+            }
+        } catch (err) {
+            console.error('Error creating video thumbnail:', err);
+        }
+    };
 
     // Load reference image if provided in URL
     useEffect(() => {
@@ -210,43 +280,72 @@ function GeneratePageContent() {
                 const { doc, getDoc } = await import('firebase/firestore');
                 const { db } = await import('@/lib/firebase');
 
-                const imgRef = doc(db, 'users', user.uid, 'images', refImageId);
-                const imgSnap = await getDoc(imgRef);
+                // Try to find the image in the user's collection first
+                // If not found, it might be from the public league (published by another user)
+                let imgRef = doc(db, 'users', user.uid, 'images', refImageId);
+                let imgSnap = await getDoc(imgRef);
 
+                // Fallback: Check league entries if not in personal collection
+                let data: GeneratedImage | null = null;
                 if (imgSnap.exists()) {
-                    const data = imgSnap.data() as GeneratedImage;
+                    data = imgSnap.data() as GeneratedImage;
+                } else {
+                    const leagueRef = doc(db, 'leagueEntries', refImageId);
+                    const leagueSnap = await getDoc(leagueRef);
+                    if (leagueSnap.exists()) {
+                        data = leagueSnap.data() as any;
+                    }
+                }
 
-                    // Pre-fill prompt if it's currently empty
-                    if (!prompt && data.prompt) {
-                        setPrompt(data.prompt);
+                if (data) {
+                    // Pre-fill all settings from the reference image
+                    if (data.prompt) setPrompt(data.prompt);
+
+                    if (data.settings) {
+                        if (data.settings.quality) setQuality(data.settings.quality);
+                        if (data.settings.aspectRatio) setAspectRatio(data.settings.aspectRatio);
+                        if (data.settings.modality) setModality(data.settings.modality);
+                        if (data.settings.negativePrompt) setNegativePrompt(data.settings.negativePrompt);
+                        if (data.settings.seed !== undefined) setSeed(data.settings.seed);
+                        if (data.settings.guidanceScale !== undefined) setGuidanceScale(data.settings.guidanceScale);
+
+                        // Open advanced settings if we have complex settings
+                        if (data.settings.negativePrompt || data.settings.seed !== undefined) {
+                            setIsAdvancedOpen(true);
+                        }
                     }
 
-                    // Use existing promptSetID if available to group variations with original
                     if (data.promptSetID) {
                         setPromptSetID(data.promptSetID);
                     }
 
                     // Convert to base64 for the API
-                    // We use the proxy to bypass CORS
-                    const response = await fetch(`/api/download?url=${encodeURIComponent(data.imageUrl)}`);
-                    const blob = await response.blob();
-
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                        const base64data = reader.result as string;
-                        // Strip metadata prefix (data:image/png;base64,)
-                        const base64 = base64data.split(',')[1];
-                        setReferenceImage({
-                            id: refImageId,
-                            url: data.imageUrl,
-                            base64,
-                            prompt: data.prompt,
-                            promptSetID: data.promptSetID,
-                            collectionIds: data.collectionIds || (data.collectionId ? [data.collectionId] : [])
-                        });
+                    try {
+                        const response = await fetch(`/api/download?url=${encodeURIComponent(data.imageUrl)}`);
+                        if (response.ok) {
+                            const blob = await response.blob();
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                                const base64data = reader.result as string;
+                                const base64 = base64data.split(',')[1];
+                                setReferenceImage({
+                                    id: refImageId,
+                                    url: data!.imageUrl,
+                                    base64,
+                                    prompt: data!.prompt,
+                                    promptSetID: data!.promptSetID,
+                                    collectionIds: data!.collectionIds || (data!.collectionId ? [data!.collectionId] : [])
+                                });
+                                setLoadingReference(false);
+                            };
+                            reader.readAsDataURL(blob);
+                        } else {
+                            throw new Error('Failed to fetch image for reference');
+                        }
+                    } catch (fetchErr) {
+                        console.error('Error fetching reference image blob:', fetchErr);
                         setLoadingReference(false);
-                    };
-                    reader.readAsDataURL(blob);
+                    }
                 } else {
                     console.error('Reference image not found');
                     setLoadingReference(false);
@@ -305,6 +404,7 @@ function GeneratePageContent() {
         setPrompt(image.prompt);
         setQuality(image.settings.quality || 'standard');
         setAspectRatio(image.settings.aspectRatio || '1:1');
+        setModality(image.settings.modality || 'image');
 
         if (image.settings.negativePrompt) {
             setNegativePrompt(image.settings.negativePrompt);
@@ -333,6 +433,8 @@ function GeneratePageContent() {
     const availableCredits = credits
         ? credits.balance + Math.max(0, credits.dailyAllowance - credits.dailyAllowanceUsed)
         : 0;
+
+    const currentCost = modality === 'video' ? CREDIT_COSTS.video : (CREDIT_COSTS[quality] * batchSize);
 
     // Check if quality is allowed for subscription
     const allowedQualities = profile
@@ -391,7 +493,7 @@ function GeneratePageContent() {
             return;
         }
 
-        const cost = CREDIT_COSTS[quality] * batchSize;
+        const cost = modality === 'video' ? CREDIT_COSTS.video : (CREDIT_COSTS[quality] * batchSize);
         if (availableCredits < cost) {
             setError(`Insufficient credits. Need ${cost}, have ${availableCredits}`);
             return;
@@ -411,7 +513,7 @@ function GeneratePageContent() {
             }
             const token = await user.getIdToken();
 
-            const response = await fetch('/api/generate', {
+            const response = await fetch('/api/generate/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -433,6 +535,7 @@ function GeneratePageContent() {
                     sourceImageId: referenceImage?.id,
                     promptSetID: promptSetID.trim() || undefined,
                     collectionIds: referenceImage?.collectionIds,
+                    modality,
                 }),
             });
 
@@ -470,6 +573,10 @@ function GeneratePageContent() {
                                 });
                             } else if (data.type === 'image_ready') {
                                 setGeneratedImages(prev => [...prev, data.image]);
+                                // If it's a video, trigger thumbnail generation
+                                if (data.image.settings?.modality === 'video' || data.image.videoUrl) {
+                                    createVideoThumbnail(data.image.id, data.image.videoUrl || data.image.imageUrl);
+                                }
                             } else if (data.type === 'complete') {
                                 setGeneratedImages(data.images || []);
                                 if (data.warning) {
@@ -575,8 +682,8 @@ function GeneratePageContent() {
     }, [generating, enhancing]);
     // Still depend on generating/enhancing to ensure logs are accurate, or move them inside
 
-    // Download image
-    const handleDownload = async (format: 'png' | 'jpeg' = 'png') => {
+    // Download media
+    const handleDownload = async (format: 'png' | 'jpeg' | 'mp4' = 'png') => {
         const selectedImage = generatedImages[selectedImageIndex]?.imageUrl;
         const imageToDownload = editedImage || selectedImage;
         const filename = `studio-image-${Date.now()}.${format}`;
@@ -620,7 +727,7 @@ function GeneratePageContent() {
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
-                <div className="spinner" />
+                <Icons.spinner className="w-8 h-8 animate-spin text-primary" />
             </div>
         );
     }
@@ -632,599 +739,137 @@ function GeneratePageContent() {
     const isCasual = profile.audienceMode === 'casual';
 
     return (
-        <div className="min-h-screen">
-            {/* Header */}
-            <header className="sticky top-0 z-50 glass-card border-b border-border">
-                <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-                    <Link href="/dashboard" className="text-xl font-bold gradient-text">
-                        AI Image Studio
-                    </Link>
-
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={() => setIsHistoryOpen(true)}
-                            className="btn-secondary text-sm px-4 py-2 flex items-center gap-2"
-                        >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                <path d="M3.05 13A9 9 0 1 0 6 5.3L3 5" />
-                                <path d="M3 10V5h5" />
-                            </svg>
-                            <span className="hidden sm:inline">History</span>
-                        </button>
-
-                        {profile?.role === 'admin' || profile?.role === 'su' ? (
-                            <Link href="/admin" className="btn-secondary text-xs px-3 py-2 flex items-center gap-2 border-primary/20 hover:border-primary/50 transition-all">
-                                <span>🛡️</span>
-                                <span className="hidden sm:inline">Admin</span>
-                            </Link>
-                        ) : null}
-                        <div className="credit-badge">
-                            <span>{availableCredits} credits</span>
-                        </div>
-                        <Link href="/dashboard" className="btn-secondary text-sm px-4 py-2">
-                            ← Dashboard
-                        </Link>
-                    </div>
-                </div>
-            </header>
+        <div className="min-h-screen bg-background">
+            <GenerateHeader
+                availableCredits={availableCredits}
+                onHistoryOpen={() => setIsHistoryOpen(true)}
+                isAdmin={profile.role === 'admin' || profile.role === 'su'}
+            />
 
             <main className="max-w-7xl mx-auto px-4 py-8">
-                <div className={`grid grid-cols-1 lg:grid-cols-2 gap-8 ${isCasual ? 'max-w-5xl mx-auto' : ''}`}>
+                <div className={cn(
+                    "grid grid-cols-1 lg:grid-cols-2 gap-10",
+                    isCasual && "max-w-5xl mx-auto"
+                )}>
                     {/* Left: Controls */}
-                    <div className="space-y-6">
-                        <div>
-                            <h1 className={`${isCasual ? 'text-4xl' : 'text-3xl'} font-bold mb-2`}>
-                                {isCasual ? 'Create Something Amazing' : 'Image Generation'}
+                    <div className="space-y-8 animate-in slide-in-from-left-4 duration-700">
+                        <section>
+                            <h1 className={cn(
+                                "font-black tracking-tighter mb-2 text-foreground",
+                                isCasual ? "text-5xl" : "text-4xl"
+                            )}>
+                                {isCasual ? 'CREATE MAGIC' : 'STUDIO GENERATOR'}
                             </h1>
-                            <p className="text-foreground-muted">
-                                {isCasual ? 'Use our builder to create a prompt in seconds.' : 'Professional-grade control over your AI generations.'}
+                            <p className="text-foreground-muted text-sm font-medium uppercase tracking-widest opacity-60">
+                                {isCasual ? 'Turn your wildest ideas into reality in seconds.' : 'Professional precision for high-end AI production.'}
                             </p>
-                        </div>
+                        </section>
 
-                        {/* Prompt Mode Tabs */}
-                        <div className={`flex gap-2 p-1 bg-background-secondary rounded-xl ${isCasual ? 'hidden' : ''}`}>
-                            {(['freeform', 'madlibs', 'featured'] as PromptMode[]).map((mode) => (
-                                <button
-                                    key={mode}
-                                    onClick={() => setPromptMode(mode)}
-                                    className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${promptMode === mode
-                                        ? 'bg-primary text-white'
-                                        : 'text-foreground-muted hover:text-foreground'
-                                        }`}
-                                >
-                                    {mode === 'freeform' ? 'Free Text' : mode === 'madlibs' ? 'Builder' : 'Featured'}
-                                </button>
-                            ))}
-                        </div>
+                        <PromptSection
+                            promptMode={promptMode}
+                            setPromptMode={setPromptMode}
+                            prompt={prompt}
+                            setPrompt={setPrompt}
+                            madLibs={madLibs}
+                            setMadLibs={setMadLibs}
+                            handleEnhancePrompt={handleEnhancePrompt}
+                            enhancing={enhancing}
+                            isCasual={isCasual}
+                            referenceImage={referenceImage}
+                            loadingReference={loadingReference}
+                            onRemoveReference={() => {
+                                setReferenceImage(null);
+                                setPromptSetID(generatePromptSetID());
+                                router.replace('/generate', { scroll: false });
+                            }}
+                        />
 
-                        {/* Prompt Input based on mode */}
-                        <div className="card">
-                            {promptMode === 'freeform' && (
-                                <div>
-                                    <div className="flex items-center justify-between mb-2">
-                                        <label className="block text-sm font-medium">Your Prompt</label>
-                                        <button
-                                            onClick={handleEnhancePrompt}
-                                            disabled={enhancing || !prompt.trim()}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 disabled:opacity-50 transition-all"
-                                            title="AI-enhance your prompt"
-                                        >
-                                            {enhancing ? (
-                                                <>
-                                                    <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                                    Enhancing...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                                        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
-                                                    </svg>
-                                                    Magic Enhance
-                                                </>
-                                            )}
-                                        </button>
+                        <SettingsSection
+                            modality={modality}
+                            setModality={setModality}
+                            quality={quality}
+                            setQuality={setQuality}
+                            aspectRatio={aspectRatio}
+                            setAspectRatio={setAspectRatio}
+                            batchSize={batchSize}
+                            setBatchSize={setBatchSize}
+                            promptSetID={promptSetID}
+                            setPromptSetID={setPromptSetID}
+                            onGenerateSetID={() => setPromptSetID(generatePromptSetID())}
+                            allowedQualities={allowedQualities}
+                            isPro={profile.subscription === 'pro'}
+                            isCasual={isCasual}
+                        />
+
+                        <AdvancedControls
+                            isOpen={isAdvancedOpen}
+                            setIsOpen={setIsAdvancedOpen}
+                            negativePrompt={negativePrompt}
+                            setNegativePrompt={setNegativePrompt}
+                            seed={seed}
+                            setSeed={setSeed}
+                            guidanceScale={guidanceScale}
+                            setGuidanceScale={setGuidanceScale}
+                            isCasual={isCasual}
+                        />
+
+                        {/* Messages */}
+                        {(error || warning) && (
+                            <div className="space-y-3 animate-in fade-in zoom-in-95 duration-300">
+                                {error && (
+                                    <div className="p-4 bg-error/10 border border-error/20 rounded-2xl flex items-start gap-3">
+                                        <Icons.arrowRight className="text-error mt-0.5 rotate-180" size={16} />
+                                        <p className="text-xs font-bold text-error leading-relaxed uppercase tracking-tight">{error}</p>
                                     </div>
-
-                                    {/* Reference Image Preview */}
-                                    {(loadingReference || referenceImage) && (
-                                        <div className="mb-4 p-3 bg-accent/10 border border-accent/20 rounded-xl flex items-center gap-4 relative overflow-hidden">
-                                            {loadingReference ? (
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-12 h-12 rounded-lg bg-background-secondary flex items-center justify-center">
-                                                        <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-                                                    </div>
-                                                    <div className="text-xs text-foreground-muted animate-pulse">Loading reference...</div>
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    <div className="w-16 h-16 rounded-lg overflow-hidden border border-border">
-                                                        <img src={referenceImage!.url} alt="Reference" className="w-full h-full object-cover" />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-accent">
-                                                                <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                                            </svg>
-                                                            <span className="text-xs font-bold text-accent uppercase tracking-wider">Variation mode active</span>
-                                                        </div>
-                                                        <p className="text-[10px] text-foreground-muted truncate">Using previous generation as visual reference</p>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => {
-                                                            setReferenceImage(null);
-                                                            setPromptSetID(generatePromptSetID()); // Reset to new ID
-                                                            router.replace('/generate', { scroll: false });
-                                                        }}
-                                                        className="p-1.5 hover:bg-background rounded-lg text-foreground-muted hover:text-error transition-colors"
-                                                        title="Remove reference"
-                                                    >
-                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                            <path d="M6 18L18 6M6 6l12 12" />
-                                                        </svg>
-                                                    </button>
-                                                </>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    <textarea
-                                        value={prompt}
-                                        onChange={(e) => setPrompt(e.target.value)}
-                                        placeholder="A majestic dragon flying over snow-capped mountains at sunset, photorealistic..."
-                                        className={`input-field h-32 resize-none ${prompt.length > 2000 ? 'border-error ring-1 ring-error/20' : ''}`}
-                                    />
-                                    <div className="flex justify-between items-center mt-2 px-1">
-                                        <p className="text-xs text-foreground-muted">
-                                            {prompt.length} / 2000 characters • Be descriptive for best results
-                                        </p>
-                                        {prompt.length > 2000 && (
-                                            <p className="text-[10px] text-error font-bold uppercase">Too long!</p>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {promptMode === 'madlibs' && (
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium mb-2">Subject</label>
-                                        <select
-                                            value={madLibs.subject}
-                                            onChange={(e) => setMadLibs({ ...madLibs, subject: e.target.value })}
-                                            className="select-field"
-                                        >
-                                            {PROMPT_CATEGORIES.subjects.map((s) => (
-                                                <option key={s} value={s}>{s}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium mb-2">Action</label>
-                                        <select
-                                            value={madLibs.action}
-                                            onChange={(e) => setMadLibs({ ...madLibs, action: e.target.value })}
-                                            className="select-field"
-                                        >
-                                            {PROMPT_CATEGORIES.actions.map((a) => (
-                                                <option key={a} value={a}>{a}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium mb-2">Art Style</label>
-                                        <select
-                                            value={madLibs.style}
-                                            onChange={(e) => setMadLibs({ ...madLibs, style: e.target.value })}
-                                            className="select-field"
-                                        >
-                                            {PROMPT_CATEGORIES.styles.map((s) => (
-                                                <option key={s} value={s}>{s}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium mb-2">
-                                                {isCasual ? 'What is the mood?' : 'Mood (Optional)'}
-                                            </label>
-                                            <select
-                                                value={madLibs.mood}
-                                                onChange={(e) => setMadLibs({ ...madLibs, mood: e.target.value })}
-                                                className="select-field"
-                                            >
-                                                <option value="">{isCasual ? 'Choose a vibe...' : 'Select mood...'}</option>
-                                                {PROMPT_CATEGORIES.moods.map((m) => (
-                                                    <option key={m} value={m}>{m}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium mb-2">
-                                                {isCasual ? 'Where is it set?' : 'Setting (Optional)'}
-                                            </label>
-                                            <select
-                                                value={madLibs.setting}
-                                                onChange={(e) => setMadLibs({ ...madLibs, setting: e.target.value })}
-                                                className="select-field"
-                                            >
-                                                <option value="">{isCasual ? 'Choose a place...' : 'Select setting...'}</option>
-                                                {PROMPT_CATEGORIES.settings.map((s) => (
-                                                    <option key={s} value={s}>{s}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    {/* Preview */}
-                                    <div className="p-4 bg-background-secondary rounded-lg">
-                                        <p className="text-sm text-foreground-muted mb-1">Preview:</p>
-                                        <p className="text-sm">{buildPromptFromMadLibs(madLibs)}</p>
-                                    </div>
-                                </div>
-                            )}
-
-                            {promptMode === 'featured' && (
-                                <div className="grid grid-cols-2 gap-3">
-                                    {FEATURED_PROMPTS.map((fp) => (
-                                        <button
-                                            key={fp.id}
-                                            onClick={() => setPrompt(fp.prompt)}
-                                            className={`p-4 rounded-xl text-left transition-all ${prompt === fp.prompt
-                                                ? 'bg-primary/20 border-primary'
-                                                : 'bg-background-secondary hover:bg-background-secondary/80'
-                                                } border border-transparent`}
-                                        >
-                                            <span className="text-xs font-medium text-accent">{fp.category}</span>
-                                            <p className="font-medium mt-1">{fp.title}</p>
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Quality & Aspect Ratio */}
-                        <div className="card">
-                            <h3 className="font-semibold mb-4">{isCasual ? 'Style & Size' : 'Settings'}</h3>
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium mb-2">{isCasual ? 'Image Quality' : 'Quality'}</label>
-                                    <select
-                                        value={quality}
-                                        onChange={(e) => setQuality(e.target.value as ImageQuality)}
-                                        className="select-field"
-                                    >
-                                        <option value="standard" disabled={!allowedQualities.includes('standard')}>
-                                            {isCasual ? 'Standard' : 'Standard (1024px)'} - {CREDIT_COSTS.standard} credit
-                                        </option>
-                                        <option value="high" disabled={!allowedQualities.includes('high')}>
-                                            {isCasual ? 'High Definition' : 'High (2K)'} - {CREDIT_COSTS.high} credits
-                                        </option>
-                                        <option value="ultra" disabled={!allowedQualities.includes('ultra')}>
-                                            {isCasual ? 'Ultra 4K' : 'Ultra (4K)'} - {CREDIT_COSTS.ultra} credits {!allowedQualities.includes('ultra') ? '(Pro only)' : ''}
-                                        </option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium mb-2">{isCasual ? 'Image Shape' : 'Aspect Ratio'}</label>
-                                    <select
-                                        value={aspectRatio}
-                                        onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
-                                        className="select-field"
-                                    >
-                                        <option value="1:1">{isCasual ? 'Square' : '1:1 (Square)'}</option>
-                                        <option value="4:3">{isCasual ? 'Landscape' : '4:3 (Classic)'}</option>
-                                        <option value="3:4">{isCasual ? 'Portrait' : '3:4 (Portrait)'}</option>
-                                        <option value="16:9">{isCasual ? 'Wide' : '16:9 (Widescreen)'}</option>
-                                        <option value="9:16">{isCasual ? 'Story' : '9:16 (Mobile)'}</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium mb-2">Prompt Set ID</label>
-                                    <div className="flex gap-2">
-                                        <input
-                                            type="text"
-                                            value={promptSetID}
-                                            onChange={(e) => setPromptSetID(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))}
-                                            placeholder="Enter set ID..."
-                                            maxLength={30}
-                                            className="input-field text-sm"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setPromptSetID(generatePromptSetID())}
-                                            className="p-2 border border-border rounded-lg bg-background-secondary hover:border-primary/50 transition-all"
-                                            title="Regenerate ID"
-                                        >
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-
-                            {profile?.subscription === 'pro' && (
-                                <div className="mt-4 pt-4 border-t border-border">
-                                    <label className="block text-sm font-medium mb-2">Batch Size (Pro Feature)</label>
-                                    <div className="grid grid-cols-4 gap-2">
-                                        {[1, 4, 8, 12].map((size) => (
-                                            <button
-                                                key={size}
-                                                onClick={() => setBatchSize(size)}
-                                                className={`py-2 rounded-lg text-sm font-bold transition-all border ${batchSize === size
-                                                    ? 'bg-primary text-white border-primary'
-                                                    : 'bg-background-secondary text-foreground-muted border-border hover:border-primary/50'
-                                                    }`}
-                                            >
-                                                {size} {size === 1 ? 'Image' : 'Images'}
-                                            </button>
-                                        ))}
-                                    </div>
-                                    <p className="text-[10px] text-foreground-muted mt-2 uppercase tracking-widest font-bold flex items-center justify-between">
-                                        <span>Estimated Cost:</span>
-                                        <span className="text-primary">{CREDIT_COSTS[quality] * batchSize} Credits</span>
-                                    </p>
-                                </div>
-                            )}
-
-                            {profile?.subscription !== 'pro' && (
-                                <p className="text-[10px] text-foreground-muted mt-2 uppercase tracking-widest font-bold flex items-center justify-between">
-                                    <span>Cost:</span>
-                                    <span className="text-primary">{CREDIT_COSTS[quality]} Credit</span>
-                                </p>
-                            )}
-                        </div>
-
-                        {/* Advanced Precision Controls (PRO Only) */}
-                        {profile?.subscription === 'pro' && !isCasual && (
-                            <div className="card overflow-hidden">
-                                <button
-                                    onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
-                                    className="w-full flex items-center justify-between group"
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <div className={`p-1.5 rounded-lg bg-primary/10 text-primary transition-colors ${isAdvancedOpen ? 'bg-primary text-white' : ''}`}>
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                                <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
-                                                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
-                                            </svg>
-                                        </div>
-                                        <h3 className="font-semibold">Advanced Precision Controls</h3>
-                                    </div>
-                                    <div className={`transition-transform duration-300 ${isAdvancedOpen ? 'rotate-180' : ''}`}>
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                            <path d="M19 9l-7 7-7-7" />
-                                        </svg>
-                                    </div>
-                                </button>
-
-                                <div className={`transition-all duration-300 overflow-hidden ${isAdvancedOpen ? 'max-h-[500px] mt-6 opacity-100' : 'max-h-0 opacity-0'}`}>
-                                    <div className="space-y-6">
-                                        {/* Negative Prompt */}
-                                        <div>
-                                            <label className="block text-sm font-medium mb-2 flex items-center justify-between">
-                                                <span>Negative Prompt</span>
-                                                <span className="text-[10px] text-foreground-muted uppercase">What to exclude</span>
-                                            </label>
-                                            <textarea
-                                                value={negativePrompt}
-                                                onChange={(e) => setNegativePrompt(e.target.value)}
-                                                placeholder="blurry, distorted, low quality, text, watermarks..."
-                                                className="input-field h-20 text-sm resize-none"
-                                            />
-                                        </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            {/* Seed Control */}
-                                            <div>
-                                                <label className="block text-sm font-medium mb-2 flex items-center justify-between">
-                                                    <span>Seed</span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setSeed(undefined)}
-                                                        className={`text-[10px] uppercase font-bold transition-all ${seed === undefined ? 'text-primary' : 'text-foreground-muted hover:text-foreground'}`}
-                                                    >
-                                                        {seed === undefined ? '✓ Random' : 'Randomize'}
-                                                    </button>
-                                                </label>
-                                                <div className="flex gap-2">
-                                                    <input
-                                                        type="number"
-                                                        value={seed ?? ''}
-                                                        onChange={(e) => setSeed(e.target.value ? parseInt(e.target.value) : undefined)}
-                                                        placeholder="Random"
-                                                        className="input-field text-sm"
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setSeed(Math.floor(Math.random() * 1000000))}
-                                                        className="p-2 border border-border rounded-lg bg-background-secondary hover:border-primary/50 transition-all"
-                                                        title="Generate new seed"
-                                                    >
-                                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                            <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                                        </svg>
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            {/* Guidance Scale */}
-                                            <div>
-                                                <label className="block text-sm font-medium mb-2 flex items-center justify-between">
-                                                    <span>Guidance Scale</span>
-                                                    <span className="text-primary font-bold">{guidanceScale.toFixed(1)}</span>
-                                                </label>
-                                                <input
-                                                    type="range"
-                                                    min="1"
-                                                    max="15"
-                                                    step="0.5"
-                                                    value={guidanceScale}
-                                                    onChange={(e) => setGuidanceScale(parseFloat(e.target.value))}
-                                                    className="w-full h-2 bg-background-secondary rounded-lg appearance-none cursor-pointer accent-primary"
-                                                />
-                                                <div className="flex justify-between text-[10px] text-foreground-muted mt-2 uppercase">
-                                                    <span>Creative</span>
-                                                    <span>Strict Adherence</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Error Message */}
-                        {error && (
-                            <div className="p-4 bg-error/10 border border-error/30 rounded-xl text-error text-sm">
-                                {error}
-                            </div>
-                        )}
-
-                        {/* Warning Message */}
-                        {warning && (
-                            <div className="p-4 bg-primary/10 border border-primary/20 rounded-xl text-primary text-sm">
-                                ⚠️ {warning}
-                            </div>
-                        )}
-
-                        {/* Generate Button */}
-                        <button
-                            onClick={handleGenerate}
-                            disabled={generating || availableCredits < (CREDIT_COSTS[quality] * batchSize)}
-                            className="btn-primary w-full py-4 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {generating ? (
-                                <span className="flex items-center justify-center gap-2">
-                                    <div className="spinner w-5 h-5 border-2" />
-                                    Generating Batch...
-                                </span>
-                            ) : (
-                                <span>Generate {batchSize > 1 ? `Batch of ${batchSize}` : 'Image'} ({CREDIT_COSTS[quality] * batchSize} credits)</span>
-                            )}
-                        </button>
-                    </div>
-
-                    {/* Right: Preview */}
-                    <div className="lg:sticky lg:top-24 lg:self-start">
-                        <div className="card">
-                            <h3 className="font-semibold mb-4">Preview</h3>
-
-                            <div
-                                className="relative bg-background-secondary rounded-xl overflow-hidden flex items-center justify-center mb-4"
-                                style={{ aspectRatio: aspectRatio.replace(':', '/') }}
-                            >
-                                {generating ? (
-                                    <div className="text-center w-full px-8">
-                                        <div className="spinner mx-auto mb-6" />
-                                        <p className="font-bold text-lg mb-2">
-                                            {generationProgress ? `Generating Image ${generationProgress.current} of ${generationProgress.total}` : 'Initializing...'}
-                                        </p>
-                                        <div className="w-full bg-background-secondary border border-border h-3 rounded-full overflow-hidden mb-4">
-                                            <div
-                                                className="h-full bg-gradient-to-r from-primary to-accent transition-all duration-500 ease-out"
-                                                style={{ width: `${generationProgress ? (generationProgress.current / generationProgress.total) * 100 : 5}%` }}
-                                            />
-                                        </div>
-                                        <p className="text-sm text-foreground-muted animate-pulse">
-                                            {generationProgress?.message || 'Connecting to brain...'}
-                                        </p>
-                                    </div>
-                                ) : generatedImages.length > 0 ? (
-                                    <img
-                                        src={editedImage || generatedImages[selectedImageIndex]?.imageUrl}
-                                        alt="Generated"
-                                        className="w-full h-full object-contain"
-                                    />
-                                ) : (
-                                    <div className="text-center p-8">
-                                        <div className="text-6xl mb-4 opacity-30">🎨</div>
-                                        <p className="text-foreground-muted">
-                                            Your generated images will appear here
-                                        </p>
+                                )}
+                                {warning && (
+                                    <div className="p-4 bg-primary/10 border border-primary/20 rounded-2xl flex items-start gap-3">
+                                        <Icons.zap className="text-primary mt-0.5" size={16} />
+                                        <p className="text-xs font-bold text-primary leading-relaxed uppercase tracking-tight">{warning}</p>
                                     </div>
                                 )}
                             </div>
+                        )}
 
-                            {/* Batch Thumbnail Grid */}
-                            {generatedImages.length > 1 && (
-                                <div className="grid grid-cols-4 gap-2 mb-6">
-                                    {generatedImages.map((img, idx) => (
-                                        <button
-                                            key={img.id}
-                                            onClick={() => {
-                                                setSelectedImageIndex(idx);
-                                                setEditedImage(null);
-                                            }}
-                                            className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${selectedImageIndex === idx ? 'border-primary ring-2 ring-primary/20' : 'border-transparent opacity-50 hover:opacity-100'}`}
-                                        >
-                                            <img src={img.imageUrl} alt={`Variation ${idx + 1}`} className="w-full h-full object-cover" />
-                                        </button>
-                                    ))}
+                        {/* Generation Action */}
+                        <Button
+                            onClick={handleGenerate}
+                            disabled={generating || availableCredits < currentCost}
+                            variant="primary"
+                            className="w-full h-16 text-lg font-black uppercase tracking-[0.2em] shadow-2xl shadow-primary/20 group relative overflow-hidden"
+                        >
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer" />
+                            {generating ? (
+                                <div className="flex items-center justify-center gap-3">
+                                    <Icons.spinner className="w-6 h-6 animate-spin" />
+                                    <span>{modality === 'video' ? 'Synthesizing...' : 'Generating...'}</span>
+                                </div>
+                            ) : (
+                                <div className="flex items-center justify-center gap-3">
+                                    <span>Manifest {modality === 'video' ? 'Video' : (batchSize > 1 ? `Batch of ${batchSize}` : 'Creation')}</span>
+                                    <Badge variant="glass" size="sm" className="bg-white/20 ml-2">
+                                        {currentCost} <Icons.zap size={8} className="ml-1 inline" />
+                                    </Badge>
                                 </div>
                             )}
+                        </Button>
+                    </div>
 
-                            {/* Download & Edit Options */}
-                            {generatedImages.length > 0 && (
-                                <div className="space-y-3 mt-4">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowTextEditor(true)}
-                                        className="btn-primary w-full flex items-center justify-center gap-2"
-                                    >
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                            <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-                                        </svg>
-                                        {editedImage ? 'Edit Text Overlay' : 'Add Text Overlay'}
-                                    </button>
-
-                                    <div className="flex gap-3">
-                                        <button
-                                            type="button"
-                                            onClick={() => handleDownload('png')}
-                                            className="btn-secondary flex-1"
-                                        >
-                                            Download PNG
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleDownload('jpeg')}
-                                            className="btn-secondary flex-1"
-                                        >
-                                            Download JPEG
-                                        </button>
-                                    </div>
-
-                                    {editedImage && (
-                                        <button
-                                            onClick={() => setEditedImage(null)}
-                                            className="text-xs text-foreground-muted hover:text-foreground underline w-full text-center"
-                                        >
-                                            Reset to original image
-                                        </button>
-                                    )}
-
-                                    <div className="pt-4 border-t border-border">
-                                        <p className="text-xs font-semibold text-foreground-muted mb-2 uppercase tracking-wider text-center">Share your creation</p>
-                                        <div className="flex justify-center">
-                                            <ShareButtons
-                                                imageUrl={editedImage || generatedImages[selectedImageIndex].imageUrl}
-                                                prompt={prompt}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                    {/* Right: Preview */}
+                    <div className="animate-in slide-in-from-right-4 duration-700 delay-200">
+                        <PreviewSection
+                            generating={generating}
+                            generatedImages={generatedImages}
+                            selectedImageIndex={selectedImageIndex}
+                            setSelectedImageIndex={setSelectedImageIndex}
+                            editedImage={editedImage}
+                            setEditedImage={setEditedImage}
+                            modality={modality}
+                            aspectRatio={aspectRatio}
+                            generationProgress={generationProgress}
+                            onShowTextEditor={() => setShowTextEditor(true)}
+                            onDownload={handleDownload}
+                        />
                     </div>
                 </div>
 
@@ -1237,75 +882,13 @@ function GeneratePageContent() {
                 )}
             </main>
 
-            {/* History Sidebar */}
-            <div className={`fixed inset-0 z-[60] transition-opacity duration-300 ${isHistoryOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-                <div
-                    className="absolute inset-0 bg-background/60 backdrop-blur-sm"
-                    onClick={() => setIsHistoryOpen(false)}
-                />
-                <div className={`absolute right-0 top-0 bottom-0 w-80 max-w-[90vw] glass-card border-l border-border transition-transform duration-300 transform ${isHistoryOpen ? 'translate-x-0' : 'translate-x-full'} overflow-hidden flex flex-col`}>
-                    <div className="p-6 border-b border-border flex items-center justify-between">
-                        <h2 className="text-xl font-bold font-sans">Recent History</h2>
-                        <button
-                            onClick={() => setIsHistoryOpen(false)}
-                            className="p-2 hover:bg-background rounded-lg"
-                        >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                        {loadingHistory && historyImages.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-12 text-foreground-muted">
-                                <div className="spinner mb-4" />
-                                <p className="text-sm">Loading history...</p>
-                            </div>
-                        ) : historyImages.length === 0 ? (
-                            <div className="text-center py-12 text-foreground-muted">
-                                <p className="text-sm">No generations found.</p>
-                                <p className="text-xs mt-2">Create something to see it here!</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                {historyImages.map((img) => (
-                                    <div key={img.id} className="group relative rounded-xl overflow-hidden glass-card border border-border/50 hover:border-primary/50 transition-all p-2">
-                                        <div className="aspect-square rounded-lg overflow-hidden bg-background-secondary mb-2 relative">
-                                            <img
-                                                src={img.imageUrl}
-                                                alt={img.prompt}
-                                                className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                                            />
-                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                <button
-                                                    onClick={() => handleRemix(img)}
-                                                    className="btn-primary text-xs px-3 py-1.5"
-                                                >
-                                                    Remix
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="px-1 overflow-hidden">
-                                            <p className="text-[10px] text-foreground-muted line-clamp-2 italic mb-1">
-                                                &quot;{img.prompt}&quot;
-                                            </p>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-[8px] font-bold uppercase py-0.5 px-1.5 bg-primary/10 text-primary rounded">
-                                                    {img.settings?.quality || 'standard'}
-                                                </span>
-                                                <span className="text-[8px] text-foreground-muted">
-                                                    {img.createdAt?.toDate?.() ? new Date(img.createdAt.toDate()).toLocaleDateString() : 'Just now'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
+            <HistorySidebar
+                isOpen={isHistoryOpen}
+                onClose={() => setIsHistoryOpen(false)}
+                images={historyImages}
+                loading={loadingHistory}
+                onRemix={handleRemix}
+            />
         </div>
     );
 }

@@ -50,7 +50,8 @@ export async function GET(request: NextRequest) {
                 username: authorData?.username || 'unknown',
                 displayName: authorData?.displayName || 'Unknown User',
                 photoURL: authorData?.photoURL || null,
-                score: score
+                score: score,
+                publishedCount: authorData?.publishedCount || 0
             });
         }
 
@@ -58,9 +59,18 @@ export async function GET(request: NextRequest) {
         const settingsDoc = await adminDb.collection('settings').doc('rewards').get();
         const rewards = settingsDoc.exists ? settingsDoc.data()?.amounts : [500, 250, 100];
 
+        // 4. Calculate total unique published creators
+        const entriesSnapshot = await adminDb.collection('leagueEntries').get();
+        const uniqueAuthors = new Set();
+        entriesSnapshot.docs.forEach(doc => {
+            const userId = doc.data().originalUserId;
+            if (userId) uniqueAuthors.add(userId);
+        });
+
         return NextResponse.json({
             success: true,
             leaders: previewData,
+            totalContestants: uniqueAuthors.size,
             currentRewards: rewards
         });
 

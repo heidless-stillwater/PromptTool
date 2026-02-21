@@ -26,7 +26,7 @@ export default function ReactionPicker({ entryId, reactions, onReact }: Reaction
         setIsProcessing(emoji);
         try {
             const token = await user.getIdToken();
-            const res = await fetch('/api/league/react', {
+            const res = await fetch('/api/league/react/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -65,8 +65,8 @@ export default function ReactionPicker({ entryId, reactions, onReact }: Reaction
                         }}
                         disabled={!!isProcessing}
                         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-bold transition-all border ${hasReacted
-                                ? 'bg-primary/10 border-primary text-primary'
-                                : 'bg-background-secondary/50 border-border hover:border-primary/50 text-foreground-muted hover:text-foreground'
+                            ? 'bg-primary/10 border-primary text-primary'
+                            : 'bg-background-secondary/50 border-border hover:border-primary/50 text-foreground-muted hover:text-foreground'
                             } ${isProcessing === emoji ? 'opacity-50 cursor-wait' : ''}`}
                     >
                         <span>{emoji}</span>

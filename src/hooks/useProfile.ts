@@ -7,13 +7,34 @@ import { db } from '@/lib/firebase';
 import { UserProfile, LeagueEntry } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/Toast';
+import { useLeagueInteractions } from '@/hooks/useLeagueInteractions';
 
 export function useProfile() {
     const params = useParams();
-    const userId = params.userId as string;
-    const { user: currentUser, loading: authLoading } = useAuth();
     const router = useRouter();
     const { showToast } = useToast();
+    const { user: currentUser, loading: authLoading } = useAuth();
+
+    // Resilient userId extraction
+    const userId = useMemo(() => {
+        // 1. Try to parse from pathname first (most reliable for rewrites)
+        if (typeof window !== 'undefined') {
+            const pathParts = window.location.pathname.split('/');
+            const profileIdx = pathParts.indexOf('profile');
+            if (profileIdx !== -1 && pathParts[profileIdx + 1]) {
+                const id = pathParts[profileIdx + 1];
+                // Ignore dummy ID '1' if we have a real segment (unless the user IS '1')
+                if (id && id !== '' && id !== 'index.html') {
+                    return id.replace(/\/$/, '');
+                }
+            }
+        }
+
+        // 2. Fallback to router params
+        if (params.userId) return params.userId as string;
+
+        return '';
+    }, [params.userId]);
 
     // Data State
     const [author, setAuthor] = useState<UserProfile | null>(null);
@@ -22,11 +43,24 @@ export function useProfile() {
     const [queryError, setQueryError] = useState<string | null>(null);
 
     // Interaction State
-    const [isFollowing, setIsFollowing] = useState(false);
-    const [followLoading, setFollowLoading] = useState(false);
-    const [selectedEntry, setSelectedEntry] = useState<LeagueEntry | null>(null);
-    const [showReportModal, setShowReportModal] = useState(false);
-    const [isReporting, setIsReporting] = useState(false);
+    const {
+        selectedEntry,
+        setSelectedEntry,
+        comments,
+        loadingComments,
+        votingEntryId,
+        isFollowing: isFollowingEntry,
+        followLoading: followLoadingEntry,
+        handleVote,
+        handleToggleFollow: handleToggleFollowEntry,
+        handleReactUpdate,
+        handleAddComment,
+        handleDeleteComment,
+        handleReport
+    } = useLeagueInteractions(entries, setEntries);
+
+    const [isFollowingProfile, setIsFollowingProfile] = useState(false);
+    const [followLoadingProfile, setFollowLoadingProfile] = useState(false);
 
     // Computed Stats
     const stats = useMemo(() => {
@@ -76,7 +110,7 @@ export function useProfile() {
             if (currentUser && currentUser.uid !== userId) {
                 const followingRef = doc(db, 'users', currentUser.uid, 'following', userId);
                 const followingSnap = await getDoc(followingRef);
-                setIsFollowing(followingSnap.exists());
+                setIsFollowingProfile(followingSnap.exists());
             }
 
         } catch (error: any) {
@@ -96,15 +130,14 @@ export function useProfile() {
         fetchProfile();
     }, [fetchProfile]);
 
-    const handleToggleFollow = async () => {
-        if (!currentUser || !author || followLoading) return;
+    const handleToggleFollowProfile = async () => {
+        if (!currentUser || !author || followLoadingProfile) return;
 
         try {
-            setFollowLoading(true);
-            const action = isFollowing ? 'unfollow' : 'follow';
-
+            setFollowLoadingProfile(true);
+            const action = isFollowingProfile ? 'unfollow' : 'follow';
             const token = await currentUser.getIdToken();
-            const res = await fetch('/api/user/follow', {
+            const res = await fetch('/api/user/follow/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -116,48 +149,23 @@ export function useProfile() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
 
-            setIsFollowing(!isFollowing);
+            setIsFollowingProfile(!isFollowingProfile);
 
             // Optimistic update for UI counts
             setAuthor(prev => prev ? {
                 ...prev,
-                followerCount: (prev.followerCount || 0) + (isFollowing ? -1 : 1)
+                followerCount: (prev.followerCount || 0) + (isFollowingProfile ? -1 : 1)
             } : null);
 
-            showToast(isFollowing ? 'Unfollowed creator' : 'Following creator!', 'success');
+            showToast(isFollowingProfile ? 'Unfollowed creator' : 'Following creator!', 'success');
         } catch (error: any) {
             console.error('[Profile] Follow error:', error);
             showToast(error.message || 'Failed to update follow status', 'error');
         } finally {
-            setFollowLoading(false);
+            setFollowLoadingProfile(false);
         }
     };
 
-    const handleConfirmReport = async () => {
-        if (!currentUser || !selectedEntry) return;
-        setIsReporting(true);
-        try {
-            const token = await currentUser.getIdToken();
-            const res = await fetch('/api/league/report', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ entryId: selectedEntry.id })
-            });
-
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
-
-            showToast(data.message, 'success');
-            setShowReportModal(false);
-        } catch (err: any) {
-            showToast(err.message || 'Failed to report content', 'error');
-        } finally {
-            setIsReporting(false);
-        }
-    };
 
     const formatDate = (timestamp: any) => {
         if (!timestamp) return 'Unknown';
@@ -170,10 +178,14 @@ export function useProfile() {
     return {
         // State
         userId, author, entries, loading, authLoading, queryError, stats,
-        isFollowing, followLoading, selectedEntry, showReportModal, isReporting,
+        isFollowingProfile, followLoadingProfile, selectedEntry,
         currentUser,
+        comments, loadingComments, votingEntryId,
+        isFollowingEntry, followLoadingEntry,
 
         // Actions
-        handleToggleFollow, handleConfirmReport, formatDate, setSelectedEntry, setShowReportModal
+        handleToggleFollowProfile, formatDate, setSelectedEntry,
+        handleVote, handleReactUpdate, handleAddComment, handleDeleteComment, handleReport,
+        handleToggleFollowEntry
     };
 }

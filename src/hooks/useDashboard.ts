@@ -76,7 +76,7 @@ export function useDashboard() {
                 showToast('Verifying your upgrade...', 'info');
                 try {
                     const token = await user.getIdToken();
-                    const res = await fetch('/api/stripe/verify-session', {
+                    const res = await fetch('/api/stripe/verify-session/', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -108,7 +108,7 @@ export function useDashboard() {
             // Images
             try {
                 const imagesRef = collection(db, 'users', user.uid, 'images');
-                const q = query(imagesRef, orderBy('createdAt', 'desc'), limit(12));
+                const q = query(imagesRef, orderBy('createdAt', 'desc'), limit(24));
                 const snap = await getDocs(q);
                 setRecentImages(snap.docs.map(d => ({ id: d.id, ...d.data() } as GeneratedImage)));
             } catch (e) { console.error(e); } finally { setLoadingImages(false); }
@@ -132,7 +132,7 @@ export function useDashboard() {
             // History
             try {
                 const historyRef = collection(db, 'users', user.uid, 'creditHistory');
-                const q = query(historyRef, orderBy('createdAt', 'desc'), limit(10));
+                const q = query(historyRef, orderBy('createdAt', 'desc'), limit(20));
                 const snap = await getDocs(q);
                 setCreditHistory(snap.docs.map(d => ({ id: d.id, ...d.data() } as CreditTransaction)));
             } catch (e) { console.error(e); } finally { setLoadingHistory(false); }
@@ -260,7 +260,7 @@ export function useDashboard() {
                 const img = recentImages.find(i => i.id === id);
                 if (!img || img.publishedToLeague) return;
 
-                const res = await fetch('/api/league/publish', {
+                const res = await fetch('/api/league/publish/', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
         console.log(`📊 Found ${snapshot.size} league entries.`);
 
         const influenceMap: Record<string, number> = {};
+        const publicationsMap: Record<string, number> = {};
 
         snapshot.docs.forEach(doc => {
             const data = doc.data();
@@ -35,11 +36,12 @@ export async function POST(request: NextRequest) {
 
             if (userId) {
                 influenceMap[userId] = (influenceMap[userId] || 0) + votes;
+                publicationsMap[userId] = (publicationsMap[userId] || 0) + 1;
             }
         });
 
-        const userIds = Object.keys(influenceMap);
-        console.log(`👥 Updating ${userIds.length} users...`);
+        const userIds = Object.keys(publicationsMap);
+        console.log(`👥 Updating ${userIds.length} users with publications...`);
 
         const batchSize = 500;
         for (let i = 0; i < userIds.length; i += batchSize) {
@@ -48,9 +50,8 @@ export async function POST(request: NextRequest) {
 
             chunk.forEach(uid => {
                 batch.set(usersRef.doc(uid), {
-                    totalInfluence: influenceMap[uid],
-                    followerCount: 0,
-                    followingCount: 0
+                    totalInfluence: influenceMap[uid] || 0,
+                    publishedCount: publicationsMap[uid] || 0
                 }, { merge: true });
             });
 

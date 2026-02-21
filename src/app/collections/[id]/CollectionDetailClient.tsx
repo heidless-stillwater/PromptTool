@@ -1,379 +1,335 @@
 'use client';
 
+import { useCollectionDetail } from '@/hooks/useCollectionDetail';
 import { useAuth } from '@/lib/auth-context';
 import { Collection, GeneratedImage } from '@/lib/types';
 import { db } from '@/lib/firebase';
-import {
-    doc, getDoc, collection, query, where, orderBy, getDocs,
-    updateDoc, deleteDoc, serverTimestamp, arrayRemove,
-    arrayUnion, increment
-} from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import { doc, deleteDoc, updateDoc, increment } from 'firebase/firestore';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/Toast';
 import ShareButtons from '@/components/ShareButtons';
-import CollectionSelectModal from '@/components/CollectionSelectModal';
+import ImageCard from '@/components/ImageCard';
+import ImageDetailModal from '@/components/gallery/ImageDetailModal';
+import ConfirmationModal from '@/components/ConfirmationModal';
+import { Icons } from '@/components/ui/Icons';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { Input } from '@/components/ui/Input';
+import { cn } from '@/lib/utils';
 
 export default function CollectionDetailClient({ id }: { id: string }) {
-    const { user, loading } = useAuth();
-    const router = useRouter();
+    const { user } = useAuth();
     const { showToast } = useToast();
-    const [collectionData, setCollectionData] = useState<Collection | null>(null);
-    const [images, setImages] = useState<GeneratedImage[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const router = useRouter();
+
+    const {
+        collectionData,
+        images,
+        setImages,
+        isLoading,
+        isUpdating,
+        selectedIds,
+        selectionMode,
+        setSelectionMode,
+        handleRename,
+        handleAddTags,
+        handleRemoveTag,
+        handleTogglePrivacy,
+        handleDeleteCollection,
+        handleSetCover,
+        handleRemoveImages,
+        toggleSelection
+    } = useCollectionDetail(id);
+
     const [isRenaming, setIsRenaming] = useState(false);
     const [newName, setNewName] = useState('');
     const [tagInput, setTagInput] = useState('');
-    const [isUpdatingTags, setIsUpdatingTags] = useState(false);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
 
-    // Selection State
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-    const [selectionMode, setSelectionMode] = useState(false);
-    const [isRemoving, setIsRemoving] = useState(false);
-    const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
-    const [isProcessingMove, setIsProcessingMove] = useState(false);
-    const [userCollections, setUserCollections] = useState<Collection[]>([]);
-
-    const collectionId = id;
-
-    // Fetch primary data
     useEffect(() => {
-        const fetchData = async () => {
-            if (!user) return;
-            setIsLoading(true);
-            try {
-                // 1. Fetch Collection Metadata
-                const colRef = doc(db, 'users', user.uid, 'collections', collectionId);
-                const colSnap = await getDoc(colRef);
-
-                if (!colSnap.exists()) {
-                    showToast('Collection not found', 'error');
-                    router.push('/collections');
-                    return;
-                }
-
-                const colData = { id: colSnap.id, ...colSnap.data() } as Collection;
-                setCollectionData(colData);
-                setNewName(colData.name);
-
-                // 2. Fetch Images (Dual Query for compatibility)
-                const imagesRef = collection(db, 'users', user.uid, 'images');
-                const [snapArray, snapLegacy] = await Promise.all([
-                    getDocs(query(imagesRef, where('collectionIds', 'array-contains', collectionId))),
-                    getDocs(query(imagesRef, where('collectionId', '==', collectionId)))
-                ]);
-
-                const imageMap = new Map();
-                snapArray.docs.forEach(d => imageMap.set(d.id, { id: d.id, ...d.data() }));
-                snapLegacy.docs.forEach(d => imageMap.set(d.id, { id: d.id, ...d.data() }));
-
-                const fetchedImages = Array.from(imageMap.values()) as GeneratedImage[];
-                fetchedImages.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
-
-                setImages(fetchedImages);
-            } catch (error) {
-                console.error('Fetch error:', error);
-                showToast('Failed to load collection', 'error');
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        if (user) fetchData();
-        else if (!loading) setIsLoading(false);
-    }, [user, loading, collectionId, router, showToast]);
-
-    // Handle Tags
-    const handleAddTags = async (e?: React.FormEvent) => {
-        e?.preventDefault();
-        if (!tagInput.trim() || !user || !collectionId) return;
-
-        const newTags = tagInput.split(',')
-            .map(t => t.trim().toLowerCase())
-            .filter(t => t.length > 0);
-
-        if (newTags.length === 0) return;
-
-        setIsUpdatingTags(true);
-        try {
-            const docRef = doc(db, 'users', user.uid, 'collections', collectionId);
-            await updateDoc(docRef, {
-                tags: arrayUnion(...newTags),
-                updatedAt: serverTimestamp()
-            });
-
-            setCollectionData(prev => {
-                if (!prev) return null;
-                const existing = prev.tags || [];
-                return { ...prev, tags: Array.from(new Set([...existing, ...newTags])) };
-            });
-            setTagInput('');
-            showToast('Tags updated', 'success');
-        } catch (err) {
-            console.error('Tag add error:', err);
-            showToast('Failed to add tags', 'error');
-        } finally {
-            setIsUpdatingTags(false);
+        if (collectionData) {
+            setNewName(collectionData.name);
         }
-    };
+    }, [collectionData]);
 
-    const handleRemoveTag = async (tag: string) => {
-        if (!user || !collectionId) return;
-        setIsUpdatingTags(true);
-        try {
-            const docRef = doc(db, 'users', user.uid, 'collections', collectionId);
-            await updateDoc(docRef, {
-                tags: arrayRemove(tag),
-                updatedAt: serverTimestamp()
-            });
-            setCollectionData(prev => prev ? { ...prev, tags: (prev.tags || []).filter(t => t !== tag) } : null);
-        } catch (err) {
-            console.error('Tag remove error:', err);
-        } finally {
-            setIsUpdatingTags(false);
-        }
-    };
-
-    // Actions
-    const handleRename = async () => {
-        if (!user || !newName.trim()) return;
-        try {
-            await updateDoc(doc(db, 'users', user.uid, 'collections', collectionId), {
-                name: newName.trim(),
-                updatedAt: serverTimestamp()
-            });
-            setCollectionData(prev => prev ? { ...prev, name: newName.trim() } : null);
+    const onRenameSubmit = async () => {
+        if (newName.trim() === collectionData?.name) {
             setIsRenaming(false);
-        } catch (err) {
-            showToast('Rename failed', 'error');
+            return;
         }
+        await handleRename(newName);
+        setIsRenaming(false);
     };
 
-    const handleTogglePrivacy = async () => {
-        if (!user || !collectionData) return;
-        const newPrivacy = collectionData.privacy === 'public' ? 'private' : 'public';
+    const onAddTagsSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        await handleAddTags(tagInput);
+        setTagInput('');
+    };
+
+    const handleImageDelete = async (imageId: string) => {
+        if (!window.confirm('Permanently delete this image from your account?')) return;
         try {
-            await updateDoc(doc(db, 'users', user.uid, 'collections', collectionId), {
-                privacy: newPrivacy,
-                updatedAt: serverTimestamp()
+            setImages(prev => prev.filter(img => img.id !== imageId));
+            setSelectedImageId(null);
+            await deleteDoc(doc(db, 'users', user?.uid || '', 'images', imageId));
+            await updateDoc(doc(db, 'users', user?.uid || '', 'collections', id), {
+                imageCount: increment(-1)
             });
-            setCollectionData(prev => prev ? { ...prev, privacy: newPrivacy } : null);
-        } catch (err) {
-            showToast('Privacy update failed', 'error');
+            showToast('Image deleted permanently', 'success');
+        } catch (error) {
+            showToast('Failed to delete image', 'error');
         }
     };
 
-    const handleDelete = async () => {
-        if (!window.confirm('Delete this collection?') || !user) return;
-        try {
-            await deleteDoc(doc(db, 'users', user.uid, 'collections', collectionId));
-            router.push('/collections');
-        } catch (err) {
-            showToast('Delete failed', 'error');
-        }
-    };
+    if (isLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <Icons.spinner className="w-8 h-8 animate-spin text-primary" />
+            </div>
+        );
+    }
 
-    // Selection
-    const toggleSelection = (id: string) => {
-        setSelectedIds(prev => {
-            const next = new Set(prev);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
-            return next;
-        });
-    };
-
-    const handleRemoveImages = async () => {
-        if (!user || selectedIds.size === 0) return;
-        if (!window.confirm(`Remove ${selectedIds.size} images?`)) return;
-
-        setIsRemoving(true);
-        try {
-            await Promise.all(Array.from(selectedIds).map(async id => {
-                const imgRef = doc(db, 'users', user.uid, 'images', id);
-                await updateDoc(imgRef, { collectionIds: arrayRemove(collectionId) });
-            }));
-
-            setImages(prev => prev.filter(img => !selectedIds.has(img.id)));
-            setCollectionData(prev => prev ? { ...prev, imageCount: Math.max(0, prev.imageCount - selectedIds.size) } : null);
-            setSelectedIds(new Set());
-            setSelectionMode(false);
-            showToast('Images removed', 'success');
-        } catch (err) {
-            showToast('Failed to remove images', 'error');
-        } finally {
-            setIsRemoving(false);
-        }
-    };
-
-    const fetchOtherCollections = async () => {
-        if (!user) return;
-        const snapshot = await getDocs(query(collection(db, 'users', user.uid, 'collections'), orderBy('createdAt', 'desc')));
-        setUserCollections(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Collection)).filter(c => c.id !== collectionId));
-    };
-
-    const handleMoveImages = async (targetId: string) => {
-        if (!user || selectedIds.size === 0) return;
-        setIsProcessingMove(true);
-        try {
-            await Promise.all(Array.from(selectedIds).map(async id => {
-                const imgRef = doc(db, 'users', user.uid, 'images', id);
-                await updateDoc(imgRef, { collectionIds: arrayUnion(targetId) });
-                await updateDoc(imgRef, { collectionIds: arrayRemove(collectionId) });
-            }));
-
-            await updateDoc(doc(db, 'users', user.uid, 'collections', targetId), { imageCount: increment(selectedIds.size) });
-            await updateDoc(doc(db, 'users', user.uid, 'collections', collectionId), { imageCount: increment(-selectedIds.size) });
-
-            setImages(prev => prev.filter(img => !selectedIds.has(img.id)));
-            setCollectionData(prev => prev ? { ...prev, imageCount: Math.max(0, prev.imageCount - selectedIds.size) } : null);
-            setIsMoveModalOpen(false);
-            setSelectedIds(new Set());
-            setSelectionMode(false);
-            showToast('Images moved', 'success');
-        } catch (err) {
-            showToast('Move failed', 'error');
-        } finally {
-            setIsProcessingMove(false);
-        }
-    };
-
-    const handleSetCover = async (url: string) => {
-        if (!user) return;
-        try {
-            await updateDoc(doc(db, 'users', user.uid, 'collections', collectionId), { coverImageUrl: url });
-            setCollectionData(prev => prev ? { ...prev, coverImageUrl: url } : null);
-            showToast('Cover updated', 'success');
-        } catch (err) {
-            showToast('Cover update failed', 'error');
-        }
-    };
-
-    if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
-    if (!collectionData) return <div className="p-20 text-center"><h1 className="text-2xl font-bold">Not Found</h1><Link href="/collections" className="text-primary">Back</Link></div>;
+    if (!collectionData) return null;
 
     return (
-        <div className="min-h-screen max-w-7xl mx-auto px-4 py-8">
-            <Link href="/collections" className="text-sm text-foreground-muted hover:text-primary mb-6 inline-block">← Back</Link>
+        <div className="min-h-screen bg-background pb-32">
+            <div className="max-w-7xl mx-auto px-6 py-12 space-y-12">
+                {/* Navigation & Header */}
+                <div className="space-y-8">
+                    <Link href="/collections" className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted hover:text-primary transition-colors">
+                        <Icons.arrowLeft size={12} /> Return to Collections
+                    </Link>
 
-            <header className="mb-8 p-6 glass-card rounded-2xl relative">
-                <div className="flex flex-col md:flex-row justify-between gap-6">
-                    <div className="flex-1">
-                        {isRenaming ? (
-                            <div className="flex gap-2 mb-2">
-                                <input value={newName} onChange={e => setNewName(e.target.value)} className="bg-background border border-primary px-2 py-1 rounded text-xl font-bold" autoFocus />
-                                <button onClick={handleRename} className="btn-primary py-1 px-4">Save</button>
-                                <button onClick={() => setIsRenaming(false)} className="btn-secondary py-1 px-4">Cancel</button>
-                            </div>
-                        ) : (
-                            <div className="group flex items-center gap-3 mb-2">
-                                <h1 className="text-3xl font-bold">{collectionData.name}</h1>
-                                <button onClick={() => setIsRenaming(true)} className="opacity-0 group-hover:opacity-100 transition-opacity">✏️</button>
-                            </div>
-                        )}
-
-                        <div className="flex gap-3 text-[10px] font-extrabold uppercase tracking-widest mb-4">
-                            <span className="bg-background-secondary border border-border px-3 py-1 rounded-full text-foreground-muted">{images.length} Items</span>
-                            <span className={`px-3 py-1 rounded-full border ${collectionData.privacy === 'public' ? 'bg-success/20 text-success border-success/30' : 'bg-black/40 text-foreground border-white/10'}`}>
-                                {collectionData.privacy === 'public' ? '🌍 Public' : '🔒 Private'}
-                            </span>
+                    <Card variant="glass" className="p-8 md:p-12 rounded-[3rem] border-border/50 relative overflow-hidden">
+                        {/* Decorative Background Icon */}
+                        <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
+                            <Icons.stack className="w-48 h-48" />
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-2">
-                            {collectionData.tags?.map(t => (
-                                <div key={t} className="flex items-center">
-                                    <button
-                                        onClick={() => router.push(`/gallery?tag=${t}`)}
-                                        className="bg-primary/20 text-primary text-[10px] font-bold px-2.5 py-1 rounded-l-full border border-primary/30 border-r-0 hover:bg-primary hover:text-white transition-all cursor-pointer"
-                                    >
-                                        #{t}
-                                    </button>
-                                    <button
-                                        onClick={() => handleRemoveTag(t)}
-                                        className="bg-primary/20 text-primary text-[10px] font-bold px-2 py-1 rounded-r-full border border-primary/30 hover:bg-error hover:text-white hover:border-error transition-all cursor-pointer"
-                                        title="Remove tag"
-                                    >
-                                        ×
-                                    </button>
-                                </div>
-                            ))}
-                            <form onSubmit={handleAddTags} className="flex gap-1">
-                                <input
-                                    value={tagInput}
-                                    onChange={e => setTagInput(e.target.value)}
-                                    placeholder="Add tags (comma separated)..."
-                                    className="bg-black/40 border border-white/20 rounded-full px-3 py-1 text-[10px] w-48 focus:w-64 transition-all outline-none focus:border-primary"
-                                />
-                                <button type="submit" disabled={isUpdatingTags} className="bg-primary text-white text-[10px] font-bold px-3 py-1 rounded-full hover:bg-primary-hover transition-colors">Add</button>
-                            </form>
-                        </div>
-                    </div>
-
-                    <div className="flex gap-3 h-fit">
-                        <button onClick={handleTogglePrivacy} className="btn-secondary text-xs px-4 py-2">{collectionData.privacy === 'public' ? 'Make Private' : 'Make Public'}</button>
-                        <button onClick={handleDelete} className="btn-secondary text-xs px-4 py-2 text-error hover:bg-error/10 border-error/20">Delete</button>
-                    </div>
-                </div>
-            </header>
-
-            {images.length > 0 && (
-                <div className="sticky top-20 z-40 bg-background/80 backdrop-blur-md py-4 border-b border-border/50 mb-6 flex justify-between items-center -mx-4 px-4">
-                    <div className="flex gap-4 items-center">
-                        <button onClick={() => { setSelectionMode(!selectionMode); setSelectedIds(new Set()); }} className={`px-4 py-2 rounded-lg text-sm font-bold ${selectionMode ? 'bg-primary text-white' : 'bg-background-secondary hover:bg-background-tertiary'}`}>
-                            {selectionMode ? 'Done Selecting' : 'Select Images'}
-                        </button>
-                        {selectionMode && selectedIds.size > 0 && (
-                            <div className="flex gap-3">
-                                <button onClick={handleRemoveImages} disabled={isRemoving} className="bg-error text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
-                                    {isRemoving ? <div className="w-3 h-3 border-2 border-white border-t-transparent animate-spin rounded-full" /> : '🗑️'} Remove
-                                </button>
-                                <button onClick={() => { fetchOtherCollections(); setIsMoveModalOpen(true); }} className="bg-background-tertiary text-foreground px-4 py-2 rounded-lg text-sm font-bold border border-border">📦 Move To</button>
-                            </div>
-                        )}
-                    </div>
-                    <Link href="/dashboard" className="btn-secondary text-sm px-4 py-2">+ Add More</Link>
-                </div>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {images.map(img => (
-                    <div key={img.id} onClick={() => selectionMode && toggleSelection(img.id)} className={`group relative rounded-2xl overflow-hidden cursor-pointer transition-all ${selectionMode && selectedIds.has(img.id) ? 'ring-4 ring-primary scale-95' : 'hover:scale-[1.02] shadow-xl'}`}>
-                        {selectionMode && (
-                            <div className="absolute top-3 left-3 z-10 w-6 h-6 rounded-full border-2 border-white/50 bg-black/20 flex items-center justify-center">
-                                {selectedIds.has(img.id) && <div className="w-3 h-3 bg-primary rounded-full shadow-[0_0_8px_rgba(99,102,241,0.5)]" />}
-                            </div>
-                        )}
-                        <img src={img.imageUrl} className="aspect-[4/3] w-full object-cover bg-background-secondary" alt="" />
-                        {!selectionMode && (
-                            <>
-                                {collectionData.coverImageUrl === img.imageUrl && (
-                                    <div className="absolute top-3 right-3 z-10 bg-primary text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg border border-primary-light">
-                                        ★ Current Cover
+                        <div className="flex flex-col md:flex-row justify-between gap-12 relative z-10">
+                            <div className="flex-1 space-y-6">
+                                {isRenaming ? (
+                                    <div className="flex flex-col sm:flex-row gap-4">
+                                        <Input
+                                            value={newName}
+                                            onChange={e => setNewName(e.target.value)}
+                                            className="flex-1 h-12 px-6 text-2xl font-black"
+                                            autoFocus
+                                            onKeyDown={e => e.key === 'Enter' && onRenameSubmit()}
+                                        />
+                                        <div className="flex gap-2">
+                                            <Button onClick={onRenameSubmit}>Save</Button>
+                                            <Button variant="ghost" onClick={() => setIsRenaming(false)}>Cancel</Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="group flex items-center gap-4">
+                                        <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tight">{collectionData.name}</h1>
+                                        <button
+                                            onClick={() => setIsRenaming(true)}
+                                            className="w-10 h-10 rounded-xl bg-background-secondary border border-border/50 flex items-center justify-center text-foreground-muted hover:text-primary hover:border-primary/30 transition-all opacity-0 group-hover:opacity-100"
+                                        >
+                                            <Icons.settings size={16} />
+                                        </button>
                                     </div>
                                 )}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-4 flex flex-col justify-end">
-                                    <p className="text-white text-xs line-clamp-2 mb-4 font-medium">{img.prompt}</p>
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); handleSetCover(img.imageUrl); }}
-                                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all ${collectionData.coverImageUrl === img.imageUrl
-                                                ? 'bg-primary text-white shadow-[0_0_15px_rgba(99,102,241,0.4)]'
-                                                : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'
-                                                }`}
-                                        >
-                                            {collectionData.coverImageUrl === img.imageUrl ? '✓ Current Cover' : '🖼️ Set as Cover'}
-                                        </button>
-                                        <ShareButtons imageUrl={img.imageUrl} prompt={img.prompt} className="scale-90 origin-right" />
+
+                                <div className="flex flex-wrap gap-4">
+                                    <div className="flex items-center gap-2 px-4 py-2 bg-background-secondary/50 rounded-xl border border-border/50">
+                                        <Icons.grid size={14} className="text-primary" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest">{images.length} Assets</span>
                                     </div>
+                                    <button
+                                        onClick={handleTogglePrivacy}
+                                        className={cn(
+                                            "flex items-center gap-2 px-4 py-2 rounded-xl border transition-all",
+                                            collectionData.privacy === 'public'
+                                                ? "bg-success/10 border-success/30 text-success hover:bg-success/20"
+                                                : "bg-background-secondary border-border/50 text-foreground-muted hover:text-foreground"
+                                        )}
+                                    >
+                                        {collectionData.privacy === 'public' ? <Icons.globe size={14} /> : <Icons.shield size={14} />}
+                                        <span className="text-[10px] font-black uppercase tracking-widest">
+                                            {collectionData.privacy === 'public' ? 'Public Access' : 'Private Storage'}
+                                        </span>
+                                    </button>
                                 </div>
-                            </>
+
+                                <div className="space-y-4">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {collectionData.tags?.map(t => (
+                                            <div key={t} className="flex items-center group/tag">
+                                                <button
+                                                    onClick={() => router.push(`/gallery?tag=${t}`)}
+                                                    className="bg-primary/5 text-primary text-[10px] font-black uppercase px-4 py-2 rounded-l-xl border border-border/50 border-r-0 hover:bg-primary/10 transition-all"
+                                                >
+                                                    #{t}
+                                                </button>
+                                                <button
+                                                    onClick={() => handleRemoveTag(t)}
+                                                    className="bg-primary/5 text-primary text-[10px] font-black uppercase px-3 py-2 rounded-r-xl border border-border/50 hover:bg-error hover:text-white transition-all opacity-40 group-hover/tag:opacity-100"
+                                                >
+                                                    ×
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <form onSubmit={onAddTagsSubmit} className="flex gap-2 max-w-md">
+                                        <div className="relative flex-1 group">
+                                            <Icons.plus className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted group-focus-within:text-primary transition-colors" size={12} />
+                                            <Input
+                                                value={tagInput}
+                                                onChange={e => setTagInput(e.target.value)}
+                                                placeholder="Add tags (comma separated)..."
+                                                className="pl-10 h-10 text-[10px] font-black uppercase tracking-widest"
+                                            />
+                                        </div>
+                                        <Button type="submit" size="sm" className="h-10 rounded-xl px-6 text-[10px]" variant="secondary">Add</Button>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-row md:flex-col gap-3">
+                                <Button variant="ghost" onClick={handleTogglePrivacy} className="flex-1 md:flex-none justify-start px-6 h-12 rounded-2xl text-[10px] font-black uppercase tracking-widest gap-3">
+                                    {collectionData.privacy === 'public' ? <Icons.shield size={14} /> : <Icons.globe size={14} />}
+                                    {collectionData.privacy === 'public' ? 'Restrict' : 'Publish'}
+                                </Button>
+                                <Button variant="outline" onClick={() => setIsDeleteModalOpen(true)} className="flex-1 md:flex-none justify-start px-6 h-12 rounded-2xl text-[10px] font-black uppercase tracking-widest gap-3 text-error hover:bg-error/5 border-error/20">
+                                    <Icons.delete size={14} /> Remove Folder
+                                </Button>
+                            </div>
+                        </div>
+                    </Card>
+                </div>
+
+                {/* Toolbar */}
+                <Card variant="glass" className="sticky top-4 z-50 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-border/50 rounded-3xl shadow-2xl">
+                    <div className="flex gap-3">
+                        <Button
+                            variant={selectionMode ? 'primary' : 'secondary'}
+                            onClick={() => { setSelectionMode(!selectionMode); }}
+                            className="h-11 rounded-xl px-6 text-[10px] font-black uppercase tracking-widest gap-2"
+                        >
+                            {selectionMode ? <Icons.activity size={14} /> : <Icons.grid size={14} />}
+                            {selectionMode ? 'Editing Selection' : 'Batch Actions'}
+                        </Button>
+
+                        {selectionMode && selectedIds.size > 0 && (
+                            <div className="flex gap-2 animate-in slide-in-from-left-4 duration-300">
+                                <Button
+                                    variant="danger"
+                                    onClick={handleRemoveImages}
+                                    isLoading={isUpdating}
+                                    className="h-11 rounded-xl px-6 text-[10px] font-black uppercase tracking-widest gap-2"
+                                >
+                                    <Icons.delete size={14} /> Remove ({selectedIds.size})
+                                </Button>
+                            </div>
                         )}
                     </div>
-                ))}
+
+                    <Link href="/dashboard">
+                        <Button variant="ghost" className="h-11 rounded-xl px-6 text-[10px] font-black uppercase tracking-widest gap-2">
+                            <Icons.plus size={14} /> Add Content
+                        </Button>
+                    </Link>
+                </Card>
+
+                {/* Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                    {images.map(img => (
+                        <ImageCard
+                            key={img.id}
+                            image={img}
+                            variant="dashboard"
+                            selectionMode={selectionMode}
+                            isSelected={selectedIds.has(img.id)}
+                            onClick={() => selectionMode ? toggleSelection(img.id) : setSelectedImageId(img.id)}
+                            showFooter={false}
+                            renderOverlay={(image) => !selectionMode && (
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-6 flex flex-col justify-between items-end">
+                                    {collectionData.coverImageUrl === image.imageUrl ? (
+                                        <div className="bg-primary text-white text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full shadow-lg border border-white/20">
+                                            Current Cover
+                                        </div>
+                                    ) : <div />}
+
+                                    <div className="w-full space-y-4">
+                                        <p className="text-white text-xs line-clamp-2 font-medium opacity-80 leading-relaxed">{image.prompt}</p>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                onClick={(e) => { e.stopPropagation(); handleSetCover(image.imageUrl); }}
+                                                size="sm"
+                                                variant={collectionData.coverImageUrl === image.imageUrl ? 'primary' : 'outline'}
+                                                className="flex-1 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest gap-2 bg-white/10 border-white/20 hover:bg-white/20"
+                                            >
+                                                {collectionData.coverImageUrl === image.imageUrl ? <Icons.check size={14} /> : <Icons.image size={14} />}
+                                                {collectionData.coverImageUrl === image.imageUrl ? 'Featured' : 'Set Cover'}
+                                            </Button>
+                                            <ShareButtons imageUrl={image.imageUrl} prompt={image.prompt} className="scale-90" />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        />
+                    ))}
+
+                    {images.length === 0 && (
+                        <div className="col-span-full py-32 text-center space-y-6">
+                            <div className="w-20 h-20 bg-background-secondary rounded-3xl flex items-center justify-center mx-auto text-4xl opacity-20">🌫️</div>
+                            <div className="space-y-2">
+                                <h3 className="text-xl font-black uppercase tracking-tight">Empty Collection</h3>
+                                <p className="text-foreground-muted font-medium">This folder currently contains no generated assets.</p>
+                            </div>
+                            <Link href="/dashboard">
+                                <Button className="px-10 h-12 rounded-xl text-[10px]">Generate New Content</Button>
+                            </Link>
+                        </div>
+                    )}
+                </div>
             </div>
 
-            <CollectionSelectModal isOpen={isMoveModalOpen} onClose={() => setIsMoveModalOpen(false)} onSelect={handleMoveImages} collections={userCollections} isProcessing={isProcessingMove} title="Move Images" />
+            {/* Modals */}
+            {selectedImageId && (() => {
+                const selectedImageIndex = images.findIndex(img => img.id === selectedImageId);
+                const selectedImage = images[selectedImageIndex];
+                if (!selectedImage) return null;
+
+                return (
+                    <ImageDetailModal
+                        selectedImage={selectedImage}
+                        onClose={() => setSelectedImageId(null)}
+                        onNext={() => {
+                            const nextIndex = (selectedImageIndex + 1) % images.length;
+                            setSelectedImageId(images[nextIndex].id);
+                        }}
+                        onPrev={() => {
+                            const prevIndex = (selectedImageIndex - 1 + images.length) % images.length;
+                            setSelectedImageId(images[prevIndex].id);
+                        }}
+                        collections={[]} // Handled inside if needed
+                        onUpdate={(updated) => setImages(prev => prev.map(i => i.id === updated.id ? updated : i))}
+                        onDelete={handleImageDelete}
+                        deletingId={null}
+                    />
+                );
+            })()}
+
+            <ConfirmationModal
+                isOpen={isDeleteModalOpen}
+                title="Destroy Collection?"
+                message={`You are about to permanently remove "${collectionData.name}". The folder will be deleted but your images will remain safe in your main gallery.`}
+                confirmLabel="Confirm Deletion"
+                cancelLabel="Keep Folder"
+                onConfirm={handleDeleteCollection}
+                onCancel={() => setIsDeleteModalOpen(false)}
+                isLoading={isUpdating}
+                type="danger"
+            />
         </div>
     );
 }

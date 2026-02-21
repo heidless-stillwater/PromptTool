@@ -1,36 +1,60 @@
-'use client';
+import { Icons } from '@/components/ui/Icons';
+import { Card } from '@/components/ui/Card';
+import { cn } from '@/lib/utils';
 
 interface ProfileStatsProps {
     influence: number;
     creations: number;
     followers: number;
     following: number;
+    onStatClick?: (type: 'followers' | 'following') => void;
 }
 
 export default function ProfileStats({
     influence,
     creations,
     followers,
-    following
+    following,
+    onStatClick
 }: ProfileStatsProps) {
+    const stats = [
+        { key: 'influence', label: 'Community Influence', value: influence, icon: <Icons.trophy className="text-primary" size={16} />, color: 'primary', clickable: false },
+        { key: 'creations', label: 'Creations', value: creations, icon: <Icons.image className="text-foreground" size={16} />, color: 'foreground', clickable: false },
+        { key: 'followers', label: 'Followers', value: followers, icon: <Icons.user className="text-foreground" size={16} />, color: 'foreground', clickable: true },
+        { key: 'following', label: 'Following', value: following, icon: <Icons.following className="text-foreground" size={16} />, color: 'foreground', clickable: true },
+    ];
+
     return (
-        <div className="flex flex-wrap justify-center md:justify-start gap-8 mt-6">
-            <div className="text-center md:text-left">
-                <p className="text-3xl font-black text-primary">{influence}</p>
-                <p className="text-[10px] uppercase tracking-widest text-foreground-muted font-bold">Community Influence</p>
-            </div>
-            <div className="text-center md:text-left">
-                <p className="text-3xl font-black text-foreground">{creations}</p>
-                <p className="text-[10px] uppercase tracking-widest text-foreground-muted font-bold">Creations</p>
-            </div>
-            <div className="text-center md:text-left">
-                <p className="text-3xl font-black text-foreground">{followers}</p>
-                <p className="text-[10px] uppercase tracking-widest text-foreground-muted font-bold">Followers</p>
-            </div>
-            <div className="text-center md:text-left">
-                <p className="text-3xl font-black text-foreground">{following}</p>
-                <p className="text-[10px] uppercase tracking-widest text-foreground-muted font-bold">Following</p>
-            </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+            {stats.map((stat, i) => (
+                <div
+                    key={stat.label}
+                    className={cn(
+                        "flex items-center gap-4 group transition-all",
+                        stat.clickable && "cursor-pointer hover:translate-y-[-2px]"
+                    )}
+                    onClick={() => stat.clickable && onStatClick?.(stat.key as any)}
+                >
+                    <div className={cn(
+                        "p-3 rounded-2xl bg-background-secondary border border-border/50 transition-colors shadow-sm",
+                        stat.clickable ? "group-hover:border-primary/50 group-hover:bg-primary/5" : "group-hover:border-primary/30"
+                    )}>
+                        {stat.icon}
+                    </div>
+                    <div className="space-y-0.5">
+                        <p className={cn(
+                            "text-3xl font-black tracking-tight transition-colors",
+                            stat.color === 'primary' ? "text-primary" : "text-foreground",
+                            stat.clickable && "group-hover:text-primary"
+                        )}>
+                            {stat.value}
+                        </p>
+                        <p className="text-[9px] uppercase tracking-widest text-foreground-muted font-black leading-none">
+                            {stat.label}
+                        </p>
+                    </div>
+                </div>
+            ))}
         </div>
     );
 }

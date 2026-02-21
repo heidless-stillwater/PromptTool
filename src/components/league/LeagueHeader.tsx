@@ -1,5 +1,7 @@
-
 'use client';
+
+import { Button } from '@/components/ui/Button';
+import { Icons } from '@/components/ui/Icons';
 
 export type SortMode = 'trending' | 'newest' | 'alltime';
 
@@ -13,9 +15,9 @@ export default function LeagueHeader({
     onSortChange
 }: LeagueHeaderProps) {
     const tabs = [
-        { key: 'trending', label: '🔥 Trending' },
-        { key: 'newest', label: '✨ Newest' },
-        { key: 'alltime', label: '👑 All Time' },
+        { key: 'trending', label: 'Trending', icon: <Icons.zap size={16} className="text-orange-400" /> },
+        { key: 'newest', label: 'Newest', icon: <Icons.sparkles size={16} className="text-blue-400" /> },
+        { key: 'alltime', label: 'All Time', icon: <Icons.trophy size={16} className="text-yellow-400" /> },
     ] as const;
 
     return (
@@ -23,7 +25,7 @@ export default function LeagueHeader({
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-                        <span className="text-4xl">🏆</span>
+                        <Icons.trophy className="text-yellow-400 w-8 h-8" />
                         Community League
                     </h1>
                     <p className="text-foreground-muted mt-1">
@@ -32,18 +34,18 @@ export default function LeagueHeader({
                 </div>
 
                 {/* Sort Tabs */}
-                <div className="flex bg-background-secondary rounded-lg p-1 border border-border/50 self-start">
+                <div className="flex bg-background-secondary rounded-xl p-1 border border-border/50 self-start shadow-inner">
                     {tabs.map(tab => (
-                        <button
+                        <Button
                             key={tab.key}
+                            variant={sortMode === tab.key ? 'primary' : 'ghost'}
+                            size="sm"
                             onClick={() => onSortChange(tab.key)}
-                            className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${sortMode === tab.key
-                                ? 'bg-primary text-white shadow-lg shadow-primary/20'
-                                : 'text-foreground-muted hover:text-foreground'
-                                }`}
+                            className={`rounded-lg gap-2 ${sortMode !== tab.key ? 'text-foreground-muted hover:text-foreground' : ''}`}
                         >
+                            {tab.icon}
                             {tab.label}
-                        </button>
+                        </Button>
                     ))}
                 </div>
             </div>

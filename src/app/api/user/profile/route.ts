@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
+import { profileUpdateSchema } from '@/lib/validations/user';
 
 export async function POST(request: NextRequest) {
     try {
@@ -17,20 +18,21 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { displayName, username, bio, socialLinks, bannerUrl, photoURL } = body;
 
-        // Basic Validation
-        if (displayName && displayName.trim().length > 50) {
-            return NextResponse.json({ error: 'Display name too long (max 50 chars)' }, { status: 400 });
+        // 1. Zod Validation
+        const result = profileUpdateSchema.safeParse(body);
+        if (!result.success) {
+            return NextResponse.json({
+                error: result.error.issues[0].message,
+                details: result.error.issues
+            }, { status: 400 });
         }
-        if (username) {
-            const usernameTrimmed = username.trim().toLowerCase();
-            if (usernameTrimmed.length < 3 || usernameTrimmed.length > 20) {
-                return NextResponse.json({ error: 'Username must be between 3 and 20 characters' }, { status: 400 });
-            }
-            if (!/^[a-z0-9_]+$/.test(usernameTrimmed)) {
-                return NextResponse.json({ error: 'Username can only contain letters, numbers, and underscores' }, { status: 400 });
-            }
+
+        const validatedData = result.data;
+
+        // 2. Uniqueness Check (External dependency)
+        if (validatedData.username) {
+            const usernameTrimmed = validatedData.username.trim().toLowerCase();
 
             // Check uniqueness
             const existingUserQuery = await adminDb.collection('users')
@@ -43,20 +45,17 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        if (bio && bio.length > 500) {
-            return NextResponse.json({ error: 'Bio too long (max 500 chars)' }, { status: 400 });
-        }
-
         const updateData: any = {
             updatedAt: Timestamp.now()
         };
 
-        if (displayName !== undefined) updateData.displayName = displayName.trim();
-        if (username !== undefined) updateData.username = username.trim().toLowerCase();
-        if (bio !== undefined) updateData.bio = bio;
-        if (socialLinks !== undefined) updateData.socialLinks = socialLinks;
-        if (bannerUrl !== undefined) updateData.bannerUrl = bannerUrl;
-        if (photoURL !== undefined) updateData.photoURL = photoURL;
+        // 3. Map validated data to update object
+        if (validatedData.displayName !== undefined) updateData.displayName = validatedData.displayName;
+        if (validatedData.username !== undefined) updateData.username = validatedData.username;
+        if (validatedData.bio !== undefined) updateData.bio = validatedData.bio;
+        if (validatedData.socialLinks !== undefined) updateData.socialLinks = validatedData.socialLinks;
+        if (validatedData.bannerUrl !== undefined) updateData.bannerUrl = validatedData.bannerUrl;
+        if (validatedData.photoURL !== undefined) updateData.photoURL = validatedData.photoURL;
 
         await adminDb.collection('users').doc(userId).update(updateData);
 
