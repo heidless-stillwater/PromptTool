@@ -89,10 +89,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
                     <div className="flex items-center gap-4">
                         <div className="text-right hidden sm:block">
-                            <p className="text-xs font-black">{profile.displayName}</p>
-                            <p className="text-[9px] uppercase text-accent font-black tracking-widest">{profile.role} SESSION</p>
+                            <p className="text-xs font-black">{profile?.displayName}</p>
+                            <p className="text-[9px] uppercase text-accent font-black tracking-widest">{profile?.role} SESSION</p>
                         </div>
-                        {profile.photoURL && (
+                        {profile?.photoURL && (
                             <img
                                 src={profile.photoURL}
                                 alt="Admin"

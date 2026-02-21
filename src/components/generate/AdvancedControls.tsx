@@ -104,7 +104,7 @@ export default function AdvancedControls({
                                     value={seed ?? ''}
                                     onChange={(e) => setSeed(e.target.value ? parseInt(e.target.value) : undefined)}
                                     placeholder="Random"
-                                    className="h-11 text-sm bg-background-secondary/50"
+                                    className="h-11 text-sm bg-background-secondary text-foreground font-medium"
                                 />
                                 <Button
                                     variant="secondary"

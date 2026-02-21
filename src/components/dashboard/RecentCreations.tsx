@@ -23,6 +23,7 @@ interface RecentCreationsProps {
     toggleImageSelection: (id: string, e?: React.MouseEvent) => void;
     toggleImageGroupSelection: (ids: string[], e?: React.MouseEvent) => void;
     groupImagesByPromptSet: (images: GeneratedImage[]) => Record<string, GeneratedImage[]>;
+    dense?: boolean;
 }
 
 export default function RecentCreations({
@@ -35,7 +36,8 @@ export default function RecentCreations({
     selectedIds,
     toggleImageSelection,
     toggleImageGroupSelection,
-    groupImagesByPromptSet
+    groupImagesByPromptSet,
+    dense = false
 }: RecentCreationsProps) {
     const router = useRouter();
 
@@ -110,7 +112,10 @@ export default function RecentCreations({
                 </Link>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className={cn(
+                "grid gap-4",
+                dense ? "grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6" : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+            )}>
                 {isGrouped ? (
                     Object.entries(groupImagesByPromptSet(images)).map(([key, groupImages], index) => {
                         const firstImage = groupImages[0];
@@ -122,7 +127,8 @@ export default function RecentCreations({
                                 key={key}
                                 image={firstImage}
                                 count={groupImages.length}
-                                variant="dashboard"
+                                variant={dense ? 'gallery' : 'dashboard'}
+                                dense={dense}
                                 selectionMode={selectionMode}
                                 isSelected={isAnySelected}
                                 index={index}
@@ -133,7 +139,7 @@ export default function RecentCreations({
                                         router.push('/gallery');
                                     }
                                 }}
-                                showFooter={true}
+                                showFooter={!dense}
                             />
                         );
                     })
@@ -142,7 +148,8 @@ export default function RecentCreations({
                         <ImageCard
                             key={image.id}
                             image={image}
-                            variant="dashboard"
+                            variant={dense ? 'gallery' : 'dashboard'}
+                            dense={dense}
                             selectionMode={selectionMode}
                             isSelected={selectedIds.has(image.id)}
                             index={index}
@@ -153,7 +160,7 @@ export default function RecentCreations({
                                     router.push('/gallery');
                                 }
                             }}
-                            showFooter={true}
+                            showFooter={!dense}
                         />
                     ))
                 )}

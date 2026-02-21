@@ -270,6 +270,24 @@ function GeneratePageContent() {
         }
     };
 
+    // URL Parameter handling (Prompt/Style pre-fill)
+    useEffect(() => {
+        const promptParam = searchParams.get('prompt');
+        const styleParam = searchParams.get('style');
+
+        if (promptParam) {
+            setPrompt(decodeURIComponent(promptParam));
+            setPromptMode('freeform');
+            // Clear parameter after consumption to avoid re-triggering on remix/history etc
+            const newParams = new URLSearchParams(searchParams.toString());
+            newParams.delete('prompt');
+            router.replace(`/generate?${newParams.toString()}`, { scroll: false });
+        } else if (styleParam) {
+            // Future logic for style lookup if needed
+            setPromptMode('featured');
+        }
+    }, [searchParams, router]);
+
     // Load reference image if provided in URL
     useEffect(() => {
         const loadReference = async () => {
@@ -833,6 +851,7 @@ function GeneratePageContent() {
 
                         {/* Generation Action */}
                         <Button
+                            id="manifest-button"
                             onClick={handleGenerate}
                             disabled={generating || availableCredits < currentCost}
                             variant="primary"

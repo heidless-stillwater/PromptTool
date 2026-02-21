@@ -73,6 +73,7 @@ export default function PromptSection({
                                 whileTap={{ scale: 0.98 }}
                             >
                                 <Button
+                                    id="magic-enhance"
                                     variant="secondary"
                                     size="sm"
                                     onClick={handleEnhancePrompt}
@@ -167,6 +168,7 @@ export default function PromptSection({
                                 )}
                             </AnimatePresence>
                             <textarea
+                                id="prompt-input"
                                 value={prompt}
                                 onChange={(e) => setPrompt(e.target.value)}
                                 placeholder="A majestic dragon flying over snow-capped mountains at sunset, cinematic lighting, photorealistic..."

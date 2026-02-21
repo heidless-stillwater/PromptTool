@@ -75,31 +75,6 @@ export default function DashboardHeader({
                         </div>
                     )}
 
-                    <div className="flex flex-col gap-1">
-                        <span className="text-[10px] uppercase tracking-wider text-foreground-muted font-bold text-center">Audience Mode</span>
-                        <div className="flex bg-background-secondary rounded-xl p-1 border border-border/50">
-                            <Button
-                                variant={profile.audienceMode === 'casual' ? 'primary' : 'ghost'}
-                                size="sm"
-                                onClick={() => setAudienceMode('casual')}
-                                className={`px-4 py-1.5 rounded-lg text-[10px] h-7 font-black tracking-widest uppercase transition-all duration-300 ${profile.audienceMode === 'casual'
-                                    ? 'shadow-[0_0_15px_rgba(99,102,241,0.4)]'
-                                    : 'text-foreground-muted hover:text-foreground'}`}
-                            >
-                                Casual
-                            </Button>
-                            <Button
-                                variant={profile.audienceMode === 'professional' ? 'primary' : 'ghost'}
-                                size="sm"
-                                onClick={() => setAudienceMode('professional')}
-                                className={`px-4 py-1.5 rounded-lg text-[10px] h-7 font-black tracking-widest uppercase transition-all duration-300 ${profile.audienceMode === 'professional'
-                                    ? 'bg-accent shadow-[0_0_15px_rgba(217,70,239,0.4)]'
-                                    : 'text-foreground-muted hover:text-foreground'}`}
-                            >
-                                Pro
-                            </Button>
-                        </div>
-                    </div>
 
                     <div className="flex items-center gap-3">
                         <Link href={`/profile/${user.uid}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">

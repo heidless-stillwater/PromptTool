@@ -20,6 +20,7 @@ export interface ImageCardProps {
     showFooter?: boolean;
     renderOverlay?: (image: GeneratedImage) => React.ReactNode;
     index?: number;
+    dense?: boolean;
 }
 
 export default function ImageCard({
@@ -34,14 +35,15 @@ export default function ImageCard({
     className = '',
     showFooter,
     renderOverlay,
-    index = 0
+    index = 0,
+    dense = false
 }: ImageCardProps) {
     const isDeleting = deletingId === image.id;
     const isVideo = !!(image.videoUrl || image.settings?.modality === 'video');
     const imgIsVideo = /\.(mp4|webm|mov)(\?|$)/i.test(image.imageUrl || '');
     const hasThumbnail = isVideo && !imgIsVideo;
     const isStack = count > 1;
-    const showCardFooter = showFooter ?? (variant === 'dashboard');
+    const showCardFooter = dense ? false : (showFooter ?? (variant === 'dashboard'));
 
     return (
         <motion.div

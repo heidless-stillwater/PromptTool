@@ -44,7 +44,7 @@ export default function SettingsSection({
     isCasual
 }: SettingsSectionProps) {
     return (
-        <Card className="p-5" variant="glass">
+        <Card id="settings-panel" className="p-5" variant="glass">
             <div className="flex items-center justify-between mb-6">
                 <div>
                     <h3 className="text-sm font-black uppercase tracking-widest">{isCasual ? 'Style & Size' : 'Core Settings'}</h3>
@@ -128,7 +128,7 @@ export default function SettingsSection({
             </div>
 
             <div className="mt-6 space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted ml-1 flex items-center gap-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground/80 ml-1 flex items-center gap-2">
                     Prompt Set Identifier
                     <Tooltip content="Group multiple generations under a single ID for better organization in your gallery" position="top">
                         <Icons.info size={12} className="text-foreground-muted" />
@@ -140,7 +140,7 @@ export default function SettingsSection({
                         onChange={(e) => setPromptSetID(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))}
                         placeholder="Group name or ID..."
                         maxLength={30}
-                        className="h-11 text-sm bg-background-secondary/50"
+                        className="h-11 text-sm bg-background-secondary text-foreground font-medium"
                     />
                     <Button
                         variant="secondary"
