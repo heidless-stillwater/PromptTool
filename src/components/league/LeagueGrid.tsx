@@ -24,6 +24,7 @@ interface LeagueGridProps {
     isGroupedByUser: boolean;
     onFilterUser: (userId: string, userName: string) => void;
     onShare: (entryId: string) => void;
+    sortMode?: string;
     error: string | null;
 }
 
@@ -43,6 +44,7 @@ export default function LeagueGrid({
     isGroupedByUser,
     onFilterUser,
     onShare,
+    sortMode,
     error
 }: LeagueGridProps) {
     const router = useRouter();
@@ -50,7 +52,7 @@ export default function LeagueGrid({
     /** Grouping by Author (Internal "Creators" view mode) */
     const entriesByAuthor = useMemo(() => {
         if (viewMode !== 'creators') return [];
-        const groups: Record<string, { authorName: string; authorPhotoURL: string | null; entries: LeagueEntry[]; userId: string }> = {};
+        const groups: Record<string, { authorName: string; authorPhotoURL: string | null; entries: LeagueEntry[]; userId: string; authorFollowerCount: number }> = {};
         entries.forEach(entry => {
             const uid = entry.originalUserId;
             if (!groups[uid]) {
@@ -58,13 +60,24 @@ export default function LeagueGrid({
                     authorName: entry.authorName || 'Anonymous',
                     authorPhotoURL: entry.authorPhotoURL,
                     userId: uid,
-                    entries: []
+                    entries: [],
+                    authorFollowerCount: entry.authorFollowerCount || 0
                 };
             }
             groups[uid].entries.push(entry);
+            // Keep the highest follower count seen for this user
+            if ((entry.authorFollowerCount || 0) > groups[uid].authorFollowerCount) {
+                groups[uid].authorFollowerCount = entry.authorFollowerCount || 0;
+            }
         });
-        return Object.values(groups).sort((a, b) => b.entries.length - a.entries.length);
-    }, [entries, viewMode]);
+
+        return Object.values(groups).sort((a, b) => {
+            if (sortMode === 'followed') {
+                return b.authorFollowerCount - a.authorFollowerCount;
+            }
+            return b.entries.length - a.entries.length;
+        });
+    }, [entries, viewMode, sortMode]);
 
     const processedEntries = useMemo(() => {
         if (viewMode === 'creators') return entries;
@@ -149,15 +162,45 @@ export default function LeagueGrid({
 
     if (entries.length === 0) {
         return (
-            <Card variant="glass" className="text-center py-16 rounded-2xl">
-                <div className="text-6xl mb-4 opacity-30">🏆</div>
-                <h2 className="text-xl font-semibold mb-2">No league entries yet</h2>
-                <p className="text-foreground-muted mb-6">
-                    Be the first to publish an image to the Community League!
+            <Card variant="glass" className="text-center py-16 rounded-2xl relative overflow-hidden">
+                <div className="absolute top-4 right-4 z-10">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="opacity-20 hover:opacity-100 transition-opacity"
+                        onClick={async () => {
+                            try {
+                                const m = await import('../../lib/services/league-backfill');
+                                const count = await m.backfillLeagueMetrics();
+                                alert(`Successfully synced ${count} entries. Refreshing...`);
+                                window.location.reload();
+                            } catch (err) {
+                                alert('Sync failed. Check console for details.');
+                            }
+                        }}
+                    >
+                        <Icons.settings size={14} className="mr-2" />
+                        Sync Engine
+                    </Button>
+                </div>
+                <div className="text-6xl mb-6 opacity-30">🏆</div>
+                <h2 className="text-2xl font-bold mb-3">No Results Found</h2>
+                <p className="text-foreground-muted mb-8 max-w-sm mx-auto">
+                    {sortMode === 'followed'
+                        ? "We couldn't find any creators with followers yet. Try syncing the database metrics if you expect results here."
+                        : "There are no entries in the community hub yet matching your filters."}
                 </p>
-                <div className="flex justify-center">
-                    <Button onClick={() => router.push('/gallery')} className="px-6 py-3">
-                        Go to Gallery to Publish
+                <div className="flex justify-center gap-3">
+                    <Button variant="primary" onClick={async () => {
+                        const m = await import('../../lib/services/league-backfill');
+                        await m.backfillLeagueMetrics();
+                        window.location.reload();
+                    }}>
+                        <Icons.sparkles size={16} className="mr-2" />
+                        Sync & Refresh
+                    </Button>
+                    <Button variant="secondary" onClick={() => router.push('/gallery')}>
+                        Go to Gallery
                     </Button>
                 </div>
             </Card>

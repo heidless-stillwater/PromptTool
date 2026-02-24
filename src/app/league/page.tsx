@@ -114,6 +114,7 @@ function LeagueContent() {
                     onReact={league.handleReactUpdate}
                     onFilterUser={league.handleFilterUser}
                     onShare={league.handleShare}
+                    sortMode={league.sortMode}
                     error={league.queryError}
                 />
             </main>

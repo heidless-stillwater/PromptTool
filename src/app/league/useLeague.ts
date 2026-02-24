@@ -137,6 +137,13 @@ export function useLeague() {
         localStorage.setItem('leagueIsGrouped', String(next));
     };
 
+    const handleSortModeChange = (mode: SortMode) => {
+        setSortMode(mode);
+        if (mode === 'followed') {
+            setViewMode('creators');
+        }
+    };
+
     const handleToggleGroupedByUser = () => {
         const next = !isGroupedByUser;
         setIsGroupedByUser(next);
@@ -321,7 +328,7 @@ export function useLeague() {
         loadingMore,
         hasMore,
         sortMode,
-        setSortMode,
+        setSortMode: handleSortModeChange,
         viewMode,
         setViewMode: handleViewModeChange,
         isGrouped,

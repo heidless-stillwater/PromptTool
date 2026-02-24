@@ -1,13 +1,13 @@
 
-import { db } from '../src/lib/firebase';
-import { collection, getDocs, writeBatch, doc } from 'firebase/firestore';
+import { db } from '../firebase';
+import { collection, getDocs, writeBatch } from 'firebase/firestore';
 
 /**
- * This script can be run from the browser console to initialize missing metrics
- * on existing league entries.
+ * Initializes missing metrics on existing league entries.
+ * Useful when new features (like following or sharing) are added.
  */
 export async function backfillLeagueMetrics() {
-    console.log('Starting backfill of league entry metrics...');
+    console.log('[Backfill] Starting league entry metrics sync...');
     try {
         const snapshot = await getDocs(collection(db, 'leagueEntries'));
         const batch = writeBatch(db);
@@ -17,6 +17,7 @@ export async function backfillLeagueMetrics() {
             const data = snapshotDoc.data();
             const updates: any = {};
 
+            // Initialize new metrics to 0 if they do not exist
             if (data.authorFollowerCount === undefined) updates.authorFollowerCount = 0;
             if (data.shareCount === undefined) updates.shareCount = 0;
             if (data.commentCount === undefined) updates.commentCount = 0;
@@ -31,11 +32,14 @@ export async function backfillLeagueMetrics() {
 
         if (count > 0) {
             await batch.commit();
-            console.log(`Successfully backfilled ${count} entries.`);
+            console.log(`[Backfill] Successfully updated ${count} entries.`);
+            return count;
         } else {
-            console.log('No entries needed backfilling.');
+            console.log('[Backfill] All entries are already up to date.');
+            return 0;
         }
     } catch (err) {
-        console.error('Backfill failed:', err);
+        console.error('[Backfill] Failed:', err);
+        throw err;
     }
 }
