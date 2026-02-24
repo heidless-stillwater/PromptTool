@@ -81,6 +81,45 @@ export default function CasualModeView({ dashboardData }: CasualModeViewProps) {
                 </div>
             </section>
 
+            {/* Support Level: Clone an Exemplar */}
+            <section id="clone-exemplars" className="space-y-6">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-black uppercase tracking-widest flex items-center gap-2">
+                        <Icons.copy className="text-primary" size={20} />
+                        Clone an Exemplar
+                    </h2>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs font-bold text-primary"
+                        onClick={() => router.push('/league')}
+                    >
+                        Explore the Collective
+                    </Button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {[
+                        { title: 'The Stillwater Lake', style: 'A cinematic, ethereal landscape of a stillwater lake at twilight, glowing bioluminescent plants, floating mountain islands in the distance, hyper-realistic, 8K, serene deep blue and teal color palette', color: 'from-stillwater-deep/20 to-stillwater-teal/20' },
+                        { title: 'Neon Vision', style: 'A high-detail cyberpunk portrait of a female cyborg with glowing neon circuit patterns on her skin, iridescent rain-slicked skin, cinematic lighting, ultra-sharp focus, vibrant magenta and primary blue accents', color: 'from-purple-500/20 to-primary/20' },
+                        { title: 'Nature\'s Prism', style: 'Macro photography of an iridescent beetle shell reflecting a rainbow of metallic colors, hyper-detailed textures, soft bokeh background, 8K resolution, professional lighting', color: 'from-emerald-500/20 to-primary/20' }
+                    ].map((card, i) => (
+                        <Card
+                            key={i}
+                            onClick={() => handleTryStyle(card.style)}
+                            className={`p-6 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer border-none bg-gradient-to-br ${card.color} group relative overflow-hidden`}
+                        >
+                            <div className="absolute right-0 bottom-0 opacity-10 group-hover:scale-110 transition-transform">
+                                <Icons.copy size={80} />
+                            </div>
+                            <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors">{card.title}</h3>
+                            <p className="text-xs text-foreground-muted leading-relaxed mb-4 italic">&quot;{card.style}&quot;</p>
+                            <Button variant="secondary" size="sm" className="w-full font-bold bg-background/50 backdrop-blur-sm border-white/10 pointer-events-none">Clone This Recipe</Button>
+                        </Card>
+                    ))}
+                </div>
+            </section>
+
             {/* Community Engagement */}
             <div className="pt-8 border-t border-border/50">
                 <div className="flex flex-wrap gap-4 mb-10">

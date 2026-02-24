@@ -84,6 +84,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 if (config.incentives?.founderBadge?.enabled) {
                     initialBadges.push(config.incentives.founderBadge.badgeId);
                 }
+                if (config.incentives?.vanguardRole?.enabled) {
+                    initialBadges.push(config.incentives.vanguardRole.roleId);
+                }
             }
         } catch (e) {
             console.warn('[Auth] Failed to fetch signup incentives for badges', e);

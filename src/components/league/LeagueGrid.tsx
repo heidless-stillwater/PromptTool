@@ -117,7 +117,7 @@ export default function LeagueGrid({
             }
         });
 
-        return [...stacked, standalone].flat().sort((a, b) => {
+        return [...stacked, ...standalone].sort((a, b) => {
             const indexA = entries.findIndex(e => e.id === a.id);
             const indexB = entries.findIndex(e => e.id === b.id);
             return indexA - indexB;

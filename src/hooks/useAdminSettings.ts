@@ -18,6 +18,8 @@ const DEFAULT_CONFIG: SystemConfig = {
         founderBadge: { enabled: true, badgeId: 'og' },
         masterPass: { enabled: true, durationHours: 48 },
         communityBoost: { enabled: true, multiplier: 1.5 },
+        knowledgeBounty: { enabled: true, rewardAmount: 50 },
+        vanguardRole: { enabled: false, roleId: 'vanguard' },
     },
     updatedAt: null,
     updatedBy: '',

@@ -46,16 +46,16 @@ export default function LeagueEntryCard({
 
     return (
         <Card className={cn(
-            "overflow-hidden group hover:ring-2 hover:ring-primary/50 transition-all hover:shadow-xl hover:shadow-primary/5",
+            "group hover:ring-2 hover:ring-primary/50 transition-all hover:shadow-xl hover:shadow-primary/5",
             viewMode === 'feed' ? "rounded-3xl border-border/60" : "rounded-2xl",
-            isStack && "relative overflow-visible"
+            isStack ? "relative overflow-visible" : "overflow-hidden"
         )} variant="glass">
             {/* Stack shadow layers */}
             {isStack && (
                 <>
-                    <div className="absolute inset-x-3 -bottom-1.5 h-full bg-background-secondary border border-border/40 rounded-2xl z-0 pointer-events-none opacity-50" />
+                    <div className="absolute inset-x-2 -bottom-2 h-full bg-background-secondary border border-border/40 rounded-2xl z-[-1] pointer-events-none opacity-50" />
                     {stackSize > 2 && (
-                        <div className="absolute inset-x-5 -bottom-3 h-full bg-background-secondary/30 border border-border/30 rounded-2xl z-[-1] pointer-events-none opacity-30" />
+                        <div className="absolute inset-x-4 -bottom-4 h-full bg-background-secondary/30 border border-border/30 rounded-2xl z-[-2] pointer-events-none opacity-30" />
                     )}
                 </>
             )}

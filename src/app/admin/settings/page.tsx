@@ -170,6 +170,37 @@ export default function AdminSettingsPage() {
                         />
                         <span className="text-[10px] font-black uppercase tracking-widest text-foreground-muted">Scale</span>
                     </IncentiveControl>
+
+                    <IncentiveControl
+                        title="Knowledge Bounty"
+                        description="Credits for prompt recipe clones"
+                        enabled={localConfig.incentives.knowledgeBounty.enabled}
+                        onToggle={(enabled) => updateIncentive('knowledgeBounty', { enabled })}
+                    >
+                        <Input
+                            type="number"
+                            value={localConfig.incentives.knowledgeBounty.rewardAmount}
+                            onChange={(e) => updateIncentive('knowledgeBounty', { rewardAmount: parseInt(e.target.value) || 0 })}
+                            className="w-24 h-10 px-3 bg-background border-border/50 rounded-xl text-xs font-black"
+                        />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-foreground-muted">Credits</span>
+                    </IncentiveControl>
+
+                    <IncentiveControl
+                        title="Vanguard Role"
+                        description="Access to experimental weights"
+                        enabled={localConfig.incentives.vanguardRole.enabled}
+                        onToggle={(enabled) => updateIncentive('vanguardRole', { enabled })}
+                    >
+                        <Select
+                            value={localConfig.incentives.vanguardRole.roleId}
+                            onChange={(e) => updateIncentive('vanguardRole', { roleId: e.target.value })}
+                            className="h-10 text-[10px] font-black uppercase tracking-widest"
+                        >
+                            <option value="vanguard">Vanguard</option>
+                            <option value="alpha">Alpha Tester</option>
+                        </Select>
+                    </IncentiveControl>
                 </div>
             </Card>
 

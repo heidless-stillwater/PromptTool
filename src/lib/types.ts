@@ -81,6 +81,14 @@ export interface SignupIncentives {
         enabled: boolean;
         multiplier: number;
     };
+    knowledgeBounty: {
+        enabled: boolean;
+        rewardAmount: number;
+    };
+    vanguardRole: {
+        enabled: boolean;
+        roleId: string;
+    };
 }
 
 export interface SystemConfig {

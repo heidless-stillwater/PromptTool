@@ -58,10 +58,12 @@ import {
     Users,
     Instagram,
     Rows,
-    Tag
+    Tag,
+    Play
 } from "lucide-react"
 
 export const Icons = {
+    play: Play,
     tag: Tag,
     instagram: Instagram,
 
