@@ -10,7 +10,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, Timestamp, onSnapshot } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { UserProfile, UserRole, SubscriptionTier, AudienceMode, ADMIN_EMAILS, UserCredits, DAILY_ALLOWANCE } from './types';
+import { UserProfile, UserRole, SubscriptionTier, AudienceMode, ADMIN_EMAILS, UserCredits, DAILY_ALLOWANCE, SystemConfig } from './types';
 
 interface AuthContextType {
     user: User | null;
@@ -74,6 +74,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // New user - determine initial role
         const isAdmin = ADMIN_EMAILS.includes(firebaseUser.email || '');
         const base = firebaseUser.displayName?.toLowerCase().replace(/\s+/g, '_') || 'user';
+
+        // Fetch System Config for Signup Incentives
+        let initialBadges: string[] = [];
+        try {
+            const configSnap = await getDoc(doc(db, 'system', 'config'));
+            if (configSnap.exists()) {
+                const config = configSnap.data() as SystemConfig;
+                if (config.incentives?.founderBadge?.enabled) {
+                    initialBadges.push(config.incentives.founderBadge.badgeId);
+                }
+            }
+        } catch (e) {
+            console.warn('[Auth] Failed to fetch signup incentives for badges', e);
+        }
+
         const newProfile: UserProfile = {
             uid: firebaseUser.uid,
             email: firebaseUser.email || '',
@@ -83,6 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             role: isAdmin ? 'admin' : 'member',
             subscription: 'free',
             audienceMode: 'casual',
+            badges: initialBadges,
             createdAt: Timestamp.now(),
             updatedAt: Timestamp.now(),
         };
@@ -120,17 +136,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         // New user credits
+        let initialBalance = 0;
+        try {
+            const configSnap = await getDoc(doc(db, 'system', 'config'));
+            if (configSnap.exists()) {
+                const config = configSnap.data() as SystemConfig;
+                if (config.incentives?.welcomeCredits?.enabled) {
+                    initialBalance = config.incentives.welcomeCredits.amount;
+                }
+            }
+        } catch (e) {
+            console.warn('[Auth] Failed to fetch signup incentives for credits', e);
+        }
+
         const newCredits: UserCredits = {
-            balance: 0,
+            balance: initialBalance,
             dailyAllowance: DAILY_ALLOWANCE[subscription],
             dailyAllowanceUsed: 0,
             lastDailyReset: now,
             expiresAt: null,
-            totalPurchased: 0,
+            totalPurchased: 0, // Incentive credits aren't "purchased"
             totalUsed: 0,
         };
 
         await setDoc(creditsRef, newCredits);
+
+        // Record the incentive transaction if balance > 0
+        if (initialBalance > 0) {
+            const txRef = doc(db, 'users', userId, 'data', 'credits', 'transactions', 'welcome_bonus');
+            await setDoc(txRef, {
+                type: 'daily_allowance', // Closest type for now
+                amount: initialBalance,
+                description: 'Stillwater Welcome Pack',
+                createdAt: now,
+            });
+        }
+
         return newCredits;
     };
 

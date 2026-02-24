@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Icons } from '@/components/ui/Icons';
 
-import { SkeletonFeed } from '@/components/ui/SkeletonFeed';
+import { SkeletonGrid } from '@/components/ui/Skeleton';
 
 interface GalleryGridProps {
     images: GeneratedImage[];
@@ -51,7 +51,7 @@ export default function GalleryGrid({
     const router = useRouter();
 
     if (loadingImages) {
-        return <SkeletonFeed count={10} variant="gallery" />;
+        return <SkeletonGrid count={10} columns={5} />;
     }
 
     if (images.length === 0) {

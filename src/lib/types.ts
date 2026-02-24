@@ -61,6 +61,39 @@ export const BADGES: Record<string, { label: string, icon: string, color: string
 export const ADMIN_EMAILS = ['heidlessemail18@gmail.com', 'heidlessemail17@gmail.com'];
 
 // ============================================
+// System Configuration & Incentives
+// ============================================
+
+export interface SignupIncentives {
+    welcomeCredits: {
+        enabled: boolean;
+        amount: number;
+    };
+    founderBadge: {
+        enabled: boolean;
+        badgeId: string;
+    };
+    masterPass: {
+        enabled: boolean;
+        durationHours: number;
+    };
+    communityBoost: {
+        enabled: boolean;
+        multiplier: number;
+    };
+}
+
+export interface SystemConfig {
+    announcement: string;
+    showBanner: boolean;
+    defaultModel: 'flash' | 'pro';
+    safetyThreshold: 'strict' | 'medium' | 'permissive';
+    incentives: SignupIncentives;
+    updatedAt: FirestoreTimestamp;
+    updatedBy: string;
+}
+
+// ============================================
 // Credit System Types
 // ============================================
 

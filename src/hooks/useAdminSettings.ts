@@ -1,58 +1,90 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/components/Toast';
 import { ModalStatus } from '@/components/StatusModal';
+import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useAuth } from '@/lib/auth-context';
+import { SystemConfig } from '@/lib/types';
+
+const DEFAULT_CONFIG: SystemConfig = {
+    announcement: 'Welcome to Stillwater Studio!',
+    showBanner: true,
+    defaultModel: 'flash',
+    safetyThreshold: 'medium',
+    incentives: {
+        welcomeCredits: { enabled: true, amount: 25 },
+        founderBadge: { enabled: true, badgeId: 'og' },
+        masterPass: { enabled: true, durationHours: 48 },
+        communityBoost: { enabled: true, multiplier: 1.5 },
+    },
+    updatedAt: null,
+    updatedBy: '',
+};
 
 export function useAdminSettings() {
+    const { user, isAdmin } = useAuth();
     const { showToast } = useToast();
-    const [announcement, setAnnouncement] = useState('Welcome to the new AI Image Studio!');
+    const [config, setConfig] = useState<SystemConfig>(DEFAULT_CONFIG);
     const [isSaving, setIsSaving] = useState(false);
-    const [model, setModel] = useState('flash');
-    const [safety, setSafety] = useState('medium');
     const [modalStatus, setModalStatus] = useState<ModalStatus>('idle');
+    const [loading, setLoading] = useState(true);
 
-    const handleSave = async () => {
-        if (isSaving) return;
+    // Sync with Firestore
+    useEffect(() => {
+        if (!isAdmin) return;
 
-        // Validation: Announcement checks
-        if (!announcement.trim()) {
-            showToast('Announcement cannot be empty', 'error');
-            return;
-        }
+        const configRef = doc(db, 'system', 'config');
+        const unsubscribe = onSnapshot(configRef, (snapshot) => {
+            if (snapshot.exists()) {
+                setConfig(snapshot.data() as SystemConfig);
+            } else {
+                // Initialize with defaults if it doesn't exist
+                setDoc(configRef, { ...DEFAULT_CONFIG, updatedAt: serverTimestamp() });
+            }
+            setLoading(false);
+        }, (error) => {
+            console.error('[Admin] Config sync error:', error);
+            showToast('Failed to sync settings', 'error');
+            setLoading(false);
+        });
 
-        if (announcement.length > 250) {
-            showToast('Announcement is too long (max 250 chars)', 'error');
-            return;
-        }
+        return () => unsubscribe();
+    }, [isAdmin, showToast]);
 
-        // Validation: Model checks
-        const validModels = ['flash', 'pro'];
-        if (!validModels.includes(model)) {
-            showToast('Invalid model selected', 'error');
-            return;
-        }
+    const handleSave = async (updatedConfig: Partial<SystemConfig>) => {
+        if (isSaving || !user) return;
 
         setIsSaving(true);
         setModalStatus('saving');
 
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        try {
+            const configRef = doc(db, 'system', 'config');
+            const finalConfig = {
+                ...config,
+                ...updatedConfig,
+                updatedAt: serverTimestamp(),
+                updatedBy: user.uid,
+            };
 
-        setIsSaving(false);
-        setModalStatus('success');
+            await setDoc(configRef, finalConfig, { merge: true });
+            setModalStatus('success');
+        } catch (error) {
+            console.error('[Admin] Save error:', error);
+            showToast('Failed to save settings', 'error');
+            setModalStatus('idle');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return {
-        announcement,
-        setAnnouncement,
+        config,
         isSaving,
-        model,
-        setModel,
-        safety,
-        setSafety,
         modalStatus,
         setModalStatus,
-        handleSave
+        handleSave,
+        loading
     };
 }

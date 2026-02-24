@@ -71,8 +71,9 @@ export function useProfile() {
         handleDeleteComment,
         handleReport,
         unpublishing,
+        reactingEmoji,
         handleUnpublish: originalHandleUnpublish
-    } = useLeagueInteractions(entries, setEntries);
+    } = useLeagueInteractions(entries, [], setEntries);
 
     const [isFollowingProfile, setIsFollowingProfile] = useState(false);
     const [followLoadingProfile, setFollowLoadingProfile] = useState(false);
@@ -213,7 +214,7 @@ export function useProfile() {
         isFollowingProfile, followLoadingProfile, selectedEntry,
         currentUser, viewMode, setViewMode, isGrouped, setIsGrouped, showOnlyLeague, setShowOnlyLeague,
         comments, loadingComments, votingEntryId,
-        isFollowingEntry, followLoadingEntry,
+        isFollowingEntry, followLoadingEntry, reactingEmoji,
         userRole: authProfile?.role,
 
         // Actions

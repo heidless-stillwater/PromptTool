@@ -1,7 +1,6 @@
-'use client';
-
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import {
     collection,
     query,
@@ -22,29 +21,32 @@ import { db, storage } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/Toast';
 import { GeneratedImage, CreditTransaction, Collection, ADMIN_EMAILS } from '@/lib/types';
+import {
+    useDashboardImages,
+    useDashboardLeagueRecent,
+    useCollectionsQuery,
+    useCreditHistory,
+    queryKeys
+} from './queries/useQueryHooks';
 
 export function useDashboard() {
     const { user, profile, credits, loading: authLoading, signOut, switchRole, effectiveRole, setAudienceMode, isAdmin, isSu } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
     const { showToast } = useToast();
+    const queryClient = useQueryClient();
 
-    // Data State
-    const [recentImages, setRecentImages] = useState<GeneratedImage[]>([]);
-    const [creditHistory, setCreditHistory] = useState<CreditTransaction[]>([]);
-    const [recentLeagueEntries, setRecentLeagueEntries] = useState<any[]>([]);
-    const [collections, setCollections] = useState<Collection[]>([]);
+    // Modals
+    const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
+    const [isTagModalOpen, setIsTagModalOpen] = useState(false);
+
+    // Filter & View State
     const [viewMode, setViewMode] = useState<'personal' | 'admin' | 'global'>('personal');
-
-    // Loading States
-    const [loadingImages, setLoadingImages] = useState(true);
-    const [loadingLeague, setLoadingLeague] = useState(true);
-    const [loadingHistory, setLoadingHistory] = useState(true);
-    const [isVerifyingUpgrade, setIsVerifyingUpgrade] = useState(false);
-
-    // UX State
     const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
     const [isGrouped, setIsGrouped] = useState(true);
+    const [isVerifyingUpgrade, setIsVerifyingUpgrade] = useState(false);
+
+    // Selection State
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -54,11 +56,13 @@ export function useDashboard() {
     const [isBulkCollecting, setIsBulkCollecting] = useState(false);
     const [isBulkTagging, setIsBulkTagging] = useState(false);
 
-    // Modal States
-    const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
-    const [isTagModalOpen, setIsTagModalOpen] = useState(false);
+    // ── TanStack Queries ───────────────────────────────────────
 
-    // Helper: Group images
+    const { data: recentImages = [], isLoading: loadingImages } = useDashboardImages(user?.uid, viewMode, isSu);
+    const { data: recentLeagueEntries = [], isLoading: loadingLeague } = useDashboardLeagueRecent();
+    const { data: collections = [] } = useCollectionsQuery(user?.uid);
+    const { data: creditHistory = [], isLoading: loadingHistory } = useCreditHistory(user?.uid);
+
     const groupImagesByPromptSet = (images: GeneratedImage[]) => {
         const groups: Record<string, GeneratedImage[]> = {};
         images.forEach(img => {
@@ -69,7 +73,7 @@ export function useDashboard() {
         return groups;
     };
 
-    // Stripe Verification
+    // Stripe Verification (stays in useEffect)
     useEffect(() => {
         const sessionId = searchParams.get('session_id');
         if (sessionId && user && !isVerifyingUpgrade) {
@@ -102,64 +106,6 @@ export function useDashboard() {
         }
     }, [searchParams, user, router, showToast]);
 
-    // Data Fetching
-    useEffect(() => {
-        if (!user) return;
-
-        const fetchAll = async () => {
-            // Images
-            try {
-                let q;
-                const isPersonal = viewMode === 'personal';
-                const isGlobal = viewMode === 'global' && isSu;
-                const isAdminView = viewMode === 'admin' && isSu;
-
-                if (isPersonal) {
-                    const imagesRef = collection(db, 'users', user.uid, 'images');
-                    q = query(imagesRef, orderBy('createdAt', 'desc'), limit(24));
-                } else if (isGlobal) {
-                    const imagesRef = collectionGroup(db, 'images');
-                    q = query(imagesRef, orderBy('createdAt', 'desc'), limit(24));
-                } else if (isAdminView) {
-                    const imagesRef = collectionGroup(db, 'images');
-                    q = query(imagesRef, where('userId', 'in', ADMIN_EMAILS), orderBy('createdAt', 'desc'), limit(24));
-                } else {
-                    const imagesRef = collection(db, 'users', user.uid, 'images');
-                    q = query(imagesRef, orderBy('createdAt', 'desc'), limit(24));
-                }
-
-                const snap = await getDocs(q);
-                setRecentImages(snap.docs.map(d => ({ id: d.id, ...d.data() } as GeneratedImage)));
-            } catch (e) { console.error(e); } finally { setLoadingImages(false); }
-
-            // League
-            try {
-                const entriesRef = collection(db, 'leagueEntries');
-                const q = query(entriesRef, orderBy('publishedAt', 'desc'), limit(8));
-                const snap = await getDocs(q);
-                setRecentLeagueEntries(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-            } catch (e) { console.error(e); } finally { setLoadingLeague(false); }
-
-            // Collections
-            try {
-                const colRef = collection(db, 'users', user.uid, 'collections');
-                const q = query(colRef, orderBy('createdAt', 'desc'));
-                const snap = await getDocs(q);
-                setCollections(snap.docs.map(d => ({ id: d.id, ...d.data() } as Collection)));
-            } catch (e) { console.error(e); }
-
-            // History
-            try {
-                const historyRef = collection(db, 'users', user.uid, 'creditHistory');
-                const q = query(historyRef, orderBy('createdAt', 'desc'), limit(20));
-                const snap = await getDocs(q);
-                setCreditHistory(snap.docs.map(d => ({ id: d.id, ...d.data() } as CreditTransaction)));
-            } catch (e) { console.error(e); } finally { setLoadingHistory(false); }
-        };
-
-        fetchAll();
-    }, [user, viewMode, isSu]);
-
     // Selection Handlers
     const toggleSelectionMode = () => {
         setSelectionMode(!selectionMode);
@@ -168,7 +114,7 @@ export function useDashboard() {
 
     const toggleImageSelection = (id: string, e?: React.MouseEvent) => {
         if (e) { e.stopPropagation(); e.preventDefault(); }
-        setSelectedIds(prev => {
+        setSelectedIds((prev: Set<string>) => {
             const next = new Set(prev);
             if (next.has(id)) next.delete(id);
             else next.add(id);
@@ -178,7 +124,7 @@ export function useDashboard() {
 
     const toggleImageGroupSelection = (ids: string[], e?: React.MouseEvent) => {
         if (e) { e.stopPropagation(); e.preventDefault(); }
-        setSelectedIds(prev => {
+        setSelectedIds((prev: Set<string>) => {
             const next = new Set(prev);
             const allSelected = ids.every(id => next.has(id));
             if (allSelected) ids.forEach(id => next.delete(id));
@@ -188,7 +134,7 @@ export function useDashboard() {
     };
 
     const handleSelectAll = () => {
-        setSelectedIds(new Set(recentImages.map(img => img.id)));
+        setSelectedIds(new Set(recentImages.map((img: GeneratedImage) => img.id)));
     };
 
     // Bulk Actions
@@ -201,7 +147,7 @@ export function useDashboard() {
             const collectionDecrements: Record<string, number> = {};
 
             await Promise.all(Array.from(selectedIds).map(async (id) => {
-                const img = recentImages.find(i => i.id === id);
+                const img = recentImages.find((i: GeneratedImage) => i.id === id);
                 if (!img) return;
 
                 await deleteDoc(doc(db, 'users', user.uid, 'images', id));
@@ -223,7 +169,10 @@ export function useDashboard() {
                 })
             ));
 
-            setRecentImages(prev => prev.filter(img => !selectedIds.has(img.id)));
+            // Invalidate queries to refresh UI
+            queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.images(user.uid, viewMode) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.collections.all(user.uid) });
+
             setSelectedIds(new Set());
             setSelectionMode(false);
             showToast(`Deleted ${selectedIds.size} images`, 'success');
@@ -240,7 +189,7 @@ export function useDashboard() {
         try {
             let addedCount = 0;
             await Promise.all(Array.from(selectedIds).map(async (id) => {
-                const img = recentImages.find(i => i.id === id);
+                const img = recentImages.find((i: GeneratedImage) => i.id === id);
                 if (!img) return;
                 const currentIds = img.collectionIds || [];
                 if (!currentIds.includes(collectionId)) {
@@ -261,6 +210,9 @@ export function useDashboard() {
                 });
             }
 
+            queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.images(user.uid, viewMode) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.collections.all(user.uid) });
+
             setSelectedIds(new Set());
             setSelectionMode(false);
             setIsCollectionModalOpen(false);
@@ -280,7 +232,7 @@ export function useDashboard() {
         try {
             const token = await user.getIdToken();
             await Promise.all(Array.from(selectedIds).map(async (id) => {
-                const img = recentImages.find(i => i.id === id);
+                const img = recentImages.find((i: GeneratedImage) => i.id === id);
                 if (!img || img.publishedToLeague) return;
 
                 const res = await fetch('/api/league/publish/', {
@@ -298,6 +250,9 @@ export function useDashboard() {
                     img.leagueEntryId = data.leagueEntryId;
                 }
             }));
+            queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.images(user.uid, viewMode) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.leagueRecent });
+
             setSelectedIds(new Set());
             setSelectionMode(false);
             showToast('Published to League!', 'success');
@@ -311,12 +266,14 @@ export function useDashboard() {
         setIsBulkTagging(true);
         try {
             await Promise.all(Array.from(selectedIds).map(async (id) => {
-                const img = recentImages.find(i => i.id === id);
+                const img = recentImages.find((i: GeneratedImage) => i.id === id);
                 if (!img) return;
                 const newTags = Array.from(new Set([...(img.tags || []), ...tags]));
                 await updateDoc(doc(db, 'users', user.uid, 'images', id), { tags: newTags });
                 img.tags = newTags;
             }));
+            queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.images(user.uid, viewMode) });
+
             setSelectedIds(new Set());
             setSelectionMode(false);
             setIsTagModalOpen(false);

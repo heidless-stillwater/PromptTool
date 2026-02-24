@@ -17,8 +17,9 @@ interface LeagueEntryCardProps {
     userId?: string;
     onVote: (entryId: string) => void;
     isVoting: boolean;
-    onSelect: (entry: LeagueEntry) => void;
-    onReact: (entryId: string, emoji: string, reacted: boolean) => void;
+    onSelect: (entryId: string) => void;
+    onReact: (entryId: string, emoji: string) => void;
+    reactingEmoji?: string | null;
     viewMode?: 'grid' | 'feed' | 'compact' | 'creators' | 'list';
     showLeaguePill?: boolean;
     onFilterUser?: (userId: string, userName: string) => void;
@@ -32,6 +33,7 @@ export default function LeagueEntryCard({
     isVoting,
     onSelect,
     onReact,
+    reactingEmoji,
     viewMode = 'grid',
     showLeaguePill = false,
     onFilterUser,
@@ -64,7 +66,7 @@ export default function LeagueEntryCard({
                     "relative cursor-pointer overflow-hidden",
                     viewMode === 'feed' ? "aspect-video" : "aspect-square"
                 )}
-                onClick={() => onSelect(entry)}
+                onClick={() => onSelect(entry.id)}
                 onMouseEnter={(e) => {
                     const video = e.currentTarget.querySelector('video');
                     if (video && video.paused) video.play().catch(() => { });
@@ -223,7 +225,7 @@ export default function LeagueEntryCard({
 
                         <Tooltip content="Comments">
                             <Button
-                                onClick={() => onSelect(entry)}
+                                onClick={() => onSelect(entry.id)}
                                 size="sm"
                                 variant="outline"
                                 className={cn("text-foreground-muted", viewMode === 'compact' ? "h-6 px-1.5 text-[10px]" : "gap-1.5")}
@@ -260,7 +262,8 @@ export default function LeagueEntryCard({
                         <ReactionPicker
                             entryId={entry.id}
                             reactions={entry.reactions || {}}
-                            onReact={(emoji, reacted) => onReact(entry.id, emoji, reacted)}
+                            onReact={(emoji) => onReact(entry.id, emoji)}
+                            isReactingEmoji={reactingEmoji}
                         />
                     </div>
                 )}

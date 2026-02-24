@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
 import QuickLinks from '@/components/league/QuickLinks';
 import LeaguePulseStats from '@/components/league/LeaguePulseStats';
+import { SkeletonGrid, SkeletonHeader } from '@/components/ui/Skeleton';
 
 import { Suspense } from 'react';
 
@@ -114,6 +115,7 @@ function LeagueContent() {
                     onReact={league.handleReactUpdate}
                     onFilterUser={league.handleFilterUser}
                     onShare={league.handleShare}
+                    reactingEmoji={league.reactingEmoji}
                     sortMode={league.sortMode}
                     error={league.queryError}
                 />
@@ -136,6 +138,7 @@ function LeagueContent() {
                     onAddComment={league.handleAddComment}
                     onDeleteComment={league.handleDeleteComment}
                     onReact={league.handleReactUpdate}
+                    reactingEmoji={league.reactingEmoji}
                     onReport={league.handleReport}
                     collections={league.collections}
                     onToggleCollection={league.handleToggleCollection}
@@ -151,7 +154,14 @@ function LeagueContent() {
 
 export default function LeaguePage() {
     return (
-        <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Icons.spinner className="w-10 h-10 animate-spin text-primary" /></div>}>
+        <Suspense fallback={
+            <div className="min-h-screen">
+                <div className="max-w-7xl mx-auto px-4 py-8">
+                    <SkeletonHeader />
+                    <SkeletonGrid count={6} columns={3} />
+                </div>
+            </div>
+        }>
             <LeagueContent />
         </Suspense>
     );

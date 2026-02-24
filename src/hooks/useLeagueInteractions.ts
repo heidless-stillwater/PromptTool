@@ -1,27 +1,54 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { doc, getDoc, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { LeagueEntry, LeagueComment } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/Toast';
+import {
+    useVoteMutation,
+    useFollowMutation,
+    useReactionMutation,
+    useCommentMutation,
+    useDeleteCommentMutation,
+    useShareMutation,
+    useUnpublishMutation,
+    useToggleCollectionMutation
+} from './queries/useQueryHooks';
 
 export function useLeagueInteractions(
     entries: LeagueEntry[],
-    setEntries: (entries: LeagueEntry[] | ((prev: LeagueEntry[]) => LeagueEntry[])) => void,
-    collections: any[] = []
+    collections: any[] = [],
+    setExtraEntries?: (updater: (prev: LeagueEntry[]) => LeagueEntry[]) => void
 ) {
     const { user } = useAuth();
     const { showToast } = useToast();
 
-    const [selectedEntry, setSelectedEntry] = useState<LeagueEntry | null>(null);
+    const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
     const [comments, setComments] = useState<LeagueComment[]>([]);
     const [loadingComments, setLoadingComments] = useState(false);
-    const [votingEntryId, setVotingEntryId] = useState<string | null>(null);
     const [isFollowing, setIsFollowing] = useState(false);
-    const [followLoading, setFollowLoading] = useState(false);
     const [unpublishing, setUnpublishing] = useState(false);
+
+    // Derive selectedEntry from entries + selectedEntryId
+    const selectedEntry = useMemo(() => {
+        if (!selectedEntryId) return null;
+        return entries.find(e => e.id === selectedEntryId) || null;
+    }, [entries, selectedEntryId]);
+
+    // Mutations
+    const voteMutation = useVoteMutation();
+    const followMutation = useFollowMutation();
+    const reactionMutation = useReactionMutation();
+    const commentMutation = useCommentMutation();
+    const deleteCommentMutation = useDeleteCommentMutation();
+    const shareMutation = useShareMutation();
+    const unpublishMutation = useUnpublishMutation();
+    const toggleCollectionMutation = useToggleCollectionMutation();
+
+    const votingEntryId = voteMutation.isPending ? voteMutation.variables : null;
+    const followLoading = followMutation.isPending;
 
     // Initial follow state for selected entry
     useEffect(() => {
@@ -96,180 +123,75 @@ export function useLeagueInteractions(
             showToast('Please log in to vote', 'info');
             return;
         }
-        setVotingEntryId(entryId);
-
-        try {
-            const token = await user.getIdToken();
-            const res = await fetch('/api/league/vote/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify({ entryId }),
-            });
-
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
-
-            const updateEntry = (e: LeagueEntry) => {
-                const newVotes = { ...e.votes };
-                if (data.voted) {
-                    newVotes[user.uid] = true;
-                } else {
-                    delete newVotes[user.uid];
-                }
-                return {
-                    ...e,
-                    votes: newVotes,
-                    voteCount: e.voteCount + (data.voted ? 1 : -1),
-                };
-            };
-
-            setEntries(prev => prev.map(e => e.id === entryId ? updateEntry(e) : e));
-            if (selectedEntry?.id === entryId) {
-                setSelectedEntry(prev => prev ? updateEntry(prev) : null);
+        voteMutation.mutate(entryId, {
+            onSuccess: () => {
+                // Manually update extraEntries since they are outside TanStack Query's cache
+                setExtraEntries?.(prev => prev.map(e => {
+                    if (e.id === entryId) {
+                        const newVotes = { ...e.votes };
+                        const alreadyVoted = !!newVotes[user.uid];
+                        if (alreadyVoted) {
+                            delete newVotes[user.uid];
+                        } else {
+                            newVotes[user.uid] = true;
+                        }
+                        return {
+                            ...e,
+                            votes: newVotes,
+                            voteCount: e.voteCount + (alreadyVoted ? -1 : 1),
+                        };
+                    }
+                    return e;
+                }));
             }
-
-        } catch (error: any) {
-            console.error('[LeagueInteractions] Vote error:', error);
-            showToast(error.message || 'Failed to vote', 'error');
-        } finally {
-            setVotingEntryId(null);
-        }
-    }, [user, selectedEntry, setEntries, showToast]);
+        });
+    }, [user, voteMutation, showToast, setExtraEntries]);
 
     const handleToggleFollow = useCallback(async () => {
         if (!user || !selectedEntry || followLoading) return;
         if (user.uid === selectedEntry.originalUserId) return;
 
-        try {
-            setFollowLoading(true);
-            const action = isFollowing ? 'unfollow' : 'follow';
-            const token = await user.getIdToken();
-
-            const res = await fetch('/api/user/follow/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ targetUserId: selectedEntry.originalUserId, action })
-            });
-
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
-
-            setIsFollowing(!isFollowing);
-            showToast(isFollowing ? 'Unfollowed creator' : 'Following creator!', 'success');
-        } catch (error: any) {
-            console.error('[LeagueInteractions] Follow error:', error);
-            showToast(error.message || 'Failed to update follow status', 'error');
-        } finally {
-            setFollowLoading(false);
-        }
-    }, [user, selectedEntry, isFollowing, followLoading, showToast]);
-
-    const handleReactUpdate = useCallback(async (entryId: string, emoji: string, reacted: boolean) => {
-        if (!user) return;
-
-        // Optimistic update
-        const updateEntry = (e: LeagueEntry) => {
-            const reactions = { ...e.reactions };
-            const users = Array.from(new Set(reactions[emoji] || []));
-
-            if (reacted) {
-                if (!users.includes(user.uid)) users.push(user.uid);
-            } else {
-                const idx = users.indexOf(user.uid);
-                if (idx > -1) users.splice(idx, 1);
+        const action = isFollowing ? 'unfollow' : 'follow';
+        followMutation.mutate({ targetUserId: selectedEntry.originalUserId, action }, {
+            onSuccess: () => {
+                setIsFollowing(!isFollowing);
+                showToast(isFollowing ? 'Unfollowed creator' : 'Following creator!', 'success');
             }
+        });
+    }, [user, selectedEntry, isFollowing, followLoading, followMutation, showToast]);
 
-            reactions[emoji] = users;
-            return { ...e, reactions };
-        };
+    const handleReactUpdate = useCallback(async (entryId: string, emoji: string) => {
+        if (!user) return;
+        reactionMutation.mutate({ entryId, emoji }, {
+            onSuccess: () => {
+                setExtraEntries?.(prev => prev.map(e => {
+                    if (e.id === entryId) {
+                        const reactions = { ...e.reactions };
+                        const users = Array.from(new Set(reactions[emoji] || []));
+                        const hasReacted = users.includes(user.uid);
 
-        const prevEntries = entries;
-        const prevSelected = selectedEntry;
-
-        setEntries(prev => prev.map(e => e.id === entryId ? updateEntry(e) : e));
-        if (selectedEntry?.id === entryId) {
-            setSelectedEntry(prev => prev ? updateEntry(prev) : null);
-        }
-
-        try {
-            const token = await user.getIdToken();
-            const res = await fetch('/api/league/react/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ entryId, emoji })
-            });
-
-            if (!res.ok) throw new Error('Failed to update reaction');
-        } catch (error: any) {
-            console.error('[LeagueInteractions] React error:', error);
-            // Revert on error
-            setEntries(prevEntries);
-            setSelectedEntry(prevSelected);
-            showToast(error.message || 'Failed to update reaction', 'error');
-        }
-    }, [user, selectedEntry, entries, setEntries, setSelectedEntry, showToast]);
+                        if (hasReacted) {
+                            reactions[emoji] = users.filter(id => id !== user.uid);
+                        } else {
+                            reactions[emoji] = [...users, user.uid];
+                        }
+                        return { ...e, reactions };
+                    }
+                    return e;
+                }));
+            }
+        });
+    }, [user, reactionMutation, setExtraEntries]);
 
     const handleAddComment = useCallback(async (text: string) => {
         if (!user || !selectedEntry || !text.trim()) return;
-
-        try {
-            const token = await user.getIdToken();
-            const res = await fetch('/api/league/comment/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify({ entryId: selectedEntry.id, text: text.trim() }),
-            });
-
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
-
-            setEntries(prev => prev.map(e =>
-                e.id === selectedEntry.id ? { ...e, commentCount: e.commentCount + 1 } : e
-            ));
-            setSelectedEntry(prev => prev ? { ...prev, commentCount: prev.commentCount + 1 } : null);
-
-            showToast('Comment added!', 'success');
-        } catch (error: any) {
-            console.error('[LeagueInteractions] Comment error:', error);
-            showToast(error.message || 'Failed to add comment', 'error');
-            throw error;
-        }
-    }, [user, selectedEntry, setEntries, showToast]);
+        return commentMutation.mutateAsync({ entryId: selectedEntry.id, text: text.trim() });
+    }, [user, selectedEntry, commentMutation]);
 
     const handleDeleteComment = useCallback(async (commentId: string) => {
         if (!user || !selectedEntry) return;
-
-        try {
-            const token = await user.getIdToken();
-            await fetch(`/api/league/comment/?entryId=${selectedEntry.id}&commentId=${commentId}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
-
-            setEntries(prev => prev.map(e =>
-                e.id === selectedEntry.id ? { ...e, commentCount: Math.max(0, e.commentCount - 1) } : e
-            ));
-            setSelectedEntry(prev => prev ? { ...prev, commentCount: Math.max(0, prev.commentCount - 1) } : null);
-
-            showToast('Comment deleted', 'success');
-        } catch (error: any) {
-            console.error('[LeagueInteractions] Delete comment error:', error);
-            showToast(error.message || 'Failed to delete comment', 'error');
-            throw error;
-        }
-    }, [user, selectedEntry, setEntries, showToast]);
+        return deleteCommentMutation.mutateAsync({ entryId: selectedEntry.id, commentId });
+    }, [user, selectedEntry, deleteCommentMutation]);
 
     const handleReport = useCallback(async (entryId: string) => {
         if (!user) return;
@@ -298,113 +220,52 @@ export function useLeagueInteractions(
         if (!user || !selectedEntry) return;
         if (user.uid !== selectedEntry.originalUserId) return;
 
-        try {
-            const entryRef = doc(db, 'leagueEntries', selectedEntry.id);
-            const imageRef = doc(db, 'users', user.uid, 'images', selectedEntry.originalImageId);
-
-            const currentIds = selectedEntry.collectionIds || [];
-            const isRemoving = currentIds.includes(collectionId);
-            const newIds = isRemoving
-                ? currentIds.filter(id => id !== collectionId)
-                : [...currentIds, collectionId];
-
-            // Resolve names for the league entry (denormalized)
-            const newNames = collections
-                .filter(c => newIds.includes(c.id))
-                .map(c => c.name);
-
-            // Optimistic update
-            const updateEntry = (e: LeagueEntry) => ({
-                ...e,
-                collectionIds: newIds,
-                collectionNames: newNames
-            });
-            setEntries(prev => prev.map(e => e.id === selectedEntry.id ? updateEntry(e) : e));
-            setSelectedEntry(prev => prev ? updateEntry(prev) : null);
-
-            // Update DBs
-            const { arrayUnion, arrayRemove, increment } = await import('firebase/firestore');
-            const batch = (await import('firebase/firestore')).writeBatch(db);
-
-            batch.update(entryRef, {
-                collectionIds: newIds,
-                collectionNames: newNames
-            });
-            batch.update(imageRef, { collectionIds: newIds });
-            batch.update(doc(db, 'users', user.uid, 'collections', collectionId), {
-                imageCount: increment(isRemoving ? -1 : 1)
-            });
-
-            await batch.commit();
-            showToast(isRemoving ? 'Removed from collection' : 'Added to collection', 'success');
-        } catch (err) {
-            console.error('Error toggling collection:', err);
-            showToast('Failed to update collection', 'error');
-        }
-    }, [user, selectedEntry, setEntries, setSelectedEntry, showToast]);
+        toggleCollectionMutation.mutate({
+            entry: selectedEntry,
+            collectionId,
+            collections
+        }, {
+            onSuccess: (data: { isRemoving: boolean }) => {
+                showToast(data.isRemoving ? 'Removed from collection' : 'Added to collection', 'success');
+            },
+            onError: () => {
+                showToast('Failed to update collection', 'error');
+            }
+        });
+    }, [user, selectedEntry, collections, toggleCollectionMutation, showToast]);
 
     const handleShare = useCallback(async (entryId: string) => {
-        // Optimistic update
-        setEntries(prev => prev.map(e =>
-            e.id === entryId ? { ...e, shareCount: (e.shareCount || 0) + 1 } : e
-        ));
-        if (selectedEntry?.id === entryId) {
-            setSelectedEntry(prev => prev ? { ...prev, shareCount: (prev.shareCount || 0) + 1 } : null);
-        }
-
-        try {
-            const { increment } = await import('firebase/firestore');
-            const entryRef = doc(db, 'leagueEntries', entryId);
-            const { updateDoc } = await import('firebase/firestore');
-            await updateDoc(entryRef, {
-                shareCount: increment(1)
-            });
-        } catch (err) {
-            console.error('Error tracking share:', err);
-        }
-    }, [selectedEntry, setEntries]);
+        shareMutation.mutate(entryId);
+    }, [shareMutation]);
 
     const handleUnpublish = useCallback(async () => {
         if (!user || !selectedEntry || unpublishing) return;
-        if (user.uid !== selectedEntry.originalUserId) return; // Only author for now, admin later if needed
+        if (user.uid !== selectedEntry.originalUserId) return;
 
-        try {
-            setUnpublishing(true);
-            const token = await user.getIdToken();
-            const res = await fetch('/api/league/publish/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ imageId: selectedEntry.originalImageId, action: 'unpublish' })
-            });
+        unpublishMutation.mutate(selectedEntry.originalImageId, {
+            onSuccess: () => {
+                showToast('Removed from Community Hub', 'success');
+                setSelectedEntryId(null);
+            },
+            onError: (err: any) => {
+                showToast(err.message || 'Failed to remove from Hub', 'error');
+            }
+        });
+    }, [user, selectedEntry, unpublishing, unpublishMutation, showToast, setSelectedEntryId]);
 
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
-
-            showToast('Removed from Community Hub', 'success');
-
-            // Update local state
-            const entryId = selectedEntry.id;
-            setEntries(prev => prev.filter(e => e.id !== entryId));
-            setSelectedEntry(null);
-        } catch (error: any) {
-            console.error('[LeagueInteractions] Unpublish error:', error);
-            showToast(error.message || 'Failed to remove from Hub', 'error');
-        } finally {
-            setUnpublishing(false);
-        }
-    }, [user, selectedEntry, unpublishing, setEntries, setSelectedEntry, showToast]);
+    const reactingEmoji = reactionMutation.isPending
+        ? reactionMutation.variables?.emoji
+        : null;
 
     return {
         selectedEntry,
-        setSelectedEntry,
+        setSelectedEntry: setSelectedEntryId,
         comments,
         loadingComments,
         votingEntryId,
         isFollowing,
         followLoading,
+        reactingEmoji,
         unpublishing,
         handleVote,
         handleToggleFollow,

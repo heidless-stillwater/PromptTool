@@ -5,8 +5,13 @@ import { AuthProvider } from '@/lib/auth-context';
 import { ToastProvider } from '@/components/Toast';
 import { TourProvider } from '@/context/TourContext';
 import GuidedTour from '@/components/GuidedTour';
+import QueryProvider from '@/providers/QueryProvider';
+import { validateEnv } from '@/lib/schemas';
 
 const inter = Inter({ subsets: ['latin'] });
+
+// Validate environment variables on startup
+validateEnv();
 
 export const metadata: Metadata = {
     title: {
@@ -41,14 +46,16 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body className={inter.className}>
-                <AuthProvider>
-                    <ToastProvider>
-                        <TourProvider>
-                            <GuidedTour />
-                            {children}
-                        </TourProvider>
-                    </ToastProvider>
-                </AuthProvider>
+                <QueryProvider>
+                    <AuthProvider>
+                        <ToastProvider>
+                            <TourProvider>
+                                <GuidedTour />
+                                {children}
+                            </TourProvider>
+                        </ToastProvider>
+                    </AuthProvider>
+                </QueryProvider>
             </body>
         </html>
     );

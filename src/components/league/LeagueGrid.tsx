@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Icons } from '@/components/ui/Icons';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { SkeletonGrid, SkeletonFeed, SkeletonProfile } from '@/components/ui/Skeleton';
 
 interface LeagueGridProps {
     entries: LeagueEntry[];
@@ -17,8 +18,9 @@ interface LeagueGridProps {
     userId: string | undefined;
     onVote: (entryId: string) => void;
     votingEntryId: string | null;
-    onSelect: (entry: LeagueEntry) => void;
-    onReact: (entryId: string, emoji: string, reacted: boolean) => void;
+    onSelect: (entryId: string) => void;
+    onReact: (entryId: string, emoji: string) => void;
+    reactingEmoji?: string | null;
     viewMode: 'grid' | 'feed' | 'compact' | 'creators';
     isGrouped: boolean;
     isGroupedByUser: boolean;
@@ -39,6 +41,7 @@ export default function LeagueGrid({
     votingEntryId,
     onSelect,
     onReact,
+    reactingEmoji,
     viewMode,
     isGrouped,
     isGroupedByUser,
@@ -153,11 +156,25 @@ export default function LeagueGrid({
     }
 
     if (loadingEntries) {
-        return (
-            <div className="flex justify-center py-16">
-                <Icons.spinner className="w-8 h-8 animate-spin text-primary" />
-            </div>
-        );
+        if (viewMode === 'feed') {
+            return <SkeletonFeed count={3} />;
+        }
+        if (viewMode === 'creators') {
+            return (
+                <div className="space-y-10">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="space-y-4">
+                            <SkeletonProfile />
+                            <SkeletonGrid count={4} columns={4} />
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+        if (viewMode === 'compact') {
+            return <SkeletonGrid count={12} columns={6} />;
+        }
+        return <SkeletonGrid count={6} columns={3} />;
     }
 
     if (entries.length === 0) {
@@ -295,6 +312,7 @@ export default function LeagueGrid({
                         isVoting={votingEntryId === entry.id}
                         onSelect={onSelect}
                         onReact={onReact}
+                        reactingEmoji={reactingEmoji}
                         viewMode={viewMode}
                         onFilterUser={onFilterUser}
                         onShare={onShare}

@@ -31,7 +31,8 @@ interface LeagueEntryModalProps {
     loadingComments: boolean;
     onAddComment: (text: string) => Promise<void>;
     onDeleteComment: (id: string) => Promise<void>;
-    onReact: (id: string, emoji: string, reacted: boolean) => void;
+    onReact: (id: string, emoji: string) => void;
+    reactingEmoji?: string | null;
     onReport: (id: string) => Promise<void>;
     collections?: any[];
     onToggleCollection?: (collectionId: string) => Promise<void>;
@@ -56,6 +57,7 @@ export default function LeagueEntryModal({
     onAddComment,
     onDeleteComment,
     onReact,
+    reactingEmoji,
     onReport,
     collections,
     onToggleCollection,
@@ -363,7 +365,8 @@ export default function LeagueEntryModal({
                                         <ReactionPicker
                                             entryId={entry.id}
                                             reactions={entry.reactions || {}}
-                                            onReact={(emoji, reacted) => onReact(entry.id, emoji, reacted)}
+                                            onReact={(emoji) => onReact(entry.id, emoji)}
+                                            isReactingEmoji={reactingEmoji}
                                         />
                                     </div>
 

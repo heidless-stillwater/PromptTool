@@ -1,12 +1,18 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { collection, query, orderBy, limit, getDocs, getDoc, startAfter, QueryDocumentSnapshot, doc, where, onSnapshot, QuerySnapshot, DocumentData } from 'firebase/firestore';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { collection, query, orderBy, limit, getDocs, startAfter, QueryDocumentSnapshot, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { LeagueEntry, LeagueComment, UserProfile, Collection } from '@/lib/types';
+import { LeagueEntry } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/Toast';
 import { SortMode } from '@/components/league/LeagueHeader';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLeagueInteractions } from '@/hooks/useLeagueInteractions';
+import {
+    useLeagueThumbnails,
+    useLeagueEntries,
+    useCollectionsQuery,
+    useLeagueEntry,
+} from '@/hooks/queries/useQueryHooks';
 
 export function useLeague() {
     const { user, profile } = useAuth();
@@ -14,74 +20,54 @@ export function useLeague() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    const [entries, setEntries] = useState<LeagueEntry[]>([]);
-    const [collections, setCollections] = useState<Collection[]>([]);
-    const [loadingEntries, setLoadingEntries] = useState(true);
-    const [loadingMore, setLoadingMore] = useState(false);
-    const lastVisibleRef = useRef<QueryDocumentSnapshot | null>(null);
-    const [hasMore, setHasMore] = useState(true);
+    // ── Local UI State ──────────────────────────────────────
     const [sortMode, setSortMode] = useState<SortMode>('recent');
     const [viewMode, setViewMode] = useState<'grid' | 'feed' | 'compact' | 'creators'>('grid');
     const [isGrouped, setIsGrouped] = useState(false);
     const [isGroupedByUser, setIsGroupedByUser] = useState(false);
     const [filterUserId, setFilterUserId] = useState<string | null>(null);
     const [filterUserName, setFilterUserName] = useState<string | null>(null);
-    const [queryError, setQueryError] = useState<string | null>(null);
-    const [quickLinkThumbnails, setQuickLinkThumbnails] = useState<string[]>([]);
 
-    // Fetch specific thumbnails for each quick link category
+    // ── Pagination (still manual — TanStack infinite query is a future step) ──
+    const [extraEntries, setExtraEntries] = useState<LeagueEntry[]>([]);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const lastVisibleRef = useRef<QueryDocumentSnapshot | null>(null);
+    const [hasMore, setHasMore] = useState(true);
+
+    // ── TanStack Query: Thumbnails (5-min cache) ────────────
+    const { data: quickLinkThumbnails = [] } = useLeagueThumbnails();
+
+    // ── TanStack Query: Initial entries (30s stale time) ────
+    const {
+        data: queriedEntries = [],
+        isLoading: loadingEntries,
+        error: queryErrorObj,
+        refetch: refetchEntries,
+    } = useLeagueEntries(sortMode, filterUserId);
+
+    const queryError = queryErrorObj ? (queryErrorObj as Error).message : null;
+
+    // ── TanStack Query: Collections ─────────────────────────
+    const { data: collections = [] } = useCollectionsQuery(user?.uid);
+
+    // ── Merge queried entries with "load more" entries ───────
+    const entries = useMemo(() => {
+        // Initial page from TanStack Query
+        const initial = queriedEntries;
+        // Map extra entries by ID for deduplication
+        const initialIds = new Set(initial.map(e => e.id));
+        const dedupedExtra = extraEntries.filter(e => !initialIds.has(e.id));
+        return [...initial, ...dedupedExtra];
+    }, [queriedEntries, extraEntries]);
+
+    // Reset pagination ONLY when sort or filter changes
     useEffect(() => {
-        const fetchThumbnails = async () => {
-            try {
-                const entriesRef = collection(db, 'leagueEntries');
+        setExtraEntries([]);
+        lastVisibleRef.current = null;
+        setHasMore(queriedEntries.length === 20);
+    }, [sortMode, filterUserId]);
 
-                // Fetch top 5 for each category to ensure we find a valid image (non-video)
-                const results = await Promise.allSettled([
-                    getDocs(query(entriesRef, orderBy('voteCount', 'desc'), limit(5))),
-                    getDocs(query(entriesRef, orderBy('variationCount', 'desc'), limit(5))),
-                    getDocs(query(entriesRef, orderBy('commentCount', 'desc'), limit(5))),
-                    getDocs(query(entriesRef, orderBy('shareCount', 'desc'), limit(5))),
-                    getDocs(query(entriesRef, orderBy('authorFollowerCount', 'desc'), limit(5))),
-                    getDocs(query(entriesRef, orderBy('publishedAt', 'desc'), limit(5)))
-                ]);
-
-                // Helper to find first valid image URL (not a video)
-                const findValidImage = (result: PromiseSettledResult<QuerySnapshot<DocumentData>>) => {
-                    if (result.status !== 'fulfilled') return null;
-                    const validDoc = result.value.docs.find((doc: QueryDocumentSnapshot<DocumentData>) => {
-                        const url = doc.data().imageUrl || '';
-                        return url && !url.toLowerCase().endsWith('.mp4') && !url.toLowerCase().endsWith('.webm');
-                    });
-                    return validDoc?.data().imageUrl || null;
-                };
-
-                const influenceImg = findValidImage(results[0]);
-                const popularImg = findValidImage(results[1]);
-                const discussedImg = findValidImage(results[2]);
-                const sharedImg = findValidImage(results[3]);
-                const followedImg = findValidImage(results[4]);
-                const recentImg = findValidImage(results[5]);
-                const absoluteFallback = findValidImage(results[5]) || ''; // Guaranteed recent image fallback
-
-                const thumbs: string[] = [
-                    influenceImg || absoluteFallback,
-                    popularImg || absoluteFallback,
-                    discussedImg || absoluteFallback,
-                    sharedImg || absoluteFallback,
-                    followedImg || absoluteFallback,
-                    absoluteFallback
-                ];
-
-                setQuickLinkThumbnails(thumbs);
-                console.log('[League] Thumbnails loaded with video filtering:', thumbs);
-            } catch (err) {
-                console.error('Error fetching quick link thumbnails:', err);
-            }
-        };
-        fetchThumbnails();
-    }, []);
-
-    // Keep "Recent" up to date with a real-time listener for the latest addition
+    // ── Real-time listener for newest entries ───────────────
     useEffect(() => {
         if (!user || (sortMode !== 'recent' && sortMode !== 'newest') || filterUserId) return;
 
@@ -89,23 +75,16 @@ export function useLeague() {
 
         const unsubscribe = onSnapshot(q, (snapshot: any) => {
             if (snapshot.empty) return;
-            const newDoc = snapshot.docs[0];
-            const newEntry = { id: newDoc.id, ...newDoc.data() } as LeagueEntry;
-
-            setEntries(prev => {
-                if (prev.length === 0) return [newEntry];
-                if (prev.some(e => e.id === newEntry.id)) return prev;
-                // Only add if it's actually newer than our top item
-                return [newEntry, ...prev];
-            });
+            // Instead of manual state updates, trigger a refetch of the first page
+            refetchEntries();
         }, (err: any) => {
             console.error('Real-time listener error:', err);
         });
 
         return () => unsubscribe();
-    }, [user, sortMode]);
+    }, [user, sortMode, filterUserId, refetchEntries]);
 
-    // Persist view mode & grouping
+    // ── Persist view mode & grouping ────────────────────────
     useEffect(() => {
         const savedView = localStorage.getItem('leagueViewMode');
         const savedGroup = localStorage.getItem('leagueIsGrouped');
@@ -117,15 +96,11 @@ export function useLeague() {
             setViewMode('creators');
         }
 
-        if (savedGroup === 'true') {
-            setIsGrouped(true);
-        }
-
-        if (savedGroupByUser === 'true') {
-            setIsGroupedByUser(true);
-        }
+        if (savedGroup === 'true') setIsGrouped(true);
+        if (savedGroupByUser === 'true') setIsGroupedByUser(true);
     }, []);
 
+    // ── View / Sort handlers ────────────────────────────────
     const handleViewModeChange = (mode: 'grid' | 'feed' | 'compact' | 'creators') => {
         setViewMode(mode);
         localStorage.setItem('leagueViewMode', mode);
@@ -139,9 +114,7 @@ export function useLeague() {
 
     const handleSortModeChange = (mode: SortMode) => {
         setSortMode(mode);
-        if (mode === 'followed') {
-            setViewMode('creators');
-        }
+        if (mode === 'followed') setViewMode('creators');
     };
 
     const handleToggleGroupedByUser = () => {
@@ -150,6 +123,7 @@ export function useLeague() {
         localStorage.setItem('leagueIsGroupedByUser', String(next));
     };
 
+    // ── Interaction hooks ───────────────────────────────────
     const {
         selectedEntry,
         setSelectedEntry,
@@ -166,38 +140,25 @@ export function useLeague() {
         handleReport,
         handleToggleCollection,
         unpublishing,
+        reactingEmoji,
         handleUnpublish,
         handleShare
-    } = useLeagueInteractions(entries, setEntries, collections);
+    } = useLeagueInteractions(entries, collections, setExtraEntries);
 
-    // Fetch collections
-    useEffect(() => {
-        if (!user) return;
-        const fetchCollections = async () => {
-            try {
-                const colRef = collection(db, 'users', user.uid, 'collections');
-                const q = query(colRef, orderBy('createdAt', 'desc'));
-                const snap = await getDocs(q);
-                setCollections(snap.docs.map(d => ({ id: d.id, ...d.data() } as Collection)));
-            } catch (err) {
-                console.error('Error fetching collections:', err);
-            }
-        };
-        fetchCollections();
-    }, [user]);
-
-    // Fetch league entries
+    // ── Manual "load more" pagination ───────────────────────
     const fetchEntries = useCallback(async (isLoadMore = false) => {
+        if (!isLoadMore) {
+            // For initial load, we rely on the TanStack query.
+            // Just trigger a refetch.
+            refetchEntries();
+            return;
+        }
+
         if (!user) return;
+        setLoadingMore(true);
 
         try {
-            setQueryError(null);
-            if (isLoadMore) {
-                setLoadingMore(true);
-            } else {
-                setLoadingEntries(true);
-            }
-
+            const { where, doc, getDoc } = await import('firebase/firestore');
             const entriesRef = collection(db, 'leagueEntries');
             let q;
 
@@ -214,111 +175,103 @@ export function useLeague() {
             } else if (sortMode === 'followed') {
                 q = query(entriesRef, orderBy('authorFollowerCount', 'desc'), orderBy('publishedAt', 'desc'));
             } else {
-                // trending, alltime, liked, influence - use voteCount
                 q = query(entriesRef, orderBy('voteCount', 'desc'), orderBy('publishedAt', 'desc'));
             }
 
-            if (isLoadMore && lastVisibleRef.current) {
+            // For the first "load more", use the last entry from the initial query
+            // to determine the cursor
+            if (lastVisibleRef.current) {
                 q = query(q, startAfter(lastVisibleRef.current), limit(20));
             } else {
-                q = query(q, limit(20));
+                // First load-more: we need the last doc from the initial page.
+                // Re-run the query with our current count to get the cursor.
+                const cursorQuery = query(q, limit(entries.length));
+                const cursorSnap = await getDocs(cursorQuery);
+                const lastCursor = cursorSnap.docs[cursorSnap.docs.length - 1];
+                if (lastCursor) {
+                    q = query(q, startAfter(lastCursor), limit(20));
+                } else {
+                    setHasMore(false);
+                    setLoadingMore(false);
+                    return;
+                }
             }
-
 
             const snapshot = await getDocs(q);
             const lastDoc = snapshot.docs[snapshot.docs.length - 1];
             lastVisibleRef.current = lastDoc || null;
             setHasMore(snapshot.docs.length === 20);
 
-            const fetchedEntries: LeagueEntry[] = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
+            const fetched: LeagueEntry[] = snapshot.docs.map(d => ({
+                id: d.id,
+                ...d.data(),
             } as LeagueEntry));
 
-            // Enrich entries with fresh author profile data
-            const uniqueUserIds = Array.from(new Set(fetchedEntries.map(e => e.originalUserId)));
-            const profileMap: Record<string, { displayName?: string; photoURL?: string; badges?: string[] }> = {};
+            // Enrich with fresh author profiles
+            const uniqueUserIds = Array.from(new Set(fetched.map(e => e.originalUserId)));
+            const profileMap: Record<string, any> = {};
 
             await Promise.all(
                 uniqueUserIds.map(async (uid) => {
                     try {
                         const userDoc = await getDoc(doc(db, 'users', uid));
-                        if (userDoc.exists()) {
-                            profileMap[uid] = userDoc.data() as any;
-                        }
-                    } catch (err) { }
+                        if (userDoc.exists()) profileMap[uid] = userDoc.data();
+                    } catch (_) { }
                 })
             );
 
-            const enrichedEntries = fetchedEntries.map(entry => {
-                const freshProfile = profileMap[entry.originalUserId];
-                if (freshProfile) {
+            const enriched = fetched.map(entry => {
+                const p = profileMap[entry.originalUserId];
+                if (p) {
                     return {
                         ...entry,
-                        authorName: freshProfile.displayName || entry.authorName,
-                        authorPhotoURL: freshProfile.photoURL ?? entry.authorPhotoURL,
-                        authorBadges: freshProfile.badges || entry.authorBadges || [],
+                        authorName: p.displayName || entry.authorName,
+                        authorPhotoURL: p.photoURL ?? entry.authorPhotoURL,
+                        authorBadges: p.badges || entry.authorBadges || [],
                     };
                 }
                 return entry;
             });
 
-            if (isLoadMore) {
-                setEntries(prev => [...prev, ...enrichedEntries]);
-            } else {
-                setEntries(enrichedEntries);
-            }
+            setExtraEntries(prev => [...prev, ...enriched]);
         } catch (error: any) {
-            console.error('[League] Error fetching entries:', error);
-            setQueryError(error.message || 'Failed to fetch league entries');
+            console.error('[League] Load more error:', error);
+            showToast('Failed to load more entries', 'error');
         } finally {
-            setLoadingEntries(false);
             setLoadingMore(false);
         }
-    }, [user, sortMode, filterUserId]);
+    }, [user, sortMode, filterUserId, entries.length, refetchEntries, showToast]);
 
-    // Initial load & sort change
-    useEffect(() => {
-        if (user) {
-            setEntries([]);
-            lastVisibleRef.current = null;
-            setHasMore(true);
-            fetchEntries(false);
-        }
-    }, [user, sortMode, filterUserId, fetchEntries]);
-
+    // ── Filter by user ──────────────────────────────────────
     const handleFilterUser = (uid: string | null, name: string | null) => {
         setFilterUserId(uid);
         setFilterUserName(name);
-        setEntries([]);
+        setExtraEntries([]);
         lastVisibleRef.current = null;
         setHasMore(true);
     };
 
-
-    // Handle deep link
+    // ── Deep link handling ──────────────────────────────────
     const entryIdParam = searchParams.get('entryId');
-    useEffect(() => {
-        if (entryIdParam && entries.length > 0) {
-            const entry = entries.find(e => e.id === entryIdParam);
-            if (entry) {
-                setSelectedEntry(entry);
-            } else if (!loadingEntries) {
-                const fetchSpecificEntry = async () => {
-                    try {
-                        const docSnap = await getDocs(query(collection(db, 'leagueEntries'), where('__name__', '==', entryIdParam)));
-                        if (!docSnap.empty) {
-                            setSelectedEntry({ id: docSnap.docs[0].id, ...docSnap.docs[0].data() } as LeagueEntry);
-                        }
-                    } catch (err) {
-                        console.error('Failed to fetch deep linked entry:', err);
-                    }
-                };
-                fetchSpecificEntry();
-            }
-        }
-    }, [entryIdParam, entries, loadingEntries]);
+    const { data: deepLinkedEntry } = useLeagueEntry(
+        // Only fetch if we can't find the entry in the current list
+        entryIdParam && entries.length > 0 && !entries.find(e => e.id === entryIdParam) && !loadingEntries
+            ? entryIdParam
+            : null
+    );
 
+    useEffect(() => {
+        if (!entryIdParam || entries.length === 0) return;
+
+        const entry = entries.find(e => e.id === entryIdParam);
+        if (entry) {
+            setSelectedEntry(entry.id);
+        } else if (deepLinkedEntry) {
+            setSelectedEntry(deepLinkedEntry.id);
+        }
+    }, [entryIdParam, entries, deepLinkedEntry, loadingEntries, setSelectedEntry]);
+
+    // ── Public API (unchanged interface) ────────────────────
     return {
         user,
         profile,
@@ -351,6 +304,7 @@ export function useLeague() {
         handleToggleFollow,
         handleVote,
         handleReactUpdate,
+        reactingEmoji,
         handleAddComment,
         handleDeleteComment,
         handleReport,

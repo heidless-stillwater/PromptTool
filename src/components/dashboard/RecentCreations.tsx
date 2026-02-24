@@ -10,7 +10,7 @@ import { Card } from '@/components/ui/Card';
 import { Icons } from '@/components/ui/Icons';
 import { cn } from '@/lib/utils';
 
-import { SkeletonFeed } from '@/components/ui/SkeletonFeed';
+import { SkeletonGrid } from '@/components/ui/Skeleton';
 
 interface RecentCreationsProps {
     title?: string;
@@ -44,7 +44,7 @@ export default function RecentCreations({
     const router = useRouter();
 
     if (loading) {
-        return <SkeletonFeed count={4} variant="dashboard" />;
+        return <SkeletonGrid count={4} columns={3} />;
     }
 
     if (images.length === 0) {

@@ -23,7 +23,7 @@ export default function ProfileClient() {
         handleToggleFollowProfile, formatDate,
         setSelectedEntry,
         comments, loadingComments, votingEntryId,
-        isFollowingEntry, followLoadingEntry,
+        isFollowingEntry, followLoadingEntry, reactingEmoji,
         handleVote, handleReactUpdate, handleAddComment, handleDeleteComment, handleReport,
         handleToggleFollowEntry, handleUnpublish, unpublishing, userRole
     } = profile;
@@ -138,6 +138,7 @@ export default function ProfileClient() {
                     onReport={handleReport}
                     onUnpublishEntry={handleUnpublish}
                     isUnpublishingEntry={unpublishing}
+                    reactingEmoji={reactingEmoji}
                 />
             </main>
 

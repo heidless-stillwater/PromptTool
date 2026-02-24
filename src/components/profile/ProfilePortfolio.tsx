@@ -16,7 +16,7 @@ interface ProfilePortfolioProps {
     currentUser: any;
     userRole?: string;
     selectedEntry: LeagueEntry | null;
-    setSelectedEntry: (entry: LeagueEntry | null) => void;
+    setSelectedEntry: (entryId: string | null) => void;
     queryError: string | null;
     viewMode: PortfolioViewMode;
     onViewModeChange: (mode: PortfolioViewMode) => void;
@@ -32,7 +32,8 @@ interface ProfilePortfolioProps {
     isFollowingEntry: boolean;
     followLoadingEntry: boolean;
     onVote: (id: string) => void;
-    onReact: (id: string, emoji: string, reacted: boolean) => void;
+    onReact: (id: string, emoji: string) => void;
+    reactingEmoji: string | null;
     onAddComment: (text: string) => Promise<void>;
     onDeleteComment: (id: string) => Promise<void>;
     onToggleFollowEntry: () => void;
@@ -311,6 +312,8 @@ export default function ProfilePortfolio({
     onToggleGrouped,
     showOnlyLeague,
     onToggleOnlyLeague,
+
+    // Interaction Props
     comments,
     loadingComments,
     votingEntryId,
@@ -318,6 +321,7 @@ export default function ProfilePortfolio({
     followLoadingEntry,
     onVote,
     onReact,
+    reactingEmoji,
     onAddComment,
     onDeleteComment,
     onToggleFollowEntry,
@@ -378,7 +382,7 @@ export default function ProfilePortfolio({
             if (viewMode === 'list') {
                 // List mode: render league entry as a list card (show pill via overlay)
                 return (
-                    <div key={key} className="relative" onClick={() => setSelectedEntry(item.entry)}>
+                    <div key={key} className="relative" onClick={() => setSelectedEntry(item.entry.id)}>
                         <ListCard image={item.image} count={1} isGrouped={false} />
                         <div className="absolute top-2 left-28 sm:left-36 z-10 flex items-center gap-1.5 bg-primary/90 backdrop-blur-sm text-white rounded-full px-2.5 py-1 border border-primary/40 shadow-lg shadow-primary/20 pointer-events-none">
                             <Icons.trophy className="w-3 h-3" />
@@ -396,6 +400,7 @@ export default function ProfilePortfolio({
                     isVoting={votingEntryId === item.entry.id}
                     onSelect={setSelectedEntry}
                     onReact={onReact}
+                    reactingEmoji={reactingEmoji}
                     viewMode={viewMode === 'compact' ? 'compact' : viewMode === 'feed' ? 'feed' : 'grid'}
                     showLeaguePill={true}
                 />
@@ -555,6 +560,7 @@ export default function ProfilePortfolio({
                     onAddComment={onAddComment}
                     onDeleteComment={onDeleteComment}
                     onReact={onReact}
+                    reactingEmoji={reactingEmoji}
                     onReport={onReport}
                     onUnpublish={onUnpublishEntry}
                     isUnpublishing={isUnpublishingEntry}
