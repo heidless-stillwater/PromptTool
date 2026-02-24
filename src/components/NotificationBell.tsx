@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc, writeBatch, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { Notification } from '@/lib/types';
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
+import UserAvatar from '@/components/UserAvatar';
 
 import { useToast } from '@/components/Toast';
 
@@ -18,34 +19,40 @@ export default function NotificationBell() {
     const dropdownRef = useRef<HTMLDivElement>(null);
     const { showToast } = useToast();
     const isFirstLoad = useRef(true);
+    // Track seen notification IDs to detect genuinely new ones for toasts
+    const seenIds = useRef<Set<string>>(new Set());
+    // Cache of actor profile photos fetched from Firestore
+    const [actorPhotos, setActorPhotos] = useState<Record<string, string>>({});
 
     useEffect(() => {
         if (!user) return;
 
-        // Query for the 20 most recent notifications
         const notifRef = collection(db, 'users', user.uid, 'notifications');
         const q = query(notifRef, orderBy('createdAt', 'desc'), limit(20));
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const fetched = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
+            const fetched = snapshot.docs.map(d => ({
+                id: d.id,
+                ...d.data()
             } as Notification));
 
-            // Real-time toast for new notifications
+            // Show toasts for genuinely new unread notifications
             if (!isFirstLoad.current) {
-                const newUnread = fetched.filter(n => !n.read && !notifications.some(existing => existing.id === n.id));
-                if (newUnread.length > 0) {
-                    newUnread.forEach(n => {
-                        const message = n.type === 'vote' ? `${n.actorName} upvoted your creation!` :
-                            n.type === 'comment' ? `${n.actorName} commented on your work` :
-                                n.type === 'follow' ? `${n.actorName} started following you` :
-                                    n.type === 'mention' ? `${n.actorName} mentioned you!` :
-                                        'New interaction available';
+                fetched
+                    .filter(n => !n.read && !seenIds.current.has(n.id))
+                    .forEach(n => {
+                        const message =
+                            n.type === 'vote' ? `${n.actorName} upvoted your creation!` :
+                                n.type === 'comment' ? `${n.actorName} commented on your work` :
+                                    n.type === 'follow' ? `${n.actorName} started following you` :
+                                        n.type === 'mention' ? `${n.actorName} mentioned you!` :
+                                            'New notification';
                         showToast(message, 'info');
                     });
-                }
             }
+
+            // Update seen-id tracking
+            fetched.forEach(n => seenIds.current.add(n.id));
 
             setNotifications(fetched);
             setUnreadCount(fetched.filter(n => !n.read).length);
@@ -53,7 +60,39 @@ export default function NotificationBell() {
         });
 
         return () => unsubscribe();
-    }, [user, notifications, showToast]);
+    }, [user, showToast]);
+
+    // Fetch current profile photos for all actors
+    useEffect(() => {
+        if (notifications.length === 0) return;
+        const actorIds = notifications
+            .filter(n => n.actorId && !actorPhotos[n.actorId])
+            .map(n => n.actorId);
+        const uniqueActors = Array.from(new Set(actorIds));
+        if (uniqueActors.length === 0) return;
+
+        Promise.all(
+            uniqueActors.map(async (actorId) => {
+                try {
+                    const actorDoc = await getDoc(doc(db, 'users', actorId));
+                    const data = actorDoc.data();
+                    return { actorId, photoURL: data?.photoURL || null };
+                } catch {
+                    return { actorId, photoURL: null };
+                }
+            })
+        ).then(results => {
+            const newPhotos: Record<string, string> = {};
+            results.forEach(r => {
+                if (r.photoURL && r.photoURL !== 'null' && r.photoURL !== 'undefined') {
+                    newPhotos[r.actorId] = r.photoURL;
+                }
+            });
+            if (Object.keys(newPhotos).length > 0) {
+                setActorPhotos(prev => ({ ...prev, ...newPhotos }));
+            }
+        });
+    }, [notifications]);
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -161,7 +200,7 @@ export default function NotificationBell() {
             </button>
 
             {isOpen && (
-                <Card variant="glass" className="absolute right-0 mt-3 w-80 sm:w-96 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300 p-0">
+                <Card className="absolute right-0 mt-3 w-80 sm:w-96 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300 p-0 bg-zinc-950 border-zinc-800 ring-1 ring-white/10">
                     <div className="p-4 border-b border-border flex items-center justify-between bg-primary/5">
                         <h3 className="font-bold">Notifications</h3>
                         {unreadCount > 0 && (
@@ -193,13 +232,12 @@ export default function NotificationBell() {
                                         className={`flex items-start gap-4 p-4 transition-colors hover:bg-primary/5 group ${!notif.read ? 'bg-primary/5 border-l-4 border-primary' : ''}`}
                                     >
                                         <div className="relative flex-shrink-0">
-                                            {notif.actorPhotoURL && notif.actorPhotoURL !== 'null' ? (
-                                                <img src={notif.actorPhotoURL} alt={notif.actorName || 'User'} className="w-10 h-10 rounded-full border border-border" />
-                                            ) : (
-                                                <div className="w-10 h-10 rounded-full bg-background-tertiary flex items-center justify-center text-xs font-bold">
-                                                    {(notif.actorName || 'A').charAt(0).toUpperCase()}
-                                                </div>
-                                            )}
+                                            <UserAvatar
+                                                src={actorPhotos[notif.actorId] || notif.actorPhotoURL || null}
+                                                name={notif.actorName}
+                                                size="md"
+                                                className="border border-border"
+                                            />
                                             <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-background rounded-full flex items-center justify-center text-[10px] shadow-sm ring-2 ring-background">
                                                 {notif.type === 'vote' ? '❤️' : notif.type === 'comment' ? '💬' : notif.type === 'mention' ? '🏷️' : '👤'}
                                             </div>

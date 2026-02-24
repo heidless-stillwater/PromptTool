@@ -38,11 +38,11 @@ export async function POST(request: NextRequest) {
             }, { status: 400 });
         }
 
-        const { prompt } = result.data;
+        const { prompt, style, mood } = result.data;
 
         // 3. Enhance Prompt via Service
         const aiService = getAIPromptService();
-        const enhancedPrompt = await aiService.enhancePrompt(prompt);
+        const enhancedPrompt = await aiService.enhancePrompt(prompt, style, mood);
 
         return NextResponse.json({
             success: true,

@@ -7,7 +7,11 @@ import { LeagueEntry, LeagueComment } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/Toast';
 
-export function useLeagueInteractions(entries: LeagueEntry[], setEntries: (entries: LeagueEntry[] | ((prev: LeagueEntry[]) => LeagueEntry[])) => void) {
+export function useLeagueInteractions(
+    entries: LeagueEntry[],
+    setEntries: (entries: LeagueEntry[] | ((prev: LeagueEntry[]) => LeagueEntry[])) => void,
+    collections: any[] = []
+) {
     const { user } = useAuth();
     const { showToast } = useToast();
 
@@ -17,6 +21,7 @@ export function useLeagueInteractions(entries: LeagueEntry[], setEntries: (entri
     const [votingEntryId, setVotingEntryId] = useState<string | null>(null);
     const [isFollowing, setIsFollowing] = useState(false);
     const [followLoading, setFollowLoading] = useState(false);
+    const [unpublishing, setUnpublishing] = useState(false);
 
     // Initial follow state for selected entry
     useEffect(() => {
@@ -49,12 +54,34 @@ export function useLeagueInteractions(entries: LeagueEntry[], setEntries: (entri
         const commentsRef = collection(db, 'leagueEntries', selectedEntry.id, 'comments');
         const q = query(commentsRef, orderBy('createdAt', 'desc'));
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        const unsubscribe = onSnapshot(q, async (snapshot) => {
             const fetched = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data(),
             } as LeagueComment));
-            setComments(fetched);
+
+            // Enrich with fresh profile data
+            const uids = Array.from(new Set(fetched.map(c => c.userId)));
+            const profileMap: Record<string, any> = {};
+
+            await Promise.all(uids.map(async (uid) => {
+                try {
+                    const snap = await getDoc(doc(db, 'users', uid));
+                    if (snap.exists()) profileMap[uid] = snap.data();
+                } catch (err) { }
+            }));
+
+            const enriched = fetched.map(c => {
+                const p = profileMap[c.userId];
+                return p ? {
+                    ...c,
+                    userName: p.displayName || c.userName,
+                    userPhotoURL: p.photoURL ?? c.userPhotoURL,
+                    userBadges: p.badges || c.userBadges || []
+                } : c;
+            });
+
+            setComments(enriched);
             setLoadingComments(false);
         }, (error) => {
             console.error('[LeagueInteractions] Comments snapshot error:', error);
@@ -267,6 +294,109 @@ export function useLeagueInteractions(entries: LeagueEntry[], setEntries: (entri
         }
     }, [user, showToast]);
 
+    const handleToggleCollection = useCallback(async (collectionId: string) => {
+        if (!user || !selectedEntry) return;
+        if (user.uid !== selectedEntry.originalUserId) return;
+
+        try {
+            const entryRef = doc(db, 'leagueEntries', selectedEntry.id);
+            const imageRef = doc(db, 'users', user.uid, 'images', selectedEntry.originalImageId);
+
+            const currentIds = selectedEntry.collectionIds || [];
+            const isRemoving = currentIds.includes(collectionId);
+            const newIds = isRemoving
+                ? currentIds.filter(id => id !== collectionId)
+                : [...currentIds, collectionId];
+
+            // Resolve names for the league entry (denormalized)
+            const newNames = collections
+                .filter(c => newIds.includes(c.id))
+                .map(c => c.name);
+
+            // Optimistic update
+            const updateEntry = (e: LeagueEntry) => ({
+                ...e,
+                collectionIds: newIds,
+                collectionNames: newNames
+            });
+            setEntries(prev => prev.map(e => e.id === selectedEntry.id ? updateEntry(e) : e));
+            setSelectedEntry(prev => prev ? updateEntry(prev) : null);
+
+            // Update DBs
+            const { arrayUnion, arrayRemove, increment } = await import('firebase/firestore');
+            const batch = (await import('firebase/firestore')).writeBatch(db);
+
+            batch.update(entryRef, {
+                collectionIds: newIds,
+                collectionNames: newNames
+            });
+            batch.update(imageRef, { collectionIds: newIds });
+            batch.update(doc(db, 'users', user.uid, 'collections', collectionId), {
+                imageCount: increment(isRemoving ? -1 : 1)
+            });
+
+            await batch.commit();
+            showToast(isRemoving ? 'Removed from collection' : 'Added to collection', 'success');
+        } catch (err) {
+            console.error('Error toggling collection:', err);
+            showToast('Failed to update collection', 'error');
+        }
+    }, [user, selectedEntry, setEntries, setSelectedEntry, showToast]);
+
+    const handleShare = useCallback(async (entryId: string) => {
+        // Optimistic update
+        setEntries(prev => prev.map(e =>
+            e.id === entryId ? { ...e, shareCount: (e.shareCount || 0) + 1 } : e
+        ));
+        if (selectedEntry?.id === entryId) {
+            setSelectedEntry(prev => prev ? { ...prev, shareCount: (prev.shareCount || 0) + 1 } : null);
+        }
+
+        try {
+            const { increment } = await import('firebase/firestore');
+            const entryRef = doc(db, 'leagueEntries', entryId);
+            const { updateDoc } = await import('firebase/firestore');
+            await updateDoc(entryRef, {
+                shareCount: increment(1)
+            });
+        } catch (err) {
+            console.error('Error tracking share:', err);
+        }
+    }, [selectedEntry, setEntries]);
+
+    const handleUnpublish = useCallback(async () => {
+        if (!user || !selectedEntry || unpublishing) return;
+        if (user.uid !== selectedEntry.originalUserId) return; // Only author for now, admin later if needed
+
+        try {
+            setUnpublishing(true);
+            const token = await user.getIdToken();
+            const res = await fetch('/api/league/publish/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ imageId: selectedEntry.originalImageId, action: 'unpublish' })
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+
+            showToast('Removed from Community Hub', 'success');
+
+            // Update local state
+            const entryId = selectedEntry.id;
+            setEntries(prev => prev.filter(e => e.id !== entryId));
+            setSelectedEntry(null);
+        } catch (error: any) {
+            console.error('[LeagueInteractions] Unpublish error:', error);
+            showToast(error.message || 'Failed to remove from Hub', 'error');
+        } finally {
+            setUnpublishing(false);
+        }
+    }, [user, selectedEntry, unpublishing, setEntries, setSelectedEntry, showToast]);
+
     return {
         selectedEntry,
         setSelectedEntry,
@@ -275,11 +405,15 @@ export function useLeagueInteractions(entries: LeagueEntry[], setEntries: (entri
         votingEntryId,
         isFollowing,
         followLoading,
+        unpublishing,
         handleVote,
         handleToggleFollow,
         handleReactUpdate,
         handleAddComment,
         handleDeleteComment,
-        handleReport
+        handleReport,
+        handleToggleCollection,
+        handleUnpublish,
+        handleShare
     };
 }

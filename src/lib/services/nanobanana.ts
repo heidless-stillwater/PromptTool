@@ -55,9 +55,16 @@ export class NanoBananaService {
 
         try {
             // Map aspect ratio for Veo
-            // Veo supports string formats like '16:9', '9:16', '1:1', '4:3', '3:4'
-            // Our types match directly for common ones.
-            const veoAspectRatio = aspectRatio;
+            // Veo 2.0 primarily supports 16:9 and 9:16. 1:1 often works.
+            // 4:3 and 3:4 are generally not supported.
+            const aspectRatioMap: Record<AspectRatio, string> = {
+                '16:9': '16:9',
+                '9:16': '9:16',
+                '1:1': '1:1',
+                '4:3': '16:9', // Fallback to 16:9
+                '3:4': '9:16', // Fallback to 9:16
+            };
+            const veoAspectRatio = aspectRatioMap[aspectRatio] || '16:9';
 
             // 1. Initial Request
             // Using raw fetch because predictLongRunning is not standard in SDK yet

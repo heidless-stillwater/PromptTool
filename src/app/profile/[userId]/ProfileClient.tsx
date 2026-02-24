@@ -17,14 +17,15 @@ import FollowListModal from '@/components/profile/FollowListModal';
 export default function ProfileClient() {
     const profile = useProfile();
     const {
-        author, entries, loading, authLoading, queryError, stats,
+        author, images, entries, leagueEntryMap, loading, authLoading, queryError, stats,
         isFollowingProfile, followLoadingProfile, selectedEntry,
-        currentUser, handleToggleFollowProfile, formatDate,
+        currentUser, viewMode, setViewMode, isGrouped, setIsGrouped, showOnlyLeague, setShowOnlyLeague,
+        handleToggleFollowProfile, formatDate,
         setSelectedEntry,
         comments, loadingComments, votingEntryId,
         isFollowingEntry, followLoadingEntry,
         handleVote, handleReactUpdate, handleAddComment, handleDeleteComment, handleReport,
-        handleToggleFollowEntry
+        handleToggleFollowEntry, handleUnpublish, unpublishing, userRole
     } = profile;
 
     const [followModal, setFollowModal] = useState<{ open: boolean, type: 'followers' | 'following' }>({
@@ -68,8 +69,8 @@ export default function ProfileClient() {
                     <div className="flex items-center gap-3">
                         <Link href="/league">
                             <Button variant="secondary" size="sm" className="h-9 gap-2 font-black uppercase tracking-widest text-[10px]">
-                                <Icons.trophy size={14} className="text-primary" />
-                                <span className="hidden sm:inline">League</span>
+                                <Icons.globe size={14} className="text-primary" />
+                                <span className="hidden sm:inline">Community Hub</span>
                             </Button>
                         </Link>
                         <div className="h-6 w-px bg-border/50 mx-1" />
@@ -108,13 +109,22 @@ export default function ProfileClient() {
                 </div>
 
                 <ProfilePortfolio
+                    images={images}
                     entries={entries}
+                    leagueEntryMap={leagueEntryMap}
                     currentUser={currentUser}
+                    userRole={userRole}
                     selectedEntry={selectedEntry}
                     setSelectedEntry={setSelectedEntry}
                     queryError={queryError}
+                    viewMode={viewMode}
+                    onViewModeChange={setViewMode}
+                    isGrouped={isGrouped}
+                    onToggleGrouped={() => setIsGrouped(g => !g)}
+                    showOnlyLeague={showOnlyLeague}
+                    onToggleOnlyLeague={() => setShowOnlyLeague(s => !s)}
 
-                    // Added interaction props
+                    // Interaction props
                     comments={comments}
                     loadingComments={loadingComments}
                     votingEntryId={votingEntryId}
@@ -126,6 +136,8 @@ export default function ProfileClient() {
                     onDeleteComment={handleDeleteComment}
                     onToggleFollowEntry={handleToggleFollowEntry}
                     onReport={handleReport}
+                    onUnpublishEntry={handleUnpublish}
+                    isUnpublishingEntry={unpublishing}
                 />
             </main>
 

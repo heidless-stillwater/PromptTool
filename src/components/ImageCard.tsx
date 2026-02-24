@@ -6,6 +6,7 @@ import Tooltip from '@/components/Tooltip';
 import SmartImage from '@/components/SmartImage';
 import SmartVideo from '@/components/SmartVideo';
 import ShareButtons from '@/components/ShareButtons';
+import { cn } from '@/lib/utils';
 
 export interface ImageCardProps {
     image: GeneratedImage;
@@ -139,23 +140,25 @@ export default function ImageCard({
                         />
                     )}
 
-                    {/* League Badge */}
-                    {image.publishedToLeague && (
-                        <div className="absolute top-2 left-2 z-20 pointer-events-none">
-                            <div className="bg-yellow-500/90 text-white text-xs font-bold px-2 py-1 rounded-lg flex items-center gap-1 shadow-lg backdrop-blur-sm">
+                    {/* Status Badges Container (Top Left, offset if selecting) */}
+                    <div className={cn(
+                        "absolute top-2 z-20 pointer-events-none flex flex-col gap-1.5 transition-all duration-300",
+                        selectionMode ? "left-10" : "left-2"
+                    )}>
+                        {/* League Badge */}
+                        {image.publishedToLeague && (
+                            <div className="bg-yellow-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-lg backdrop-blur-sm w-fit">
                                 🏆 League
                             </div>
-                        </div>
-                    )}
+                        )}
 
-                    {/* Variation Badge (Single Item Only) */}
-                    {!isStack && image.sourceImageId && (
-                        <div className="absolute top-2 left-2 z-20 pointer-events-none">
-                            <div className="px-1.5 py-0.5 bg-accent/90 text-white text-[10px] font-bold rounded uppercase shadow-sm backdrop-blur-sm">
+                        {/* Variation Badge (Single Item Only) */}
+                        {!isStack && image.sourceImageId && (
+                            <div className="px-1.5 py-0.5 bg-accent/90 text-white text-[10px] font-bold rounded uppercase shadow-sm backdrop-blur-sm w-fit">
                                 Variation
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
 
                     {/* Video Duration Badge */}
                     {(isVideo || image.duration) && (

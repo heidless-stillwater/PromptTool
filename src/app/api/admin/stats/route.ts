@@ -22,11 +22,43 @@ export async function GET(request: NextRequest) {
         const totalUsers = usersSnap.size;
         const proUsers = usersSnap.docs.filter(d => d.data().subscription === 'pro').length;
 
-        // Count total images
+        // Platform-wide counts
         const imagesSnap = await adminDb.collectionGroup('images').count().get();
         const totalImages = imagesSnap.data().count;
 
-        // Aggregate credits from each user's data/credits doc
+        const leagueSnap = await adminDb.collection('leagueEntries').get();
+        const totalPublished = leagueSnap.size;
+
+        let totalVotes = 0;
+        let totalComments = 0;
+        const tagsMap: Record<string, number> = {};
+
+        leagueSnap.docs.forEach(doc => {
+            const data = doc.data();
+            totalVotes += data.voteCount || 0;
+            totalComments += data.commentCount || 0;
+            if (data.tags && Array.isArray(data.tags)) {
+                data.tags.forEach((tag: string) => {
+                    tagsMap[tag] = (tagsMap[tag] || 0) + 1;
+                });
+            }
+        });
+
+        const topTags = Object.entries(tagsMap)
+            .map(([tag, count]) => ({ tag, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 10);
+
+        // Recent activity (last 24h)
+        const oneDayAgo = new Date();
+        oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+        const recentImagesSnap = await adminDb.collectionGroup('images')
+            .where('createdAt', '>=', oneDayAgo)
+            .count()
+            .get();
+        const recentGenerations = recentImagesSnap.data().count;
+
+        // Aggregate credits 
         let totalCreditsHeld = 0;
         let totalLifetimeUsed = 0;
 
@@ -49,6 +81,11 @@ export async function GET(request: NextRequest) {
             totalImages,
             totalCreditsHeld,
             totalLifetimeUsed,
+            totalVotes,
+            totalComments,
+            totalPublished,
+            topTags,
+            recentGenerations
         });
     } catch (error: any) {
         console.error('Admin stats error:', error);

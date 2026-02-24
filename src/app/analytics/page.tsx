@@ -15,7 +15,20 @@ interface AnalyticsStats {
     totalUpvotes: number;
     totalComments: number;
     totalEntries: number;
-    totalReach: number; // Sum of upvotes + comments
+    totalReach: number;
+    totalVariations: number;
+    totalReactions: number;
+}
+
+interface TagStat {
+    tag: string;
+    count: number;
+    engagement: number;
+}
+
+interface ReactionStat {
+    emoji: string;
+    count: number;
 }
 
 interface ChartDataPoint {
@@ -31,10 +44,14 @@ export default function AnalyticsPage() {
         totalUpvotes: 0,
         totalComments: 0,
         totalEntries: 0,
-        totalReach: 0
+        totalReach: 0,
+        totalVariations: 0,
+        totalReactions: 0
     });
     const [entryData, setEntryData] = useState<any[]>([]);
     const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
+    const [tagStats, setTagStats] = useState<TagStat[]>([]);
+    const [reactionStats, setReactionStats] = useState<ReactionStat[]>([]);
     const [isFetching, setIsFetching] = useState(true);
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
         key: 'engagement',
@@ -59,12 +76,55 @@ export default function AnalyticsPage() {
 
                 let upvotes = 0;
                 let comments = 0;
+                let variations = 0;
+                let reactionsCount = 0;
+
+                const tagsMap: Record<string, { count: number, engagement: number }> = {};
+                const reactionsMap: Record<string, number> = {};
+
                 const entries = snapshot.docs.map(doc => {
                     const data = doc.data();
-                    upvotes += data.voteCount || 0;
-                    comments += data.commentCount || 0;
+                    const entryUpvotes = data.voteCount || 0;
+                    const entryComments = data.commentCount || 0;
+                    const entryVariations = data.variationCount || 0;
+                    const entryEngagement = entryUpvotes + entryComments;
+
+                    upvotes += entryUpvotes;
+                    comments += entryComments;
+                    variations += entryVariations;
+
+                    // Process reactions
+                    if (data.reactions) {
+                        Object.entries(data.reactions).forEach(([emoji, users]) => {
+                            const count = (users as string[]).length;
+                            reactionsCount += count;
+                            reactionsMap[emoji] = (reactionsMap[emoji] || 0) + count;
+                        });
+                    }
+
+                    // Process tags
+                    if (data.tags && Array.isArray(data.tags)) {
+                        data.tags.forEach((tag: string) => {
+                            if (!tagsMap[tag]) {
+                                tagsMap[tag] = { count: 0, engagement: 0 };
+                            }
+                            tagsMap[tag].count += 1;
+                            tagsMap[tag].engagement += entryEngagement;
+                        });
+                    }
+
                     return { id: doc.id, ...data } as any;
                 });
+
+                // Convert maps to arrays and sort
+                const processedTags = Object.entries(tagsMap)
+                    .map(([tag, stat]) => ({ tag, ...stat }))
+                    .sort((a, b) => b.engagement - a.engagement)
+                    .slice(0, 10);
+
+                const processedReactions = Object.entries(reactionsMap)
+                    .map(([emoji, count]) => ({ emoji, count }))
+                    .sort((a, b) => b.count - a.count);
 
                 // Process time-series data for the last 30 days
                 const last30Days = [...Array(30)].map((_, i) => {
@@ -98,10 +158,14 @@ export default function AnalyticsPage() {
                     totalUpvotes: upvotes,
                     totalComments: comments,
                     totalEntries: snapshot.size,
-                    totalReach: upvotes + comments
+                    totalReach: upvotes + comments,
+                    totalVariations: variations,
+                    totalReactions: reactionsCount
                 });
                 setEntryData(entries);
                 setChartData(Object.values(statsByDate));
+                setTagStats(processedTags);
+                setReactionStats(processedReactions);
 
             } catch (error) {
                 console.error('Failed to fetch analytics:', error);
@@ -163,6 +227,7 @@ export default function AnalyticsPage() {
 
     if (!user || !profile) return null;
 
+
     return (
         <div className="min-h-screen pb-20">
             {/* Header */}
@@ -184,79 +249,148 @@ export default function AnalyticsPage() {
 
             <main className="max-w-7xl mx-auto px-4 py-8">
                 {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-                    <Card className="bg-primary/5 border-primary/20">
-                        <p className="text-sm font-bold uppercase tracking-widest text-primary mb-1">Total Reach</p>
-                        <p className="text-4xl font-black">{stats.totalReach}</p>
-                        <p className="text-xs text-foreground-muted mt-2">Combined engagement</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-12">
+                    <Card className="bg-primary/5 border-primary/20 p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-1">Total Reach</p>
+                        <p className="text-3xl font-black">{stats.totalReach}</p>
+                        <p className="text-[10px] text-foreground-muted mt-1">Total interactions</p>
                     </Card>
-                    <Card>
-                        <p className="text-sm font-bold uppercase tracking-widest text-foreground-muted mb-1">Upvotes</p>
-                        <p className="text-4xl font-black">❤️ {stats.totalUpvotes}</p>
-                        <p className="text-xs text-foreground-muted mt-2">Total likes received</p>
+                    <Card className="p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-foreground-muted mb-1">Upvotes</p>
+                        <p className="text-3xl font-black">❤️ {stats.totalUpvotes}</p>
                     </Card>
-                    <Card>
-                        <p className="text-sm font-bold uppercase tracking-widest text-foreground-muted mb-1">Comments</p>
-                        <p className="text-4xl font-black">💬 {stats.totalComments}</p>
-                        <p className="text-xs text-foreground-muted mt-2">Discussion contribution</p>
+                    <Card className="p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-foreground-muted mb-1">Comments</p>
+                        <p className="text-3xl font-black">💬 {stats.totalComments}</p>
                     </Card>
-                    <Card>
-                        <p className="text-sm font-bold uppercase tracking-widest text-foreground-muted mb-1">League Entries</p>
-                        <p className="text-4xl font-black">🏆 {stats.totalEntries}</p>
-                        <p className="text-xs text-foreground-muted mt-2">Content published</p>
+                    <Card className="p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-foreground-muted mb-1">Variations</p>
+                        <p className="text-3xl font-black">🌱 {stats.totalVariations}</p>
+                        <p className="text-[10px] text-foreground-muted mt-1">Sparked by you</p>
+                    </Card>
+                    <Card className="p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-foreground-muted mb-1">Reactions</p>
+                        <p className="text-3xl font-black">✨ {stats.totalReactions}</p>
+                    </Card>
+                    <Card className="p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-foreground-muted mb-1">Entries</p>
+                        <p className="text-3xl font-black">🏆 {stats.totalEntries}</p>
                     </Card>
                 </div>
 
-                {/* Visualizations */}
-                <section className="mb-12">
-                    <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-2xl font-bold">Engagement Trends</h2>
-                        <span className="text-sm text-foreground-muted font-medium">Last 30 days</span>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+                    {/* Visualizations - Main Chart */}
+                    <div className="lg:col-span-2 space-y-6">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-xl font-bold">Engagement Trends</h2>
+                            <span className="text-xs text-foreground-muted font-medium">Last 30 days</span>
+                        </div>
+                        <Card variant="glass" className="h-[350px] pt-8 pb-4 pr-6">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={chartData}>
+                                    <defs>
+                                        <linearGradient id="colorEngage" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#ec4899" stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor="#ec4899" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
+                                    <XAxis
+                                        dataKey="date"
+                                        axisLine={false}
+                                        tickLine={false}
+                                        tick={{ fill: '#94a3b8', fontSize: 10 }}
+                                        minTickGap={30}
+                                    />
+                                    <YAxis
+                                        axisLine={false}
+                                        tickLine={false}
+                                        tick={{ fill: '#94a3b8', fontSize: 10 }}
+                                    />
+                                    <Tooltip
+                                        contentStyle={{
+                                            backgroundColor: '#1e293b',
+                                            border: '1px solid rgba(255,255,255,0.1)',
+                                            borderRadius: '12px',
+                                            fontSize: '12px'
+                                        }}
+                                        itemStyle={{ color: '#ec4899', fontWeight: 'bold' }}
+                                    />
+                                    <Area
+                                        type="monotone"
+                                        dataKey="engagement"
+                                        stroke="#ec4899"
+                                        strokeWidth={3}
+                                        fillOpacity={1}
+                                        fill="url(#colorEngage)"
+                                        animationDuration={1500}
+                                    />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </Card>
                     </div>
-                    <Card variant="glass" className="h-[350px] w-full pt-8 pb-4 pr-6">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={chartData}>
-                                <defs>
-                                    <linearGradient id="colorEngage" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#ec4899" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="#ec4899" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
-                                <XAxis
-                                    dataKey="date"
-                                    axisLine={false}
-                                    tickLine={false}
-                                    tick={{ fill: '#94a3b8', fontSize: 10 }}
-                                    minTickGap={30}
-                                />
-                                <YAxis
-                                    axisLine={false}
-                                    tickLine={false}
-                                    tick={{ fill: '#94a3b8', fontSize: 10 }}
-                                />
-                                <Tooltip
-                                    contentStyle={{
-                                        backgroundColor: '#1e293b',
-                                        border: '1px solid rgba(255,255,255,0.1)',
-                                        borderRadius: '12px',
-                                        fontSize: '12px'
-                                    }}
-                                    itemStyle={{ color: '#ec4899', fontWeight: 'bold' }}
-                                />
-                                <Area
-                                    type="monotone"
-                                    dataKey="engagement"
-                                    stroke="#ec4899"
-                                    strokeWidth={3}
-                                    fillOpacity={1}
-                                    fill="url(#colorEngage)"
-                                    animationDuration={1500}
-                                />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </Card>
-                </section>
+
+                    {/* Side Stats - Tags & Reactions */}
+                    <div className="space-y-8">
+                        {/* Top Tags */}
+                        <div>
+                            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                                <Icons.tag size={18} className="text-primary" />
+                                Top Tags
+                            </h2>
+                            <Card className="space-y-4 p-6">
+                                {tagStats.length === 0 ? (
+                                    <p className="text-xs text-foreground-muted text-center py-4 italic">No tags used yet</p>
+                                ) : (
+                                    tagStats.map((stat, i) => {
+                                        const maxEngage = Math.max(...tagStats.map(t => t.engagement)) || 1;
+                                        const width = (stat.engagement / maxEngage) * 100;
+                                        return (
+                                            <div key={stat.tag} className="space-y-1">
+                                                <div className="flex justify-between text-[11px] font-bold">
+                                                    <span className="text-foreground/80 lowercase">#{stat.tag}</span>
+                                                    <span className="text-primary">{stat.engagement} pts</span>
+                                                </div>
+                                                <div className="h-1.5 w-full bg-background-tertiary rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-primary rounded-full transition-all duration-1000"
+                                                        style={{ width: `${width}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </Card>
+                        </div>
+
+                        {/* Reaction Distribution */}
+                        <div>
+                            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                                <Icons.heart size={18} className="text-accent" />
+                                Community Love
+                            </h2>
+                            <Card className="p-6">
+                                {reactionStats.length === 0 ? (
+                                    <p className="text-xs text-foreground-muted text-center py-4 italic">No reactions received</p>
+                                ) : (
+                                    <div className="flex flex-wrap gap-2">
+                                        {reactionStats.map((stat) => (
+                                            <div
+                                                key={stat.emoji}
+                                                className="bg-background-secondary border border-border/50 px-3 py-2 rounded-xl flex items-center gap-2 hover:border-primary/30 transition-colors group"
+                                            >
+                                                <span className="text-xl group-hover:scale-125 transition-transform">{stat.emoji}</span>
+                                                <span className="font-bold text-sm">{stat.count}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </Card>
+                        </div>
+                    </div>
+                </div>
+
 
                 {/* Content Performance */}
                 <section className="space-y-6">

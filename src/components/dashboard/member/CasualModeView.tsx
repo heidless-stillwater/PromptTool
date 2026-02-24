@@ -8,6 +8,7 @@ import { useState } from 'react';
 import WalletWisdom from './WalletWisdom';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import { useTour } from '@/context/TourContext';
+import CommunityPulse from '@/components/dashboard/CommunityPulse';
 
 interface CasualModeViewProps {
     dashboardData: any;
@@ -79,6 +80,29 @@ export default function CasualModeView({ dashboardData }: CasualModeViewProps) {
                     ))}
                 </div>
             </section>
+
+            {/* Community Engagement */}
+            <div className="pt-8 border-t border-border/50">
+                <div className="flex flex-wrap gap-4 mb-10">
+                    <Button
+                        variant="secondary"
+                        onClick={() => router.push('/league')}
+                        className="flex items-center gap-2 border-emerald-500/20 hover:border-emerald-500/50 group transition-all"
+                    >
+                        <Icons.globe size={18} className="group-hover:rotate-12 transition-transform text-emerald-500" />
+                        Community Hub
+                    </Button>
+                    <Button
+                        variant="secondary"
+                        onClick={() => router.push('/league/leaderboard')}
+                        className="flex items-center gap-2 border-yellow-500/20 hover:border-yellow-500/50 group transition-all"
+                    >
+                        <Icons.trophy size={18} className="group-hover:scale-110 transition-transform text-yellow-500" />
+                        Hall of Fame
+                    </Button>
+                </div>
+                <CommunityPulse entries={dashboardData.recentLeagueEntries} />
+            </div>
 
             {/* Support Level: Guided Tour Invite */}
             <Card variant="glass" className="p-6 bg-accent/5 border-accent/20 flex flex-col md:flex-row items-center justify-between gap-6">

@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { collection, query, orderBy, limit, getDocs, deleteDoc, doc, updateDoc, increment, startAfter, QueryDocumentSnapshot, addDoc, serverTimestamp, deleteField, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, deleteDoc, doc, updateDoc, increment, startAfter, QueryDocumentSnapshot, addDoc, serverTimestamp, deleteField, arrayUnion, arrayRemove, collectionGroup, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { GeneratedImage, Collection } from '@/lib/types';
+import { GeneratedImage, Collection, ADMIN_EMAILS } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/Toast';
 
 export function useGallery() {
-    const { user } = useAuth();
+    const { user, isSu } = useAuth();
     const { showToast } = useToast();
 
     // Data State
@@ -29,6 +29,7 @@ export function useGallery() {
     const [filterAspectRatio, setFilterAspectRatio] = useState<string>('all');
     const [filterTag, setFilterTag] = useState<string>('all');
     const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+    const [viewMode, setViewMode] = useState<'personal' | 'admin' | 'global'>('personal');
 
     // Advanced Filter State
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -65,11 +66,36 @@ export function useGallery() {
                 setLoadingImages(true);
             }
 
-            const imagesRef = collection(db, 'users', user.uid, 'images');
-            let q = query(imagesRef, orderBy('createdAt', 'desc'), limit(48));
+            let q;
+            const isPersonal = viewMode === 'personal';
+            const isGlobal = viewMode === 'global' && isSu;
+            const isAdminView = viewMode === 'admin' && isSu;
 
-            if (isLoadMore && lastVisibleRef.current) {
-                q = query(imagesRef, orderBy('createdAt', 'desc'), startAfter(lastVisibleRef.current), limit(48));
+            if (isPersonal) {
+                const imagesRef = collection(db, 'users', user.uid, 'images');
+                q = query(imagesRef, orderBy('createdAt', 'desc'), limit(48));
+                if (isLoadMore && lastVisibleRef.current) {
+                    q = query(imagesRef, orderBy('createdAt', 'desc'), startAfter(lastVisibleRef.current), limit(48));
+                }
+            } else if (isGlobal) {
+                const imagesRef = collectionGroup(db, 'images');
+                q = query(imagesRef, orderBy('createdAt', 'desc'), limit(48));
+                if (isLoadMore && lastVisibleRef.current) {
+                    q = query(imagesRef, orderBy('createdAt', 'desc'), startAfter(lastVisibleRef.current), limit(48));
+                }
+            } else if (isAdminView) {
+                const imagesRef = collectionGroup(db, 'images');
+                q = query(imagesRef, where('userId', 'in', ADMIN_EMAILS), orderBy('createdAt', 'desc'), limit(48));
+                if (isLoadMore && lastVisibleRef.current) {
+                    q = query(imagesRef, where('userId', 'in', ADMIN_EMAILS), orderBy('createdAt', 'desc'), startAfter(lastVisibleRef.current), limit(48));
+                }
+            } else {
+                // Fallback to personal if not su but trying to access admin/global
+                const imagesRef = collection(db, 'users', user.uid, 'images');
+                q = query(imagesRef, orderBy('createdAt', 'desc'), limit(48));
+                if (isLoadMore && lastVisibleRef.current) {
+                    q = query(imagesRef, orderBy('createdAt', 'desc'), startAfter(lastVisibleRef.current), limit(48));
+                }
             }
 
             const snapshot = await getDocs(q);
@@ -100,7 +126,7 @@ export function useGallery() {
             setLoadingImages(false);
             setLoadingMore(false);
         }
-    }, [user]);
+    }, [user, viewMode, isSu]);
 
     // Fetch Collections
     const fetchCollections = useCallback(async () => {
@@ -227,7 +253,7 @@ export function useGallery() {
     const handleLeagueToggle = async (image: GeneratedImage) => {
         if (!user) return;
         const action = image.publishedToLeague ? 'unpublish' : 'publish';
-        if (action === 'unpublish' && !confirm('Remove this image from the Community League?')) return;
+        if (action === 'unpublish' && !confirm('Remove this image from the Community Hub?')) return;
 
         setPublishingId(image.id);
         try {
@@ -258,7 +284,7 @@ export function useGallery() {
             }
 
             showToast(
-                action === 'publish' ? '🏆 Published to Community League!' : 'Removed from Community League',
+                action === 'publish' ? '🏆 Published to Community Hub!' : 'Removed from Community Hub',
                 'success'
             );
         } catch (error: any) {
@@ -581,6 +607,7 @@ export function useGallery() {
         isSavingPromptSetID, setIsSavingPromptSetID,
         newImageTag, setNewImageTag,
         isUpdatingTags, setIsUpdatingTags, // Export setter
+        viewMode, setViewMode, isSu,
 
         // Actions
         fetchImages, fetchCollections,

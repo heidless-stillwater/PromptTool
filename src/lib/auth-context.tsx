@@ -51,13 +51,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (userSnap.exists()) {
             const existingProfile = userSnap.data() as UserProfile;
             // Update last login and any changed fields
+            const isAdmin = ADMIN_EMAILS.includes(firebaseUser.email || '');
             const updatedProfile: UserProfile = {
                 ...existingProfile,
-                // Only update if missing, otherwise respect user's custom changes
+                // Only update if missing or invalid, otherwise respect user's custom changes
                 displayName: existingProfile.displayName || firebaseUser.displayName,
-                photoURL: existingProfile.photoURL || firebaseUser.photoURL,
+                photoURL: (existingProfile.photoURL && existingProfile.photoURL !== 'null') ? existingProfile.photoURL : firebaseUser.photoURL,
                 subscription: existingProfile.subscription || 'free',
                 audienceMode: existingProfile.audienceMode || 'casual',
+                role: existingProfile.role || (isAdmin ? 'admin' : 'member'),
                 updatedAt: Timestamp.now(),
             };
             // Ensure username exists (legacy users)

@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { SkeletonFeed } from '@/components/ui/SkeletonFeed';
 
 interface RecentCreationsProps {
+    title?: string;
     images: GeneratedImage[];
     loading: boolean;
     isGrouped: boolean;
@@ -27,6 +28,7 @@ interface RecentCreationsProps {
 }
 
 export default function RecentCreations({
+    title = "Recent Creations",
     images,
     loading,
     isGrouped,
@@ -64,7 +66,7 @@ export default function RecentCreations({
         <section>
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-4">
-                    <h2 className="text-2xl font-bold">Recent Creations</h2>
+                    <h2 className="text-2xl font-bold">{title}</h2>
                     <div className="flex bg-background-secondary rounded-xl p-1 border border-border/50">
                         <Button
                             variant={selectionMode ? 'primary' : 'ghost'}
@@ -106,7 +108,7 @@ export default function RecentCreations({
                 </div>
                 <Link href="/gallery">
                     <Button variant="ghost" size="sm" className="text-primary hover:text-primary-hover font-bold group">
-                        View All
+                        Gallery
                         <Icons.arrowRight size={14} className="ml-1 group-hover:translate-x-1 transition-transform" />
                     </Button>
                 </Link>
@@ -136,7 +138,7 @@ export default function RecentCreations({
                                     if (selectionMode) {
                                         toggleImageGroupSelection(groupIds);
                                     } else {
-                                        router.push('/gallery');
+                                        router.push(`/gallery?set=${firstImage.promptSetID || firstImage.id}`);
                                     }
                                 }}
                                 showFooter={!dense}
@@ -157,7 +159,7 @@ export default function RecentCreations({
                                 if (selectionMode) {
                                     toggleImageSelection(image.id);
                                 } else {
-                                    router.push('/gallery');
+                                    router.push(`/gallery?imageId=${image.id}`);
                                 }
                             }}
                             showFooter={!dense}

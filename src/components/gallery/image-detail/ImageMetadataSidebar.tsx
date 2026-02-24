@@ -4,6 +4,8 @@ import CollectionSelector from './CollectionSelector';
 import TagManager from './TagManager';
 import PromptSetIDManager from './PromptSetIDManager';
 import ActionsBar from './ActionsBar';
+import { Button } from '@/components/ui/Button';
+import { Icons } from '@/components/ui/Icons';
 
 interface ImageMetadataSidebarProps {
     image: GeneratedImage;
@@ -18,6 +20,8 @@ interface ImageMetadataSidebarProps {
     onCancelEditingPromptSetID: () => void;
     onChangeEditingPromptSetID: (val: string) => void;
     onSavePromptSetID: () => void;
+    existingPromptSetIDs: { id: string, thumbUrl: string }[];
+    isLoadingSuggestions: boolean;
     // Tags
     newImageTag: string;
     isUpdatingTags: boolean;
@@ -47,6 +51,8 @@ export default function ImageMetadataSidebar({
     onCancelEditingPromptSetID,
     onChangeEditingPromptSetID,
     onSavePromptSetID,
+    existingPromptSetIDs,
+    isLoadingSuggestions,
     newImageTag,
     isUpdatingTags,
     onAddTag,
@@ -77,18 +83,53 @@ export default function ImageMetadataSidebar({
                 </div>
 
                 <div className="space-y-4">
-                    <div>
-                        <label className="text-xs text-foreground-muted uppercase tracking-wide">Prompt</label>
-                        <p className="text-sm mt-1">{image.prompt}</p>
+                    <div className="group/prompt relative">
+                        <div className="flex justify-between items-center mb-1">
+                            <label className="text-xs text-foreground-muted uppercase tracking-wide">Prompt</label>
+                            <button
+                                onClick={onCopyPrompt}
+                                className="text-[10px] font-black uppercase tracking-widest text-primary opacity-0 group-hover/prompt:opacity-100 transition-opacity hover:text-primary/80"
+                            >
+                                Copy Prompt
+                            </button>
+                        </div>
+                        <p className="text-sm leading-relaxed">{image.prompt}</p>
+
+                        <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={onGenerateVariation}
+                            className="w-full mt-3 text-[10px] uppercase font-black tracking-widest h-9"
+                        >
+                            <Icons.wand size={14} className="mr-2" />
+                            New Version
+                        </Button>
                     </div>
 
-                    <CollectionSelector
-                        collections={collections}
-                        selectedIds={image.collectionIds || (image.collectionId ? [image.collectionId] : [])}
-                        onToggle={onToggleCollection}
-                    />
+                    <div className="pt-4 border-t border-border/50">
+                        <PromptSetIDManager
+                            promptSetID={image.promptSetID}
+                            isEditing={isEditingPromptSetID}
+                            editingValue={editingPromptSetID}
+                            isSaving={isSavingPromptSetID}
+                            existingPromptSetIDs={existingPromptSetIDs}
+                            isLoadingSuggestions={isLoadingSuggestions}
+                            onStartEditing={onStartEditingPromptSetID}
+                            onCancelEditing={onCancelEditingPromptSetID}
+                            onChangeValue={onChangeEditingPromptSetID}
+                            onSave={onSavePromptSetID}
+                        />
+                    </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="pt-4 border-t border-border/50">
+                        <CollectionSelector
+                            collections={collections}
+                            selectedIds={image.collectionIds || (image.collectionId ? [image.collectionId] : [])}
+                            onToggle={onToggleCollection}
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border/50">
                         <div>
                             <label className="text-xs text-foreground-muted uppercase tracking-wide">Quality</label>
                             <p className="text-sm mt-1 capitalize">{image.settings.quality}</p>
@@ -99,7 +140,7 @@ export default function ImageMetadataSidebar({
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-4 pt-2">
                         <div>
                             <label className="text-xs text-foreground-muted uppercase tracking-wide">Credits</label>
                             <p className="text-sm mt-1">{image.creditsCost}</p>
@@ -110,27 +151,18 @@ export default function ImageMetadataSidebar({
                         </div>
                     </div>
 
-                    <PromptSetIDManager
-                        promptSetID={image.promptSetID}
-                        isEditing={isEditingPromptSetID}
-                        editingValue={editingPromptSetID}
-                        isSaving={isSavingPromptSetID}
-                        onStartEditing={onStartEditingPromptSetID}
-                        onCancelEditing={onCancelEditingPromptSetID}
-                        onChangeValue={onChangeEditingPromptSetID}
-                        onSave={onSavePromptSetID}
-                    />
+                    <div className="pt-4 border-t border-border/50">
+                        <TagManager
+                            tags={image.tags || []}
+                            newTag={newImageTag}
+                            isUpdating={isUpdatingTags}
+                            onAdd={onAddTag}
+                            onRemove={onRemoveTag}
+                            onChangeNewTag={onChangeNewTag}
+                        />
+                    </div>
 
-                    <TagManager
-                        tags={image.tags || []}
-                        newTag={newImageTag}
-                        isUpdating={isUpdatingTags}
-                        onAdd={onAddTag}
-                        onRemove={onRemoveTag}
-                        onChangeNewTag={onChangeNewTag}
-                    />
-
-                    <div>
+                    <div className="pt-4 border-t border-border/50">
                         <label className="text-xs text-foreground-muted uppercase tracking-wide">Created</label>
                         <p className="text-sm mt-1">{formatDate(image.createdAt)}</p>
                     </div>

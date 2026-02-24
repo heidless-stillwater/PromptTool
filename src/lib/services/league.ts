@@ -35,6 +35,18 @@ export class LeagueService {
 
         const userProfile = userDoc.data()!;
 
+        // Get collection names
+        const collectionIds = imageData.collectionIds || (imageData.collectionId ? [imageData.collectionId] : []);
+        const collectionNames: string[] = [];
+        if (collectionIds.length > 0) {
+            const collectionsSnap = await adminDb.collection('users').doc(userId).collection('collections')
+                .where('__name__', 'in', collectionIds.slice(0, 10)) // Max 10 collections
+                .get();
+            collectionsSnap.forEach(doc => {
+                collectionNames.push(doc.data().name);
+            });
+        }
+
         // Create league entry with denormalized data
         const leagueEntryData = {
             originalImageId: imageId,
@@ -50,7 +62,14 @@ export class LeagueService {
             publishedAt: Timestamp.now(),
             voteCount: 0,
             commentCount: 0,
+            shareCount: 0,
+            variationCount: 0,
+            authorFollowerCount: userProfile.followerCount || 0,
             votes: {},
+            collectionIds,
+            collectionNames,
+            tags: imageData.tags || [],
+            promptSetID: imageData.promptSetID || null,
         };
 
         const leagueEntryRef = adminDb.collection('leagueEntries').doc();

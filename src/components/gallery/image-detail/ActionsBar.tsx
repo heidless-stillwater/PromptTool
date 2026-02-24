@@ -53,16 +53,6 @@ export default function ActionsBar({
                     Copy Seed
                 </Button>
             </Tooltip>
-            <Tooltip content="Create a new image based on these settings" className="col-span-2">
-                <Button
-                    variant="secondary"
-                    onClick={onGenerateVariation}
-                    className="w-full text-xs py-2 flex items-center justify-center gap-2"
-                >
-                    <Icons.history size={16} className="rotate-90" />
-                    Generate Variation
-                </Button>
-            </Tooltip>
             <Tooltip content="Edit this image" className="col-span-2">
                 <Button
                     variant="secondary"

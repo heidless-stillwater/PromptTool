@@ -10,13 +10,13 @@ export class AIPromptService {
     /**
      * Enhances a simple prompt into a detailed masterpiece for image generation.
      */
-    async enhancePrompt(prompt: string): Promise<string> {
+    async enhancePrompt(prompt: string, style?: string, mood?: string): Promise<string> {
         if (!prompt || prompt.trim().length === 0) {
             throw new Error("Prompt is required for enhancement");
         }
 
         try {
-            const model = 'gemini-1.5-flash'; // Fast and capable for text expansion
+            const model = 'gemini-2.5-flash'; // Fast and capable for text expansion
 
             const systemInstruction = `
         You are a world-class prompt engineer for AI image generation (e.g., Midjourney, DALL-E, Stable Diffusion).
@@ -32,10 +32,15 @@ export class AIPromptService {
         7. Return ONLY the enhanced prompt. No introductions, no explanations.
       `;
 
+            let userPrompt = `Original Prompt: "${prompt}"\n`;
+            if (style) userPrompt += `Target Art Style: ${style}\n`;
+            if (mood) userPrompt += `Target Mood/Vibe: ${mood}\n`;
+            userPrompt += `\nEnhanced Descriptive Prompt:`;
+
             const response = await this.client.models.generateContent({
                 model,
                 contents: [
-                    { role: 'user', parts: [{ text: `Original Prompt: "${prompt}"\n\nEnhanced Descriptive Prompt:` }] }
+                    { role: 'user', parts: [{ text: userPrompt }] }
                 ],
                 config: {
                     systemInstruction: { parts: [{ text: systemInstruction }] }
@@ -64,7 +69,7 @@ export class AIPromptService {
         }
 
         try {
-            const model = 'gemini-1.5-flash';
+            const model = 'gemini-2.5-flash';
             const systemInstruction = `
         You are an expert content curator for an AI image gallery.
         Given a list of image prompts, suggest 5-8 relevant, descriptive tags.

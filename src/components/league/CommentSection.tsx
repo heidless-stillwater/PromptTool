@@ -161,7 +161,7 @@ export default function CommentSection({
     };
 
     return (
-        <div className="pt-2 border-t border-border">
+        <div className="">
             <h4 className="font-bold text-sm mb-3 flex items-center gap-2">
                 <Icons.comment size={16} />
                 Comments ({comments.length})
@@ -198,47 +198,69 @@ export default function CommentSection({
                         ))}
                     </div>
                 )}
-                <div className="flex gap-2">
-                    <input
-                        type="text"
-                        value={newComment}
-                        onChange={(e) => {
-                            setNewComment(e.target.value);
-                            setCursorPos(e.target.selectionStart || 0);
-                        }}
-                        onSelect={(e) => setCursorPos(e.currentTarget.selectionStart || 0)}
-                        onClick={(e) => setCursorPos(e.currentTarget.selectionStart || 0)}
-                        placeholder="Add a comment... (Type @ to mention)"
-                        maxLength={500}
-                        className="flex-1 bg-background-secondary border border-border rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder:text-foreground-muted transition-all"
-                        onKeyDown={(e) => {
-                            if (showSuggestions) {
-                                if (e.key === 'ArrowDown') {
+                <div className="flex gap-3 items-start">
+                    <div className="w-8 h-8 rounded-full flex-shrink-0 overflow-hidden bg-primary/10 border border-border flex items-center justify-center">
+                        {user?.photoURL && !['null', 'undefined', ''].includes(user.photoURL) ? (
+                            <img
+                                src={user.photoURL}
+                                alt={user.displayName || 'User'}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                                    if (fallback) fallback.style.display = 'flex';
+                                }}
+                            />
+                        ) : null}
+                        <div
+                            className="w-full h-full flex items-center justify-center text-xs font-bold text-primary bg-primary/5"
+                            style={{ display: user?.photoURL && !['null', 'undefined', ''].includes(user.photoURL) ? 'none' : 'flex' }}
+                        >
+                            {(user?.displayName || user?.email || 'U')[0]?.toUpperCase()}
+                        </div>
+                    </div>
+                    <div className="flex-1 flex gap-2">
+                        <input
+                            type="text"
+                            value={newComment}
+                            onChange={(e) => {
+                                setNewComment(e.target.value);
+                                setCursorPos(e.target.selectionStart || 0);
+                            }}
+                            onSelect={(e) => setCursorPos(e.currentTarget.selectionStart || 0)}
+                            onClick={(e) => setCursorPos(e.currentTarget.selectionStart || 0)}
+                            placeholder="Add a comment... (Type @ to mention)"
+                            maxLength={500}
+                            className="flex-1 bg-background-secondary border border-border rounded-lg px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground placeholder:text-foreground-muted transition-all"
+                            onKeyDown={(e) => {
+                                if (showSuggestions) {
+                                    if (e.key === 'ArrowDown') {
+                                        e.preventDefault();
+                                        setSuggestionIndex(prev => (prev + 1) % mentionSuggestions.length);
+                                    } else if (e.key === 'ArrowUp') {
+                                        e.preventDefault();
+                                        setSuggestionIndex(prev => (prev - 1 + mentionSuggestions.length) % mentionSuggestions.length);
+                                    } else if (e.key === 'Enter' || e.key === 'Tab') {
+                                        e.preventDefault();
+                                        handleSelectMention(mentionSuggestions[suggestionIndex].username);
+                                    } else if (e.key === 'Escape') {
+                                        setShowSuggestions(false);
+                                    }
+                                } else if (e.key === 'Enter' && !e.shiftKey) {
                                     e.preventDefault();
-                                    setSuggestionIndex(prev => (prev + 1) % mentionSuggestions.length);
-                                } else if (e.key === 'ArrowUp') {
-                                    e.preventDefault();
-                                    setSuggestionIndex(prev => (prev - 1 + mentionSuggestions.length) % mentionSuggestions.length);
-                                } else if (e.key === 'Enter' || e.key === 'Tab') {
-                                    e.preventDefault();
-                                    handleSelectMention(mentionSuggestions[suggestionIndex].username);
-                                } else if (e.key === 'Escape') {
-                                    setShowSuggestions(false);
+                                    handleSubmit();
                                 }
-                            } else if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                handleSubmit();
-                            }
-                        }}
-                    />
-                    <Button
-                        onClick={handleSubmit}
-                        disabled={submitting || !newComment.trim()}
-                        isLoading={submitting}
-                        className="px-4 py-2 text-sm h-full"
-                    >
-                        {!submitting && <Icons.arrowUp size={16} className="rotate-90" />}
-                    </Button>
+                            }}
+                        />
+                        <Button
+                            onClick={handleSubmit}
+                            disabled={submitting || !newComment.trim()}
+                            isLoading={submitting}
+                            className="px-4 py-2 text-sm h-[38px]"
+                        >
+                            {!submitting && <Icons.arrowUp size={16} className="rotate-90" />}
+                        </Button>
+                    </div>
                 </div>
             </div>
 
@@ -259,11 +281,16 @@ export default function CommentSection({
                                 href={`/profile/${comment.userId}`}
                                 className="flex-shrink-0 hover:opacity-80 transition-opacity"
                             >
-                                {comment.userPhotoURL && comment.userPhotoURL !== 'null' ? (
+                                {comment.userPhotoURL && !['null', 'undefined', ''].includes(comment.userPhotoURL) ? (
                                     <img
                                         src={comment.userPhotoURL}
                                         alt={comment.userName || 'User'}
-                                        className="w-7 h-7 rounded-full border border-border"
+                                        className="w-7 h-7 rounded-full border border-border object-cover"
+                                        onError={(e) => {
+                                            // Handle case where image fails to load
+                                            e.currentTarget.style.display = 'none';
+                                            e.currentTarget.parentElement?.classList.add('bg-primary/10');
+                                        }}
                                     />
                                 ) : (
                                     <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">

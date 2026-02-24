@@ -33,6 +33,8 @@ export default function ImageDetailModal({
         editingPromptSetID,
         setEditingPromptSetID,
         isSavingPromptSetID,
+        existingPromptSetIDs,
+        isLoadingSuggestions,
         newImageTag,
         setNewImageTag,
         isUpdatingTags,
@@ -82,6 +84,8 @@ export default function ImageDetailModal({
                         isEditingPromptSetID={isEditingPromptSetID}
                         editingPromptSetID={editingPromptSetID}
                         isSavingPromptSetID={isSavingPromptSetID}
+                        existingPromptSetIDs={existingPromptSetIDs}
+                        isLoadingSuggestions={isLoadingSuggestions}
                         onStartEditingPromptSetID={() => setIsEditingPromptSetID(true)}
                         onCancelEditingPromptSetID={() => {
                             setIsEditingPromptSetID(false);

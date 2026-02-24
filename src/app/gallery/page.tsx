@@ -3,6 +3,7 @@
 import { useGallery } from './useGallery';
 import { useAuth } from '@/lib/auth-context';
 import { useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import GlobalSearch from '@/components/GlobalSearch';
 import GallerySidebar from '@/components/gallery/GallerySidebar';
@@ -19,6 +20,8 @@ import { Icons } from '@/components/ui/Icons';
 export default function GalleryPage() {
     const { user, loading: authLoading } = useAuth();
     const gallery = useGallery();
+    const searchParams = useSearchParams();
+    const router = useRouter();
 
     const {
         fetchImages,
@@ -38,6 +41,28 @@ export default function GalleryPage() {
             fetchCollections();
         }
     }, [user, fetchImages, fetchCollections]);
+
+    // Handle deep-linking to a specific variation set
+    useEffect(() => {
+        const setId = searchParams.get('set');
+        if (setId && images.length > 0 && !selectedGroup) {
+            const group = images.filter(img => img.promptSetID === setId);
+            if (group.length > 0) {
+                gallery.setSelectedGroup(group);
+            }
+        }
+    }, [searchParams, images, selectedGroup, gallery]);
+
+    // Handle deep-linking to a specific image
+    useEffect(() => {
+        const imageId = searchParams.get('imageId');
+        if (imageId && images.length > 0 && !selectedImage) {
+            const image = images.find(img => img.id === imageId);
+            if (image) {
+                gallery.setSelectedImage(image);
+            }
+        }
+    }, [searchParams, images, selectedImage, gallery]);
 
     if (authLoading) {
         return <div className="min-h-screen flex items-center justify-center"><Icons.spinner className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -67,16 +92,26 @@ export default function GalleryPage() {
                         {/* Header */}
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                             <div className="space-y-1">
-                                <Link
-                                    href="/dashboard"
-                                    className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-primary transition-all mb-4 group px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 hover:border-primary/30"
-                                >
-                                    <Icons.arrowRight size={12} className="rotate-180 group-hover:-translate-x-1 transition-transform" />
-                                    Back to Dashboard
-                                </Link>
+                                <div className="flex flex-wrap items-center gap-3 mb-4">
+                                    <Link
+                                        href="/dashboard"
+                                        className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-primary transition-all group px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 hover:border-primary/30"
+                                    >
+                                        <Icons.arrowLeft size={12} className="group-hover:-translate-x-1 transition-transform" />
+                                        Dashboard
+                                    </Link>
+                                    <Link
+                                        href="/league"
+                                        className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-primary transition-all group px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 hover:border-primary/30 shadow-lg shadow-primary/5"
+                                    >
+                                        <Icons.users size={12} className="text-primary/70" />
+                                        Community Hub
+                                    </Link>
+                                </div>
                                 <div className="flex items-center gap-4">
                                     <h1 className="text-4xl font-black tracking-tighter text-white">
-                                        YOUR GALLERY
+                                        {gallery.viewMode === 'personal' ? 'YOUR GALLERY' :
+                                            gallery.viewMode === 'admin' ? 'ADMIN FEED' : 'GLOBAL FEED'}
                                     </h1>
                                     <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 font-black">
                                         {gallery.filteredImages.length} ITEMS
@@ -86,15 +121,35 @@ export default function GalleryPage() {
                                     Manage and organize your generated masterpieces
                                 </p>
                             </div>
-                            <div className="w-full md:w-80">
-                                <GlobalSearch />
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+                                <div className="w-full sm:w-80">
+                                    <GlobalSearch />
+                                </div>
+                                {gallery.viewMode === 'personal' && (
+                                    <button
+                                        id="new-image-set-btn"
+                                        onClick={() => router.push('/generate')}
+                                        className="group relative inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest text-white overflow-hidden transition-all duration-300 shadow-lg hover:shadow-primary/30 hover:scale-[1.03] active:scale-[0.98] whitespace-nowrap"
+                                        style={{
+                                            background: 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)',
+                                        }}
+                                    >
+                                        {/* shimmer */}
+                                        <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                                            style={{ background: 'linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.15) 50%, transparent 70%)', backgroundSize: '200% 100%' }}
+                                        />
+                                        <Icons.plus size={14} className="flex-shrink-0" />
+                                        New Image Set
+                                    </button>
+                                )}
                             </div>
                         </div>
 
                         {/* Toolbar */}
                         <GalleryToolbar
-                            searchQuery={gallery.searchQuery}
-                            onSearchChange={gallery.setSearchQuery}
+                            viewMode={gallery.viewMode}
+                            setViewMode={gallery.setViewMode}
+                            isSu={gallery.isSu}
                             isGrouped={gallery.isGrouped}
                             onToggleGrouped={() => gallery.setIsGrouped(!gallery.isGrouped)}
                             selectionMode={gallery.selectionMode}
@@ -187,11 +242,22 @@ export default function GalleryPage() {
                             deletingId={gallery.deletingId}
                             onImageSelect={gallery.setSelectedImage}
                             onGroupSelect={gallery.setSelectedGroup}
-                            onToggleImageSelection={(id) => {
-                                const newSet = new Set(gallery.selectedImageIds);
-                                if (newSet.has(id)) newSet.delete(id);
-                                else newSet.add(id);
-                                gallery.setSelectedImageIds(newSet);
+                            onToggleImageSelection={(id: string) => {
+                                gallery.setSelectedImageIds(prev => {
+                                    const newSet = new Set(prev);
+                                    if (newSet.has(id)) newSet.delete(id);
+                                    else newSet.add(id);
+                                    return newSet;
+                                });
+                            }}
+                            onToggleGroupSelection={(ids: string[]) => {
+                                gallery.setSelectedImageIds(prev => {
+                                    const newSet = new Set(prev);
+                                    const allSelected = ids.every(id => newSet.has(id));
+                                    if (allSelected) ids.forEach(id => newSet.delete(id));
+                                    else ids.forEach(id => newSet.add(id));
+                                    return newSet;
+                                });
                             }}
                             onDeleteImage={gallery.handleDelete}
                             onClearFilters={() => {
@@ -227,7 +293,12 @@ export default function GalleryPage() {
             {selectedGroup && !selectedImage && (
                 <ImageGroupModal
                     selectedGroup={selectedGroup}
-                    onClose={() => gallery.setSelectedGroup(null)}
+                    onClose={() => {
+                        gallery.setSelectedGroup(null);
+                        if (searchParams.get('set')) {
+                            router.replace('/gallery', { scroll: false });
+                        }
+                    }}
                     onImageSelect={gallery.setSelectedImage}
                     collections={gallery.collections}
                     onBatchToggleCollection={gallery.handleBatchToggleCollection}

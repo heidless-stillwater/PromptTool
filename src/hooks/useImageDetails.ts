@@ -24,6 +24,47 @@ export function useImageDetails(
     // League State
     const [publishingId, setPublishingId] = useState<string | null>(null);
 
+    // Suggestions for Prompt Set ID
+    const [existingPromptSetIDs, setExistingPromptSetIDs] = useState<{ id: string, thumbUrl: string }[]>([]);
+    const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+
+    useEffect(() => {
+        if (!isEditingPromptSetID || !user) return;
+
+        const fetchExistingIDs = async () => {
+            setIsLoadingSuggestions(true);
+            try {
+                const { collection, getDocs, orderBy, query, limit } = await import('firebase/firestore');
+                const imagesRef = collection(db, 'users', user.uid, 'images');
+                // Limit to 5000 to cover more history while keeping it relatively performant
+                const q = query(imagesRef, orderBy('createdAt', 'desc'), limit(5000));
+                const snapshot = await getDocs(q);
+
+                const idMap = new Map<string, string>();
+                snapshot.docs.forEach(doc => {
+                    const data = doc.data();
+                    const sid = data.promptSetID || data.settings?.promptSetID;
+                    if (sid && !idMap.has(sid)) {
+                        idMap.set(sid, data.imageUrl);
+                    }
+                });
+
+                const suggestions = Array.from(idMap.entries()).map(([id, thumbUrl]) => ({
+                    id,
+                    thumbUrl
+                }));
+
+                setExistingPromptSetIDs(suggestions);
+            } catch (err) {
+                console.error('Error fetching promptSetID suggestions:', err);
+            } finally {
+                setIsLoadingSuggestions(false);
+            }
+        };
+
+        fetchExistingIDs();
+    }, [isEditingPromptSetID, user]);
+
     // Initialize editing state when image changes
     useEffect(() => {
         setEditingPromptSetID(image.promptSetID || '');
@@ -103,7 +144,7 @@ export function useImageDetails(
     const toggleLeague = async () => {
         if (!user) return;
         const action = image.publishedToLeague ? 'unpublish' : 'publish';
-        if (action === 'unpublish' && !confirm('Remove this image from the Community League?')) return;
+        if (action === 'unpublish' && !confirm('Remove this image from the Community Hub?')) return;
 
         setPublishingId(image.id);
         try {
@@ -126,7 +167,7 @@ export function useImageDetails(
             });
 
             showToast(
-                action === 'publish' ? '🏆 Published to Community League!' : 'Removed from Community League',
+                action === 'publish' ? '🏆 Published to Community Hub!' : 'Removed from Community Hub',
                 'success'
             );
         } catch (error: any) {
@@ -203,6 +244,8 @@ export function useImageDetails(
         editingPromptSetID,
         setEditingPromptSetID,
         isSavingPromptSetID,
+        existingPromptSetIDs,
+        isLoadingSuggestions,
         newImageTag,
         setNewImageTag,
         isUpdatingTags,

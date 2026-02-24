@@ -8,8 +8,9 @@ import { Badge } from '@/components/ui/Badge';
 import { cn } from '@/lib/utils';
 
 interface GalleryToolbarProps {
-    searchQuery: string;
-    onSearchChange: (value: string) => void;
+    viewMode: 'personal' | 'admin' | 'global';
+    setViewMode: (mode: 'personal' | 'admin' | 'global') => void;
+    isSu: boolean;
     isGrouped: boolean;
     onToggleGrouped: () => void;
     selectionMode: boolean;
@@ -38,7 +39,7 @@ interface GalleryToolbarProps {
 }
 
 export default function GalleryToolbar({
-    searchQuery, onSearchChange,
+    viewMode, setViewMode, isSu,
     isGrouped, onToggleGrouped,
     selectionMode, onToggleSelectionMode, onClearSelection,
     filterTag, onFilterTagChange,
@@ -56,20 +57,9 @@ export default function GalleryToolbar({
 
     return (
         <div className="space-y-6">
-            <Card variant="glass" className="p-4 flex flex-col xl:flex-row gap-4 items-center">
-                {/* Search */}
-                <div className="flex-1 w-full">
-                    <Input
-                        placeholder="Search your library..."
-                        value={searchQuery}
-                        onChange={(e) => onSearchChange(e.target.value)}
-                        className="h-11 text-sm bg-background-secondary/50"
-                        icon={<Icons.search size={18} className="text-foreground-muted/60" />}
-                    />
-                </div>
-
+            <Card variant="glass" className="p-4 flex flex-wrap gap-3 items-center">
                 {/* Filters */}
-                <div className="flex flex-wrap md:flex-nowrap gap-3 items-center w-full xl:w-auto overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+                <div className="flex flex-wrap md:flex-nowrap gap-3 items-center w-full overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
                     <div className="flex bg-background-secondary/50 rounded-xl p-1 border border-border/50">
                         <Button
                             variant={!isGrouped ? 'primary' : 'ghost'}
@@ -171,6 +161,47 @@ export default function GalleryToolbar({
                             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-accent rounded-full border-2 border-background animate-pulse" />
                         )}
                     </Button>
+
+                    {isSu && (
+                        <>
+                            <div className="h-6 w-px bg-border/50 mx-1 hidden md:block" />
+                            <div className="flex bg-background-secondary/50 rounded-xl p-1 border border-primary/20 ring-1 ring-primary/10">
+                                <Button
+                                    variant={viewMode === 'personal' ? 'primary' : 'ghost'}
+                                    size="sm"
+                                    onClick={() => setViewMode('personal')}
+                                    className={cn(
+                                        "rounded-lg text-[9px] h-8 px-3 font-black tracking-widest uppercase transition-all",
+                                        viewMode === 'personal' ? "shadow-lg shadow-primary/20" : "text-foreground-muted hover:text-foreground"
+                                    )}
+                                >
+                                    Personal
+                                </Button>
+                                <Button
+                                    variant={viewMode === 'admin' ? 'primary' : 'ghost'}
+                                    size="sm"
+                                    onClick={() => setViewMode('admin')}
+                                    className={cn(
+                                        "rounded-lg text-[9px] h-8 px-3 font-black tracking-widest uppercase transition-all",
+                                        viewMode === 'admin' ? "bg-accent hover:bg-accent-hover text-white shadow-lg shadow-accent/20" : "text-foreground-muted hover:text-foreground"
+                                    )}
+                                >
+                                    Admins
+                                </Button>
+                                <Button
+                                    variant={viewMode === 'global' ? 'primary' : 'ghost'}
+                                    size="sm"
+                                    onClick={() => setViewMode('global')}
+                                    className={cn(
+                                        "rounded-lg text-[9px] h-8 px-3 font-black tracking-widest uppercase transition-all",
+                                        viewMode === 'global' ? "bg-error hover:bg-error-hover text-white shadow-lg shadow-error/20" : "text-foreground-muted hover:text-foreground"
+                                    )}
+                                >
+                                    Global
+                                </Button>
+                            </div>
+                        </>
+                    )}
                 </div>
             </Card>
 

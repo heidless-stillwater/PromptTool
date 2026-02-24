@@ -26,8 +26,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         }
 
         const entry = entryDoc.data()!;
-        const title = `AI Art by ${entry.authorName} - Community League`;
-        const description = entry.prompt || 'Check out this amazing AI-generated art in the Community League!';
+        const title = `AI Art by ${entry.authorName} - Community Hub`;
+        const description = entry.prompt || 'Check out this amazing AI-generated art in the Community Hub!';
         const imageUrl = entry.imageUrl;
 
         return {
@@ -49,7 +49,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     } catch (error) {
         console.error('Error generating metadata:', error);
         return {
-            title: 'Community League',
+            title: 'Community Hub',
             description: 'Vote for your favorite AI-generated images.'
         };
     }

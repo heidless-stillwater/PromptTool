@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { LeagueEntry, BADGES, LeagueComment } from '@/lib/types';
 import { formatDate } from '@/lib/date-utils';
 import ReactionPicker from '@/components/ReactionPicker';
@@ -12,6 +13,9 @@ import Tooltip from '@/components/Tooltip';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
 import { cn } from '@/lib/utils';
+import CollectionSelector from '@/components/gallery/image-detail/CollectionSelector';
+import { Badge } from '@/components/ui/Badge';
+import { useToast } from '@/components/Toast';
 
 interface LeagueEntryModalProps {
     entry: LeagueEntry;
@@ -29,6 +33,12 @@ interface LeagueEntryModalProps {
     onDeleteComment: (id: string) => Promise<void>;
     onReact: (id: string, emoji: string, reacted: boolean) => void;
     onReport: (id: string) => Promise<void>;
+    collections?: any[];
+    onToggleCollection?: (collectionId: string) => Promise<void>;
+    onUnpublish?: () => Promise<void>;
+    isUnpublishing?: boolean;
+    onFilterUser?: (userId: string, userName: string) => void;
+    onShare?: (entryId: string) => void;
 }
 
 export default function LeagueEntryModal({
@@ -46,8 +56,17 @@ export default function LeagueEntryModal({
     onAddComment,
     onDeleteComment,
     onReact,
-    onReport
+    onReport,
+    collections,
+    onToggleCollection,
+    onUnpublish,
+    isUnpublishing,
+    onFilterUser,
+    onShare
 }: LeagueEntryModalProps) {
+    const router = useRouter();
+    const { showToast } = useToast();
+    const [isSharing, setIsSharing] = useState(false);
     const [showReportModal, setShowReportModal] = useState(false);
     const [isReporting, setIsReporting] = useState(false);
     const [error, setError] = useState(false);
@@ -149,6 +168,25 @@ export default function LeagueEntryModal({
                                 </div>
                             </Link>
 
+                            <div className="flex items-center gap-2 ml-auto mr-4">
+                                {onFilterUser && (
+                                    <Tooltip content={`Filter feed by ${entry.authorName}`}>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => {
+                                                onFilterUser(entry.originalUserId, entry.authorName);
+                                                onClose();
+                                            }}
+                                            className="h-8 px-2 text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary hover:bg-primary/5 gap-2"
+                                        >
+                                            <Icons.filter size={14} />
+                                            <span className="hidden sm:inline">Filter Feed</span>
+                                        </Button>
+                                    </Tooltip>
+                                )}
+                            </div>
+
                             <div className="flex items-center gap-2">
                                 {user && user.uid !== entry.originalUserId && (
                                     <Tooltip content={isFollowing ? 'Unfollow' : 'Follow'} position="bottom">
@@ -174,12 +212,57 @@ export default function LeagueEntryModal({
                             </div>
                         </div>
 
+                        {/* Unpublish Warning for Creator/Admin */}
+                        {(user && (user.uid === entry.originalUserId || userRole === 'admin' || userRole === 'su')) && onUnpublish && (
+                            <div className="px-4 py-2 bg-error/5 border-b border-error/10 flex items-center justify-between group/unpublish">
+                                <div className="flex items-center gap-2 text-error/70">
+                                    <Icons.alert size={14} />
+                                    <span className="text-[10px] font-black uppercase tracking-widest">Creator Tools</span>
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={onUnpublish}
+                                    isLoading={isUnpublishing}
+                                    className="h-7 px-2 text-[9px] font-black uppercase tracking-widest text-error/50 hover:text-error hover:bg-error/10 border border-transparent hover:border-error/20 transition-all"
+                                >
+                                    <Icons.delete size={12} className="mr-1" />
+                                    Remove from Hub
+                                </Button>
+                            </div>
+                        )}
+
                         {/* Scrollable content */}
                         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
                             {/* Prompt */}
-                            <div className="space-y-1">
-                                <label className="text-[10px] text-foreground-muted uppercase tracking-widest font-black">Prompt</label>
+                            <div className="space-y-1 group/prompt relative">
+                                <div className="flex justify-between items-center">
+                                    <label className="text-[10px] text-foreground-muted uppercase tracking-widest font-black">Prompt</label>
+                                    <button
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(entry.prompt);
+                                            showToast('Prompt copied to clipboard', 'success');
+                                        }}
+                                        className="text-[10px] font-black uppercase tracking-widest text-primary opacity-0 group-hover/prompt:opacity-100 transition-opacity hover:text-primary/80"
+                                    >
+                                        Copy Prompt
+                                    </button>
+                                </div>
                                 <p className="text-sm leading-relaxed text-foreground/90">{entry.prompt}</p>
+
+                                <Tooltip content="Create variation" className="w-full mt-2">
+                                    <Button
+                                        onClick={() => {
+                                            router.push(`/generate?ref=${entry.id}`);
+                                        }}
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full gap-2 font-black uppercase text-[10px] tracking-widest text-primary border-primary/20 hover:border-primary/40 bg-primary/5 hover:bg-primary/10 transition-all h-9"
+                                    >
+                                        <Icons.variation className="w-3.5 h-3.5" />
+                                        <span>Generate Variation</span>
+                                    </Button>
+                                </Tooltip>
                             </div>
 
                             {/* Settings */}
@@ -192,7 +275,65 @@ export default function LeagueEntryModal({
                                     <label className="text-[10px] text-foreground-muted uppercase tracking-widest font-black">Aspect</label>
                                     <p className="text-sm font-medium">{entry.settings.aspectRatio}</p>
                                 </div>
+                                {entry.promptSetID && (
+                                    <div className="space-y-1 col-span-2">
+                                        <label className="text-[10px] text-foreground-muted uppercase tracking-widest font-black">Batch ID</label>
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-[11px] font-mono text-foreground-muted truncate bg-background-secondary rounded px-2 py-0.5 border border-border/50 max-w-[240px]">{entry.promptSetID}</p>
+                                            <button
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(entry.promptSetID!);
+                                                    showToast('Batch ID copied', 'success');
+                                                }}
+                                                className="text-foreground-muted hover:text-primary transition-colors"
+                                                title="Copy Batch ID"
+                                            >
+                                                <Icons.copy size={12} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
+
+                            {/* Collections Section */}
+                            {(entry.collectionNames && entry.collectionNames.length > 0) || (user && user.uid === entry.originalUserId) ? (
+                                <div className="space-y-2 pt-2 border-t border-border/50">
+                                    {/* Author Management View */}
+                                    {user && user.uid === entry.originalUserId && collections && onToggleCollection ? (
+                                        <CollectionSelector
+                                            collections={collections}
+                                            selectedIds={entry.collectionIds || []}
+                                            onToggle={onToggleCollection}
+                                        />
+                                    ) : (
+                                        /* Public View (Read-only names) */
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {entry.collectionNames?.map(name => (
+                                                <Badge key={name} variant="outline" className="text-[10px] py-0 px-2 h-5 border-primary/20 bg-primary/5 text-primary">
+                                                    {name}
+                                                </Badge>
+                                            ))}
+                                            {(!entry.collectionNames || entry.collectionNames.length === 0) && (
+                                                <p className="text-xs text-foreground-muted italic">No collections.</p>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            ) : null}
+
+                            {/* Tags */}
+                            {entry.tags && entry.tags.length > 0 && (
+                                <div className="space-y-2 pt-2 border-t border-border/50">
+                                    <label className="text-[10px] text-foreground-muted uppercase tracking-widest font-black block">Tags</label>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {entry.tags.map(tag => (
+                                            <Badge key={tag} variant="secondary" className="text-[10px] py-0 px-2 h-5 bg-background-secondary border-border/50">
+                                                #{tag}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Vote + Share Actions */}
                             <div className="flex flex-col gap-3 pt-4 border-t border-border/50">
@@ -208,19 +349,13 @@ export default function LeagueEntryModal({
                                             <span>{entry.voteCount} {entry.voteCount === 1 ? 'vote' : 'votes'}</span>
                                         </Button>
                                     </Tooltip>
-
-                                    <Tooltip content="Create variation" className="flex-1">
-                                        <Button
-                                            onClick={() => {
-                                                window.location.href = `/generate?ref=${entry.id}`;
-                                            }}
-                                            variant="outline"
-                                            className="w-full gap-2 font-bold text-foreground-muted hover:text-primary transition-colors"
-                                        >
-                                            <Icons.variation className="w-5 h-5" />
-                                            <span>Variation</span>
-                                        </Button>
-                                    </Tooltip>
+                                    {(entry.variationCount || 0) > 0 && (
+                                        <div className="flex items-center gap-1.5 px-3 py-1 bg-secondary/10 text-secondary rounded-lg border border-secondary/20">
+                                            <Icons.variation className="w-4 h-4" />
+                                            <span className="text-sm font-bold">{entry.variationCount}</span>
+                                            <span className="text-[10px] uppercase tracking-wider font-black opacity-60 ml-1">Variations</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="flex items-center justify-between gap-4">
@@ -233,7 +368,12 @@ export default function LeagueEntryModal({
                                     </div>
 
                                     <div className="flex items-center gap-1">
-                                        <ShareButtons entryId={entry.id} imageUrl={entry.imageUrl} prompt={entry.prompt} />
+                                        <ShareButtons
+                                            entryId={entry.id}
+                                            imageUrl={entry.imageUrl}
+                                            prompt={entry.prompt}
+                                            onShare={onShare}
+                                        />
 
                                         <Tooltip content="Report" position="left">
                                             <Button
@@ -276,6 +416,6 @@ export default function LeagueEntryModal({
                 isLoading={isReporting}
                 type="warning"
             />
-        </div>
+        </div >
     );
 }

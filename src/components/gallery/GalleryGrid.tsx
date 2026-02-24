@@ -24,6 +24,7 @@ interface GalleryGridProps {
     onImageSelect: (image: GeneratedImage) => void;
     onGroupSelect: (images: GeneratedImage[]) => void;
     onToggleImageSelection: (id: string, e?: React.MouseEvent) => void;
+    onToggleGroupSelection: (ids: string[]) => void;
     onDeleteImage: (id: string) => void;
     onClearFilters: () => void;
 }
@@ -43,6 +44,7 @@ export default function GalleryGrid({
     onImageSelect,
     onGroupSelect,
     onToggleImageSelection,
+    onToggleGroupSelection,
     onDeleteImage,
     onClearFilters
 }: GalleryGridProps) {
@@ -107,9 +109,7 @@ export default function GalleryGrid({
                                 index={index}
                                 onClick={() => {
                                     if (selectionMode) {
-                                        groupIds.forEach(id => {
-                                            if (!selectedImageIds.has(id)) onToggleImageSelection(id, undefined);
-                                        });
+                                        onToggleGroupSelection(groupIds);
                                     } else {
                                         onGroupSelect(groupImages);
                                     }

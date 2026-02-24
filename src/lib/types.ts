@@ -150,6 +150,7 @@ export interface GeneratedImage {
     leagueEntryId?: string;       // Reference to leagueEntries doc when published
     tags?: string[];             // Per-image tagging for discovery
     duration?: number;           // Video duration in seconds
+    variationCount?: number;     // Count of variations generated from this image
 }
 
 // ============================================
@@ -176,10 +177,19 @@ export interface LeagueEntry {
     // Engagement
     voteCount: number;
     commentCount: number;
+    shareCount: number;
+    authorFollowerCount?: number;
     reportCount?: number;
     isModerated?: boolean;
     votes: Record<string, boolean>; // userId → true
     reactions?: Record<string, string[]>; // emoji → [userIds]
+    collectionIds?: string[];
+    collectionNames?: string[];
+    variationCount?: number;     // Count of variations generated from this entry
+    tags?: string[];
+    promptSetID?: string;       // Unique ID for the batch/generation set
+    isStack?: boolean;          // UI-only: whether this card represents a stack of variations
+    stackSize?: number;         // UI-only: number of variations in the stack
 }
 
 export interface LeagueComment {

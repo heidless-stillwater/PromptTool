@@ -320,36 +320,30 @@ export default function SettingsPage() {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-3">
-                                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted ml-1">
-                                        Display Name
-                                    </label>
                                     <Input
+                                        label="Display Name"
                                         value={displayName}
                                         onChange={(e) => setDisplayName(e.target.value)}
                                         maxLength={50}
                                         placeholder="Stillwater Creator"
-                                        className="h-12 bg-background-secondary/50"
                                     />
                                     <div className="flex justify-end">
                                         <span className="text-[9px] font-black uppercase tracking-widest text-foreground-muted opacity-40">{displayName.length}/50</span>
                                     </div>
                                 </div>
 
-                                <div className="space-y-3">
-                                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted ml-1">
+                                <div className="space-y-1.5 flex flex-col">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted ml-1">
                                         Unique Username
                                     </label>
-                                    <div className="relative">
-                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-primary font-black z-10">@</div>
-                                        <Input
-                                            value={username}
-                                            onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                                            maxLength={20}
-                                            placeholder="your_handle"
-                                            className="h-12 pl-10 bg-background-secondary/50"
-                                        />
-                                    </div>
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-foreground-muted opacity-60 leading-relaxed px-1">
+                                    <Input
+                                        value={username}
+                                        onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                                        maxLength={20}
+                                        placeholder="your_handle"
+                                        icon={<span className="text-primary font-black">@</span>}
+                                    />
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-foreground-muted opacity-60 leading-relaxed px-1 mt-1">
                                         Lowercase letters, numbers, and underscores only.
                                     </p>
                                 </div>
@@ -364,7 +358,7 @@ export default function SettingsPage() {
                                     onChange={(e) => setBio(e.target.value)}
                                     maxLength={500}
                                     placeholder="Share your creative vision, preferred styles, or artistic journey with the community..."
-                                    className="w-full bg-background-secondary/50 border border-border rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all outline-none min-h-[140px] resize-none leading-relaxed"
+                                    className="w-full rounded-xl bg-background-secondary border border-border text-foreground transition-all duration-200 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 placeholder:text-foreground-muted text-sm font-medium min-h-[140px] resize-none py-3 px-4 leading-relaxed"
                                 />
                                 <div className="flex justify-end">
                                     <span className="text-[9px] font-black uppercase tracking-widest text-foreground-muted opacity-40">{bio.length}/500</span>
@@ -381,56 +375,31 @@ export default function SettingsPage() {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="space-y-3">
-                                <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted ml-1">
-                                    X (Twitter) Handle
-                                </label>
-                                <div className="relative">
-                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted pointer-events-none z-10">
-                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
-                                    </div>
-                                    <Input
-                                        value={socialLinks.twitter}
-                                        onChange={(e) => setSocialLinks(prev => ({ ...prev, twitter: e.target.value.replace(/^@/, '') }))}
-                                        placeholder="username"
-                                        className="h-12 pl-12 bg-background-secondary/50"
-                                    />
-                                </div>
-                            </div>
+                            <Input
+                                label="X (Twitter) Handle"
+                                value={socialLinks.twitter}
+                                onChange={(e) => setSocialLinks(prev => ({ ...prev, twitter: e.target.value.replace(/^@/, '') }))}
+                                placeholder="username"
+                                icon={<Icons.twitter size={16} />}
+                            />
 
-                            <div className="space-y-3">
-                                <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted ml-1">
-                                    Instagram Handle
-                                </label>
-                                <div className="relative">
-                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted pointer-events-none z-10">
-                                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M7.75 2h8.5A5.75 5.75 0 0 1 22 7.75v8.5A5.75 5.75 0 0 1 16.25 22h-8.5A5.75 5.75 0 0 1 2 16.25v-8.5A5.75 5.75 0 0 1 7.75 2zm0 1.5a4.25 4.25 0 0 0-4.25 4.25v8.5a4.25 4.25 0 0 0 4.25 4.25h8.5a4.25 4.25 0 0 0 4.25-4.25v-8.5a4.25 4.25 0 0 0-4.25-4.25h-8.5zM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm0 1.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm5.25-.75a1 1 0 1 1 0 2 1 1 0 0 1 0-2z" /></svg>
-                                    </div>
-                                    <Input
-                                        value={socialLinks.instagram}
-                                        onChange={(e) => setSocialLinks(prev => ({ ...prev, instagram: e.target.value.replace(/^@/, '') }))}
-                                        placeholder="username"
-                                        className="h-12 pl-12 bg-background-secondary/50"
-                                    />
-                                </div>
-                            </div>
+                            <Input
+                                label="Instagram Handle"
+                                value={socialLinks.instagram}
+                                onChange={(e) => setSocialLinks(prev => ({ ...prev, instagram: e.target.value.replace(/^@/, '') }))}
+                                placeholder="username"
+                                icon={<Icons.instagram size={16} />}
+                            />
 
-                            <div className="md:col-span-2 space-y-3">
-                                <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted ml-1">
-                                    Personal Portfolio Website
-                                </label>
-                                <div className="relative">
-                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground-muted pointer-events-none z-10">
-                                        <Icons.globe size={16} />
-                                    </div>
-                                    <Input
-                                        type="url"
-                                        value={socialLinks.website}
-                                        onChange={(e) => setSocialLinks(prev => ({ ...prev, website: e.target.value }))}
-                                        placeholder="https://yourportfolio.com"
-                                        className="h-12 pl-12 bg-background-secondary/50"
-                                    />
-                                </div>
+                            <div className="md:col-span-2">
+                                <Input
+                                    type="url"
+                                    label="Personal Portfolio Website"
+                                    value={socialLinks.website}
+                                    onChange={(e) => setSocialLinks(prev => ({ ...prev, website: e.target.value }))}
+                                    placeholder="https://yourportfolio.com"
+                                    icon={<Icons.globe size={16} />}
+                                />
                             </div>
                         </div>
                     </Card>
@@ -460,7 +429,7 @@ export default function SettingsPage() {
                         </Button>
                     </div>
                 </form>
-            </main>
-        </div>
+            </main >
+        </div >
     );
 }

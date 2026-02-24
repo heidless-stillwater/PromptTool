@@ -11,6 +11,11 @@ interface AdminStats {
     totalCreditsUsed: number;
     totalLifetimeUsed: number;
     activeContestants?: number;
+    totalVotes: number;
+    totalComments: number;
+    totalPublished: number;
+    topTags: { tag: string; count: number }[];
+    recentGenerations: number;
 }
 
 interface LeaderInfo {
@@ -32,7 +37,12 @@ export function useAdminOverview() {
         totalImages: 0,
         totalCreditsUsed: 0,
         totalLifetimeUsed: 0,
-        activeContestants: 0
+        activeContestants: 0,
+        totalVotes: 0,
+        totalComments: 0,
+        totalPublished: 0,
+        topTags: [],
+        recentGenerations: 0
     });
 
     const [loading, setLoading] = useState(true);
@@ -83,6 +93,11 @@ export function useAdminOverview() {
                     totalImages: data.totalImages,
                     totalCreditsUsed: data.totalCreditsHeld,
                     totalLifetimeUsed: data.totalLifetimeUsed,
+                    totalVotes: data.totalVotes || 0,
+                    totalComments: data.totalComments || 0,
+                    totalPublished: data.totalPublished || 0,
+                    topTags: data.topTags || [],
+                    recentGenerations: data.recentGenerations || 0
                 }));
             }
             await fetchRewardsAndPreview();

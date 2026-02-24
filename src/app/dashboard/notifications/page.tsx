@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, query, orderBy, getDocs, doc, writeBatch } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, doc, writeBatch, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { Notification } from '@/lib/types';
@@ -10,12 +10,14 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Icons } from '@/components/ui/Icons';
+import UserAvatar from '@/components/UserAvatar';
 
 export default function NotificationsPage() {
     const { user, profile, loading: authLoading } = useAuth();
     const router = useRouter();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(true);
+    const [actorPhotos, setActorPhotos] = useState<Record<string, string>>({});
 
     useEffect(() => {
         if (authLoading) return;
@@ -46,6 +48,38 @@ export default function NotificationsPage() {
 
         fetchNotifications();
     }, [user, authLoading, router]);
+
+    // Fetch current profile photos for all actors
+    useEffect(() => {
+        if (notifications.length === 0) return;
+        const actorIds = notifications
+            .filter(n => n.actorId && !actorPhotos[n.actorId])
+            .map(n => n.actorId);
+        const uniqueActors = Array.from(new Set(actorIds));
+        if (uniqueActors.length === 0) return;
+
+        Promise.all(
+            uniqueActors.map(async (actorId) => {
+                try {
+                    const actorDoc = await getDoc(doc(db, 'users', actorId));
+                    const data = actorDoc.data();
+                    return { actorId, photoURL: data?.photoURL || null };
+                } catch {
+                    return { actorId, photoURL: null };
+                }
+            })
+        ).then(results => {
+            const newPhotos: Record<string, string> = {};
+            results.forEach(r => {
+                if (r.photoURL && r.photoURL !== 'null' && r.photoURL !== 'undefined') {
+                    newPhotos[r.actorId] = r.photoURL;
+                }
+            });
+            if (Object.keys(newPhotos).length > 0) {
+                setActorPhotos(prev => ({ ...prev, ...newPhotos }));
+            }
+        });
+    }, [notifications]);
 
     const markAllAsRead = async () => {
         if (!user || notifications.length === 0) return;
@@ -155,13 +189,12 @@ export default function NotificationsPage() {
                                 >
                                     {/* Actor Photo */}
                                     <div className="relative flex-shrink-0">
-                                        {notif.actorPhotoURL && notif.actorPhotoURL !== 'null' ? (
-                                            <img src={notif.actorPhotoURL} alt={notif.actorName || 'User Avatar'} className="w-14 h-14 rounded-full border-2 border-border group-hover:border-primary/50 transition-colors shadow-lg" />
-                                        ) : (
-                                            <div className="w-14 h-14 rounded-full bg-background-tertiary flex items-center justify-center text-xl font-bold border-2 border-border group-hover:border-primary/50 transition-colors">
-                                                {(notif.actorName || 'A').charAt(0).toUpperCase()}
-                                            </div>
-                                        )}
+                                        <UserAvatar
+                                            src={actorPhotos[notif.actorId] || notif.actorPhotoURL || null}
+                                            name={notif.actorName}
+                                            size="lg"
+                                            className="border-2 border-border group-hover:border-primary/50 shadow-lg"
+                                        />
                                         <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-background rounded-full flex items-center justify-center text-sm shadow-xl ring-4 ring-background">
                                             {notif.type === 'vote' ? '❤️' : notif.type === 'comment' ? '💬' : '👤'}
                                         </div>

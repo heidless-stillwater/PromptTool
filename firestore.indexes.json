@@ -43,6 +43,76 @@
             ]
         },
         {
+            "collectionGroup": "leagueEntries",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "originalUserId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "publishedAt",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "leagueEntries",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "variationCount",
+                    "order": "DESCENDING"
+                },
+                {
+                    "fieldPath": "publishedAt",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "leagueEntries",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "commentCount",
+                    "order": "DESCENDING"
+                },
+                {
+                    "fieldPath": "publishedAt",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "leagueEntries",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "authorFollowerCount",
+                    "order": "DESCENDING"
+                },
+                {
+                    "fieldPath": "publishedAt",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "leagueEntries",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "shareCount",
+                    "order": "DESCENDING"
+                },
+                {
+                    "fieldPath": "publishedAt",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
             "collectionGroup": "images",
             "queryScope": "COLLECTION",
             "fields": [

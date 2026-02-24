@@ -7,6 +7,8 @@ import { Card } from '@/components/ui/Card';
 import ShareButtons from '@/components/ShareButtons';
 import { cn } from '@/lib/utils';
 
+import { useRouter } from 'next/navigation';
+
 interface PreviewSectionProps {
     generating: boolean;
     generatedImages: GeneratedImage[];
@@ -19,6 +21,7 @@ interface PreviewSectionProps {
     generationProgress: { current: number; total: number; message: string } | null;
     onShowTextEditor: () => void;
     onDownload: (format: 'png' | 'jpeg' | 'mp4') => void;
+    promptSetID?: string;
 }
 
 export default function PreviewSection({
@@ -32,8 +35,10 @@ export default function PreviewSection({
     aspectRatio,
     generationProgress,
     onShowTextEditor,
-    onDownload
+    onDownload,
+    promptSetID
 }: PreviewSectionProps) {
+    const router = useRouter();
     const currentImg = generatedImages[selectedImageIndex];
     const isVideo = modality === 'video' || currentImg?.settings?.modality === 'video' || !!currentImg?.videoUrl;
 
@@ -175,6 +180,17 @@ export default function PreviewSection({
                                 {modality === 'video' ? 'MP4' : 'JPEG'}
                             </Button>
                         </div>
+
+                        {promptSetID && (
+                            <Button
+                                variant="ghost"
+                                onClick={() => router.push(`/gallery?set=${promptSetID}`)}
+                                className="w-full h-11 font-black uppercase tracking-widest text-[10px] text-primary hover:bg-primary/5 gap-2 border border-primary/20"
+                            >
+                                <Icons.image size={14} />
+                                View This Set in Gallery
+                            </Button>
+                        )}
 
                         {editedImage && (
                             <button

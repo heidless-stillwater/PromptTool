@@ -14,13 +14,14 @@ import {
     deleteField,
     increment,
     serverTimestamp,
-    deleteDoc
+    deleteDoc,
+    collectionGroup
 } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/Toast';
-import { GeneratedImage, CreditTransaction, Collection } from '@/lib/types';
+import { GeneratedImage, CreditTransaction, Collection, ADMIN_EMAILS } from '@/lib/types';
 
 export function useDashboard() {
     const { user, profile, credits, loading: authLoading, signOut, switchRole, effectiveRole, setAudienceMode, isAdmin, isSu } = useAuth();
@@ -33,6 +34,7 @@ export function useDashboard() {
     const [creditHistory, setCreditHistory] = useState<CreditTransaction[]>([]);
     const [recentLeagueEntries, setRecentLeagueEntries] = useState<any[]>([]);
     const [collections, setCollections] = useState<Collection[]>([]);
+    const [viewMode, setViewMode] = useState<'personal' | 'admin' | 'global'>('personal');
 
     // Loading States
     const [loadingImages, setLoadingImages] = useState(true);
@@ -107,8 +109,25 @@ export function useDashboard() {
         const fetchAll = async () => {
             // Images
             try {
-                const imagesRef = collection(db, 'users', user.uid, 'images');
-                const q = query(imagesRef, orderBy('createdAt', 'desc'), limit(24));
+                let q;
+                const isPersonal = viewMode === 'personal';
+                const isGlobal = viewMode === 'global' && isSu;
+                const isAdminView = viewMode === 'admin' && isSu;
+
+                if (isPersonal) {
+                    const imagesRef = collection(db, 'users', user.uid, 'images');
+                    q = query(imagesRef, orderBy('createdAt', 'desc'), limit(24));
+                } else if (isGlobal) {
+                    const imagesRef = collectionGroup(db, 'images');
+                    q = query(imagesRef, orderBy('createdAt', 'desc'), limit(24));
+                } else if (isAdminView) {
+                    const imagesRef = collectionGroup(db, 'images');
+                    q = query(imagesRef, where('userId', 'in', ADMIN_EMAILS), orderBy('createdAt', 'desc'), limit(24));
+                } else {
+                    const imagesRef = collection(db, 'users', user.uid, 'images');
+                    q = query(imagesRef, orderBy('createdAt', 'desc'), limit(24));
+                }
+
                 const snap = await getDocs(q);
                 setRecentImages(snap.docs.map(d => ({ id: d.id, ...d.data() } as GeneratedImage)));
             } catch (e) { console.error(e); } finally { setLoadingImages(false); }
@@ -139,7 +158,7 @@ export function useDashboard() {
         };
 
         fetchAll();
-    }, [user]);
+    }, [user, viewMode, isSu]);
 
     // Selection Handlers
     const toggleSelectionMode = () => {
@@ -149,19 +168,23 @@ export function useDashboard() {
 
     const toggleImageSelection = (id: string, e?: React.MouseEvent) => {
         if (e) { e.stopPropagation(); e.preventDefault(); }
-        const newSelected = new Set(selectedIds);
-        if (newSelected.has(id)) newSelected.delete(id);
-        else newSelected.add(id);
-        setSelectedIds(newSelected);
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
     };
 
     const toggleImageGroupSelection = (ids: string[], e?: React.MouseEvent) => {
         if (e) { e.stopPropagation(); e.preventDefault(); }
-        const newSelected = new Set(selectedIds);
-        const allSelected = ids.every(id => newSelected.has(id));
-        if (allSelected) ids.forEach(id => newSelected.delete(id));
-        else ids.forEach(id => newSelected.add(id));
-        setSelectedIds(newSelected);
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            const allSelected = ids.every(id => next.has(id));
+            if (allSelected) ids.forEach(id => next.delete(id));
+            else ids.forEach(id => next.add(id));
+            return next;
+        });
     };
 
     const handleSelectAll = () => {
@@ -309,13 +332,13 @@ export function useDashboard() {
         collections, loadingImages, loadingLeague, loadingHistory, isHistoryExpanded,
         isGrouped, selectionMode, selectedIds, isBulkDeleting, isBulkPublishing,
         isBulkCollecting, isBulkTagging, isCollectionModalOpen, isTagModalOpen, effectiveRole,
-        isAdmin, isSu,
+        isAdmin, isSu, viewMode,
 
         // Actions
         signOut, switchRole, setAudienceMode, setIsHistoryExpanded, setIsGrouped,
         toggleSelectionMode, toggleImageSelection, toggleImageGroupSelection,
         handleSelectAll, handleBulkDelete, handleBulkAddToCollection,
         handleBulkPublishToLeague, handleBulkAddTags, setIsCollectionModalOpen,
-        setIsTagModalOpen, groupImagesByPromptSet, setSelectedIds, setSelectionMode
+        setIsTagModalOpen, groupImagesByPromptSet, setSelectedIds, setSelectionMode, setViewMode
     };
 }

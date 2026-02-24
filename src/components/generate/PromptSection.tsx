@@ -8,6 +8,7 @@ import { Select } from '@/components/ui/Select';
 import { PROMPT_CATEGORIES, buildPromptFromMadLibs, FEATURED_PROMPTS } from '@/lib/prompt-templates';
 import { MadLibsSelection } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import Tooltip from '@/components/Tooltip';
 
 type PromptMode = 'freeform' | 'madlibs' | 'featured';
 
@@ -26,6 +27,9 @@ interface PromptSectionProps {
     referenceImage: { url: string } | null;
     loadingReference: boolean;
     onRemoveReference: () => void;
+    onUploadReference: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    onOpenGalleryPicker: () => void;
+    onOpenPromptPicker: () => void;
 }
 
 export default function PromptSection({
@@ -40,7 +44,10 @@ export default function PromptSection({
     isCasual,
     referenceImage,
     loadingReference,
-    onRemoveReference
+    onRemoveReference,
+    onUploadReference,
+    onOpenGalleryPicker,
+    onOpenPromptPicker
 }: PromptSectionProps) {
     return (
         <div className="space-y-6">
@@ -63,11 +70,106 @@ export default function PromptSection({
                 </div>
             )}
 
-            <Card className="relative overflow-visible p-5" variant="glass">
+            <Card className="relative overflow-visible p-5 border-border shadow-sm transition-all duration-500" variant="glass">
+                {/* Initial sparkle effect on entrance */}
+                <motion.div
+                    className="absolute -inset-[1px] rounded-[2rem] border-2 border-primary/50 pointer-events-none z-20"
+                    initial={{ opacity: 1, scale: 1 }}
+                    animate={{ opacity: 0, scale: 1.05 }}
+                    transition={{ duration: 1.2, ease: "easeOut" }}
+                />
+
+                {/* Reference Image Preview - Visible in all modes if active */}
+                {(loadingReference || referenceImage) && (
+                    <div className="mb-6 p-3 bg-primary/5 border border-primary/20 rounded-xl flex items-center gap-4 relative animate-in slide-in-from-top-2 duration-300">
+                        {loadingReference ? (
+                            <div className="flex items-center gap-3 w-full">
+                                <div className="w-12 h-12 rounded-lg bg-background-secondary flex items-center justify-center animate-pulse">
+                                    <Icons.spinner size={16} className="animate-spin text-primary" />
+                                </div>
+                                <div className="text-xs font-bold text-foreground-muted animate-pulse">Analyzing reference...</div>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="w-16 h-16 rounded-lg overflow-hidden border border-primary/20 shadow-md relative">
+                                    <img src={referenceImage!.url} alt="Reference" className="w-full h-full object-cover" />
+                                    {(referenceImage as any)?.isVideo && (
+                                        <div className="absolute bottom-0.5 right-0.5 bg-black/70 rounded px-1 py-0.5 text-[8px] text-white font-bold leading-none">
+                                            🎬
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <Icons.history size={12} className="text-primary" />
+                                        <span className="text-[10px] font-black text-primary uppercase tracking-wider">Variation mode active</span>
+                                    </div>
+                                    <p className="text-[10px] text-foreground-muted italic leading-tight">
+                                        {(referenceImage as any)?.isVideo
+                                            ? 'Using video still frame as visual reference'
+                                            : 'Using previous generation as visual reference'}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={onRemoveReference}
+                                    className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-red-500/10 hover:text-red-500 transition-colors text-foreground-muted"
+                                >
+                                    <Icons.close size={14} />
+                                </button>
+                            </>
+                        )}
+                    </div>
+                )}
+
                 {promptMode === 'freeform' && (
                     <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted ml-1">Your Vision</label>
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-4">
+                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted ml-1">Your Vision</label>
+
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="file"
+                                        id="ref-upload"
+                                        className="hidden"
+                                        accept="image/*"
+                                        onChange={onUploadReference}
+                                    />
+                                    <Tooltip content="Upload Reference">
+                                        <Button
+                                            variant="secondary"
+                                            size="icon"
+                                            className="h-7 w-7 bg-background-secondary border-border/50 hover:border-primary/50 text-foreground-muted hover:text-primary transition-all"
+                                            onClick={() => document.getElementById('ref-upload')?.click()}
+                                        >
+                                            <Icons.upload size={12} />
+                                        </Button>
+                                    </Tooltip>
+
+                                    <Tooltip content="Set Reference Image">
+                                        <Button
+                                            variant="secondary"
+                                            size="icon"
+                                            className="h-7 w-7 bg-background-secondary border-border/50 hover:border-primary/50 text-foreground-muted hover:text-primary transition-all"
+                                            onClick={onOpenGalleryPicker}
+                                        >
+                                            <Icons.image size={12} />
+                                        </Button>
+                                    </Tooltip>
+
+                                    <Tooltip content="Import Prompt from Gallery">
+                                        <Button
+                                            variant="secondary"
+                                            size="icon"
+                                            className="h-7 w-7 bg-background-secondary border-border/50 hover:border-primary/50 text-foreground-muted hover:text-primary transition-all"
+                                            onClick={onOpenPromptPicker}
+                                        >
+                                            <Icons.text size={12} />
+                                        </Button>
+                                    </Tooltip>
+                                </div>
+                            </div>
+
                             <motion.div
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
@@ -100,12 +202,12 @@ export default function PromptSection({
                                                 exit={{ opacity: 0, y: -10 }}
                                                 className="flex items-center"
                                             >
-                                                <Icons.wand size={12} className="mr-2 text-purple-500 group-hover:rotate-12 transition-transform" />
-                                                Magic Enhance
+                                                <Icons.wand size={12} className="mr-2 text-purple-500 group-hover:rotate-12 transition-transform shadow-[0_0_10px_rgba(168,85,247,0.5)]" />
+                                                Enhance
                                                 <motion.div
-                                                    className="absolute inset-0 bg-white/20 translate-x-[-100%]"
-                                                    animate={{ translateX: ['100%', '-100%'] }}
-                                                    transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                                                    className="absolute inset-x-0 top-0 h-full w-full bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:animate-shimmer pointer-events-none"
+                                                    style={{ transform: 'skewX(-20deg)' }}
+                                                    transition={{ duration: 0.5 }}
                                                 />
                                             </motion.div>
                                         )}
@@ -114,41 +216,6 @@ export default function PromptSection({
                             </motion.div>
                         </div>
 
-                        {/* Reference Image Preview */}
-                        {(loadingReference || referenceImage) && (
-                            <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl flex items-center gap-4 relative animate-in slide-in-from-top-2 duration-300">
-                                {loadingReference ? (
-                                    <div className="flex items-center gap-3 w-full">
-                                        <div className="w-12 h-12 rounded-lg bg-background-secondary flex items-center justify-center animate-pulse">
-                                            <Icons.spinner size={16} className="animate-spin text-primary" />
-                                        </div>
-                                        <div className="text-xs font-bold text-foreground-muted animate-pulse">Analyzing reference...</div>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <div className="w-16 h-16 rounded-lg overflow-hidden border border-primary/20 shadow-md">
-                                            <img src={referenceImage!.url} alt="Reference" className="w-full h-full object-cover" />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <Icons.history size={12} className="text-primary" />
-                                                <span className="text-[10px] font-black text-primary uppercase tracking-wider">Variation mode active</span>
-                                            </div>
-                                            <p className="text-[10px] text-foreground-muted italic leading-tight">Using previous generation as visual reference</p>
-                                        </div>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={onRemoveReference}
-                                            className="h-8 w-8 hover:bg-error/10 hover:text-error transition-colors"
-                                        >
-                                            <Icons.close size={14} />
-                                        </Button>
-                                    </>
-                                )}
-                            </div>
-                        )}
-
                         <div className="relative group/prompt">
                             <AnimatePresence>
                                 {enhancing && (
@@ -156,14 +223,20 @@ export default function PromptSection({
                                         initial={{ opacity: 0 }}
                                         animate={{ opacity: 1 }}
                                         exit={{ opacity: 0 }}
-                                        className="absolute inset-0 z-10 pointer-events-none rounded-xl overflow-hidden"
+                                        className="absolute inset-0 z-10 pointer-events-none rounded-xl overflow-hidden border-2 border-purple-500/30"
                                     >
                                         <motion.div
-                                            className="absolute inset-x-0 top-0 h-[200%] bg-gradient-to-b from-transparent via-purple-500/5 to-transparent shadow-[0_0_20px_rgba(168,85,247,0.1)]"
-                                            animate={{ translateY: ['-100%', '100%'] }}
-                                            transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                                            className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-500/10 to-transparent"
+                                            animate={{ translateX: ['-100%', '100%'] }}
+                                            transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
                                         />
-                                        <div className="absolute inset-0 bg-purple-500/5 animate-pulse" />
+                                        <motion.div
+                                            className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-pink-500/5"
+                                            animate={{
+                                                opacity: [0.4, 0.8, 0.4],
+                                            }}
+                                            transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                                        />
                                     </motion.div>
                                 )}
                             </AnimatePresence>
@@ -196,6 +269,35 @@ export default function PromptSection({
                                 </div>
                             </div>
                         </div>
+
+                        <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-500 delay-150">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-foreground-muted ml-1">Art Style</label>
+                                <Select
+                                    value={madLibs.style}
+                                    onChange={(e) => setMadLibs({ ...madLibs, style: e.target.value })}
+                                    className="bg-background-secondary"
+                                >
+                                    <option value="" className="bg-background text-foreground">Original / Freestyle</option>
+                                    {PROMPT_CATEGORIES.styles.map((s) => (
+                                        <option key={s} value={s} className="bg-background text-foreground">{s}</option>
+                                    ))}
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-foreground-muted ml-1">Vibe</label>
+                                <Select
+                                    value={madLibs.mood}
+                                    onChange={(e) => setMadLibs({ ...madLibs, mood: e.target.value })}
+                                    className="bg-background-secondary"
+                                >
+                                    <option value="" className="bg-background text-foreground">No specific vibe</option>
+                                    {PROMPT_CATEGORIES.moods.map((m) => (
+                                        <option key={m} value={m} className="bg-background text-foreground">{m}</option>
+                                    ))}
+                                </Select>
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -208,8 +310,9 @@ export default function PromptSection({
                                     value={madLibs.subject}
                                     onChange={(e) => setMadLibs({ ...madLibs, subject: e.target.value })}
                                 >
+                                    <option value="" className="bg-background text-foreground">Choose a subject...</option>
                                     {PROMPT_CATEGORIES.subjects.map((s) => (
-                                        <option key={s} value={s}>{s}</option>
+                                        <option key={s} value={s} className="bg-background text-foreground">{s}</option>
                                     ))}
                                 </Select>
                             </div>
@@ -219,8 +322,9 @@ export default function PromptSection({
                                     value={madLibs.action}
                                     onChange={(e) => setMadLibs({ ...madLibs, action: e.target.value })}
                                 >
+                                    <option value="" className="bg-background text-foreground">Choose an action...</option>
                                     {PROMPT_CATEGORIES.actions.map((a) => (
-                                        <option key={a} value={a}>{a}</option>
+                                        <option key={a} value={a} className="bg-background text-foreground">{a}</option>
                                     ))}
                                 </Select>
                             </div>
@@ -232,8 +336,9 @@ export default function PromptSection({
                                 value={madLibs.style}
                                 onChange={(e) => setMadLibs({ ...madLibs, style: e.target.value })}
                             >
+                                <option value="" className="bg-background text-foreground">Choose a style...</option>
                                 {PROMPT_CATEGORIES.styles.map((s) => (
-                                    <option key={s} value={s}>{s}</option>
+                                    <option key={s} value={s} className="bg-background text-foreground">{s}</option>
                                 ))}
                             </Select>
                         </div>
@@ -245,9 +350,9 @@ export default function PromptSection({
                                     value={madLibs.mood}
                                     onChange={(e) => setMadLibs({ ...madLibs, mood: e.target.value })}
                                 >
-                                    <option value="">Choose a vibe...</option>
+                                    <option value="" className="bg-background text-foreground">Choose a vibe...</option>
                                     {PROMPT_CATEGORIES.moods.map((m) => (
-                                        <option key={m} value={m}>{m}</option>
+                                        <option key={m} value={m} className="bg-background text-foreground">{m}</option>
                                     ))}
                                 </Select>
                             </div>
@@ -257,9 +362,9 @@ export default function PromptSection({
                                     value={madLibs.setting}
                                     onChange={(e) => setMadLibs({ ...madLibs, setting: e.target.value })}
                                 >
-                                    <option value="">Choose a place...</option>
+                                    <option value="" className="bg-background text-foreground">Choose a place...</option>
                                     {PROMPT_CATEGORIES.settings.map((s) => (
-                                        <option key={s} value={s}>{s}</option>
+                                        <option key={s} value={s} className="bg-background text-foreground">{s}</option>
                                     ))}
                                 </Select>
                             </div>

@@ -1,6 +1,12 @@
 import { GeneratedImage, Collection } from '@/lib/types';
 import { formatDate } from '@/lib/date-utils';
 import React, { useRef, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import SmartVideo from '@/components/SmartVideo';
+import SmartImage from '@/components/SmartImage';
+import { Icons } from '@/components/ui/Icons';
+import { useToast } from '@/components/Toast';
+import Tooltip from '@/components/Tooltip';
 
 
 interface ImageGroupModalProps {
@@ -34,9 +40,12 @@ export default function ImageGroupModal({
     collectionError,
     setCollectionError
 }: ImageGroupModalProps) {
+    const router = useRouter();
     const inputRef = useRef<HTMLInputElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [isCollectionDropdownOpen, setIsCollectionDropdownOpen] = useState(false);
+    const [copied, setCopied] = useState(false);
+    const { showToast } = useToast();
 
     useEffect(() => {
         if (showCreateCollection && inputRef.current) {
@@ -107,8 +116,8 @@ export default function ImageGroupModal({
                             </button>
 
                             {isCollectionDropdownOpen && (
-                                <div className="absolute right-0 top-full mt-2 w-64 bg-background border border-border rounded-xl shadow-xl z-50 overflow-hidden">
-                                    <div className="p-2 border-b border-border bg-background-secondary/50">
+                                <div className="absolute right-0 top-full mt-2 w-64 bg-[#12121a] border border-border rounded-xl shadow-2xl z-50 overflow-hidden backdrop-blur-xl ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-200">
+                                    <div className="p-2 border-b border-border bg-black/40">
                                         <span className="text-xs font-bold text-foreground-muted uppercase tracking-wider block px-2 mb-1">
                                             Add group to...
                                         </span>
@@ -141,7 +150,7 @@ export default function ImageGroupModal({
                                         )}
                                     </div>
 
-                                    <div className="p-2 border-t border-border bg-background-secondary/30">
+                                    <div className="p-2 border-t border-border bg-black/20">
                                         {!showCreateCollection ? (
                                             <button
                                                 onClick={() => setShowCreateCollection(true)}
@@ -170,7 +179,7 @@ export default function ImageGroupModal({
                                                         }
                                                     }}
                                                     placeholder="Collection name..."
-                                                    className="w-full px-2 py-1.5 bg-background border border-border rounded text-xs outline-none focus:ring-1 focus:ring-primary"
+                                                    className="w-full px-3 py-2 rounded-xl bg-background border border-border text-foreground text-xs transition-all duration-200 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 placeholder:text-foreground-muted"
                                                 />
                                                 {collectionError && (
                                                     <p className="text-[10px] text-error px-1">{collectionError}</p>
@@ -179,7 +188,7 @@ export default function ImageGroupModal({
                                                     <button
                                                         onClick={onCreateCollection}
                                                         disabled={creatingCollection || !newCollectionName.trim()}
-                                                        className="flex-1 bg-primary text-white text-xs font-bold py-1 rounded hover:bg-primary-hover disabled:opacity-50"
+                                                        className="flex-1 bg-primary text-white text-[10px] font-black uppercase tracking-widest py-1.5 rounded-lg hover:bg-primary-hover disabled:opacity-50 transition-colors"
                                                     >
                                                         {creatingCollection ? '...' : 'Create'}
                                                     </button>
@@ -188,7 +197,7 @@ export default function ImageGroupModal({
                                                             setShowCreateCollection(false);
                                                             setNewCollectionName('');
                                                         }}
-                                                        className="px-2 bg-background-tertiary text-foreground text-xs font-bold py-1 rounded hover:bg-background-secondary"
+                                                        className="px-2 bg-background-tertiary text-foreground text-[10px] font-black uppercase tracking-widest py-1.5 rounded-lg hover:bg-background-secondary transition-colors"
                                                     >
                                                         Cancel
                                                     </button>
@@ -199,6 +208,17 @@ export default function ImageGroupModal({
                                 </div>
                             )}
                         </div>
+
+                        <button
+                            onClick={() => {
+                                const sid = firstImage.promptSetID || firstImage.settings?.promptSetID;
+                                router.push(`/generate?ref=${firstImage.id}${sid ? `&sid=${sid}` : ''}`);
+                            }}
+                            className="px-3 py-1.5 bg-primary text-white hover:bg-primary-hover rounded-lg text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-primary/20 flex items-center gap-2 group"
+                        >
+                            <Icons.wand size={14} className="group-hover:rotate-12 transition-transform" />
+                            Generate new variations
+                        </button>
 
                         <button
                             onClick={onClose}
@@ -212,40 +232,152 @@ export default function ImageGroupModal({
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                    <p className="text-sm text-foreground mb-4 font-mono bg-background-secondary p-3 rounded-lg border border-border/50">
-                        {firstImage.prompt}
-                    </p>
+                    <Tooltip content="Click to generate new variations with this prompt" className="w-full block mb-4" position="bottom">
+                        <div
+                            onClick={() => {
+                                const sid = firstImage.promptSetID || firstImage.settings?.promptSetID;
+                                router.push(`/generate?ref=${firstImage.id}${sid ? `&sid=${sid}` : ''}`);
+                            }}
+                            className="flex gap-4 p-3 bg-background-secondary rounded-lg border border-border/50 group cursor-pointer hover:border-primary/40 hover:bg-background-tertiary transition-all relative overflow-hidden shadow-sm hover:shadow-md"
+                        >
+                            {/* Subtle highlight effect on hover */}
+                            <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/[0.03] transition-colors pointer-events-none" />
 
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {selectedGroup.map((image) => (
-                            <div
-                                key={image.id}
-                                onClick={() => onImageSelect(image)}
-                                className="group relative aspect-square rounded-xl overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition-all bg-background-secondary"
-                            >
-                                <img
-                                    src={image.imageUrl}
-                                    alt={image.prompt}
-                                    className="w-full h-full object-cover"
-                                    loading="lazy"
-                                />
-                                {image.sourceImageId && (
-                                    <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-accent/90 text-white text-[10px] font-bold rounded uppercase">
-                                        Variation
-                                    </div>
+                            <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border border-border/50 shadow-sm relative z-10">
+                                {firstImage.videoUrl || firstImage.settings?.modality === 'video' ? (
+                                    <>
+                                        {/(\.(mp4|webm|mov)(\?|$))/i.test(firstImage.imageUrl || '') ? (
+                                            <video
+                                                src={`${firstImage.imageUrl}#t=0.1`}
+                                                className="w-full h-full object-cover"
+                                                preload="metadata"
+                                                muted
+                                                playsInline
+                                            />
+                                        ) : (
+                                            <SmartImage
+                                                src={firstImage.imageUrl}
+                                                alt="Group Preview"
+                                                className="w-full h-full object-cover"
+                                            />
+                                        )}
+                                        <SmartVideo
+                                            src={firstImage.videoUrl || firstImage.imageUrl}
+                                            className="absolute inset-0 w-full h-full object-cover z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                                            loop
+                                            muted
+                                            preload="metadata"
+                                            onMouseEnter={(e) => { if (e.currentTarget.paused) e.currentTarget.play().catch(() => { }); }}
+                                            onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
+                                        />
+                                    </>
+                                ) : (
+                                    <img
+                                        src={firstImage.imageUrl}
+                                        alt="Group Preview"
+                                        className="w-full h-full object-cover"
+                                    />
                                 )}
-                                {image.publishedToLeague && (
-                                    <div className="absolute bottom-2 right-2 z-10 bg-yellow-500/90 text-white text-xs font-bold px-2 py-1 rounded-lg flex items-center gap-1 shadow-lg">
-                                        🏆
-                                    </div>
-                                )}
-                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                    <span className="text-white text-sm font-bold bg-black/50 px-3 py-1.5 rounded-full backdrop-blur-sm border border-white/20">
-                                        View Details
+                            </div>
+                            <div className="flex-1 min-w-0 group/prompt relative z-10">
+                                <p className="text-sm text-foreground font-mono line-clamp-3 leading-relaxed pr-10">
+                                    {firstImage.prompt}
+                                </p>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigator.clipboard.writeText(firstImage.prompt);
+                                        setCopied(true);
+                                        showToast('Prompt copied to clipboard', 'success');
+                                        setTimeout(() => setCopied(false), 2000);
+                                    }}
+                                    className="absolute right-0 top-0 p-2 hover:bg-background-secondary rounded-lg text-foreground-muted hover:text-primary transition-all flex items-center gap-2 group/copy z-20"
+                                    title="Copy full prompt"
+                                >
+                                    {copied ? (
+                                        <>
+                                            <span className="text-[10px] font-black uppercase tracking-wider hidden sm:inline">Copied!</span>
+                                            <Icons.check className="w-4 h-4 text-emerald-500" />
+                                        </>
+                                    ) : (
+                                        <Icons.copy className="w-4 h-4" />
+                                    )}
+                                </button>
+
+                                <div className="mt-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-1">
+                                        <Icons.wand size={10} />
+                                        Generate new variations
                                     </span>
                                 </div>
                             </div>
-                        ))}
+                        </div>
+                    </Tooltip>
+
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {selectedGroup.map((image) => {
+                            const isVideo = !!(image.videoUrl || image.settings?.modality === 'video');
+                            return (
+                                <div
+                                    key={image.id}
+                                    onClick={() => onImageSelect(image)}
+                                    className="group relative aspect-square rounded-xl overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition-all bg-background-secondary"
+                                >
+                                    {isVideo ? (
+                                        <>
+                                            {/(\.(mp4|webm|mov)(\?|$))/i.test(image.imageUrl || '') ? (
+                                                <video
+                                                    src={`${image.imageUrl}#t=0.1`}
+                                                    className="w-full h-full object-cover"
+                                                    preload="metadata"
+                                                    muted
+                                                    playsInline
+                                                />
+                                            ) : (
+                                                <SmartImage
+                                                    src={image.imageUrl}
+                                                    alt={image.prompt}
+                                                    className="w-full h-full object-cover"
+                                                    loading="lazy"
+                                                />
+                                            )}
+                                            <SmartVideo
+                                                src={image.videoUrl || image.imageUrl}
+                                                className="absolute inset-0 w-full h-full object-cover z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                                                loop
+                                                muted
+                                                preload="metadata"
+                                                onMouseEnter={(e) => { if (e.currentTarget.paused) e.currentTarget.play().catch(() => { }); }}
+                                                onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
+                                            />
+                                        </>
+                                    ) : (
+                                        <img
+                                            src={image.imageUrl}
+                                            alt={image.prompt}
+                                            className="w-full h-full object-cover"
+                                            loading="lazy"
+                                        />
+                                    )}
+
+                                    {image.sourceImageId && (
+                                        <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-accent/90 text-white text-[10px] font-bold rounded uppercase z-30">
+                                            Variation
+                                        </div>
+                                    )}
+                                    {image.publishedToLeague && (
+                                        <div className="absolute bottom-2 right-2 z-30 bg-yellow-500/90 text-white text-xs font-bold px-2 py-1 rounded-lg flex items-center gap-1 shadow-lg">
+                                            🏆
+                                        </div>
+                                    )}
+                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-40">
+                                        <span className="text-white text-sm font-bold bg-black/50 px-3 py-1.5 rounded-full backdrop-blur-sm border border-white/20">
+                                            View Details
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             </div>

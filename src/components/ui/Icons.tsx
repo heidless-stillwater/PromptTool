@@ -50,12 +50,26 @@ import {
     AlertTriangle,
     Activity,
     Wand2,
-    Shield
+    Shield,
+    Upload,
+    FileText,
+    List,
+    LayoutList,
+    Users,
+    Instagram,
+    Rows,
+    Tag
 } from "lucide-react"
 
 export const Icons = {
+    tag: Tag,
+    instagram: Instagram,
+
     spinner: Loader2,
+    users: Users,
     wand: Wand2,
+    text: FileText,
+    upload: Upload,
     download: Download,
     delete: Trash2,
     copy: Copy,
@@ -105,5 +119,8 @@ export const Icons = {
     alert: AlertTriangle,
     activity: Activity,
     shield: Shield,
-    error: AlertTriangle
+    error: AlertTriangle,
+    list: List,
+    feed: LayoutList,
+    rows: Rows
 }

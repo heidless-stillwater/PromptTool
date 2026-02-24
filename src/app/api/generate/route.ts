@@ -20,6 +20,7 @@ interface GenerateRequest {
     negativePrompt?: string;
     guidanceScale?: number;
     referenceImage?: string;      // Base64 image for Img2Img variations
+    referenceImageUrl?: string;   // URL for thumbnail initialization
     referenceMimeType?: string;   // MIME type of reference image
     sourceImageId?: string;       // Original image ID for variation tracking
     promptSetID?: string;         // Unique ID for the batch/generation set
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
         const {
             prompt, quality, aspectRatio, promptType, madlibsData,
             count, seed, negativePrompt, guidanceScale,
-            referenceImage, referenceMimeType, sourceImageId, promptSetID,
+            referenceImage, referenceImageUrl, referenceMimeType, sourceImageId, promptSetID,
             collectionIds, modality
         } = validatedData;
 
@@ -108,7 +109,7 @@ export async function POST(request: NextRequest) {
                     });
                 } else {
                     result = await nanoBananaService.generateImage({
-                        prompt, quality, aspectRatio, count, seed, negativePrompt, guidanceScale,
+                        prompt, quality: quality as any, aspectRatio, count, seed, negativePrompt, guidanceScale,
                         referenceImage, referenceMimeType,
                         onProgress: (current, total) => {
                             sendEvent({ type: 'progress', current, total, message: `Generated ${current} of ${total} images...` });
@@ -127,8 +128,9 @@ export async function POST(request: NextRequest) {
                 // 3. Save Media
                 for (let i = 0; i < result.images.length; i++) {
                     const mediaData = await GenerationService.saveMedia(userId, result.images[i], {
-                        prompt, quality, aspectRatio, promptType, madlibsData, seed, negativePrompt, guidanceScale,
-                        sourceImageId, promptSetID, collectionIds, requestedModality: modality, modality
+                        prompt, quality: quality as any, aspectRatio, promptType, madlibsData, seed, negativePrompt, guidanceScale,
+                        sourceImageId, promptSetID, collectionIds, requestedModality: modality, modality,
+                        initialImageUrl: referenceImageUrl
                     });
 
                     generatedMediaData.push(mediaData);
@@ -137,7 +139,7 @@ export async function POST(request: NextRequest) {
 
                 // 4. Deduct Credits
                 const newBalance = await GenerationService.deductCredits(validation, result.images.length, {
-                    modality, quality, aspectRatio, promptType, isAdvanced: isUsingAdvanced,
+                    modality, quality: quality as any, aspectRatio, promptType, isAdvanced: isUsingAdvanced,
                     prompt, firstImageUrl: generatedMediaData[0]?.imageUrl
                 });
 

@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -11,6 +10,7 @@ import Tooltip from '@/components/Tooltip';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Icons } from '@/components/ui/Icons';
+import { cn } from '@/lib/utils';
 
 interface LeagueEntryCardProps {
     entry: LeagueEntry;
@@ -19,6 +19,10 @@ interface LeagueEntryCardProps {
     isVoting: boolean;
     onSelect: (entry: LeagueEntry) => void;
     onReact: (entryId: string, emoji: string, reacted: boolean) => void;
+    viewMode?: 'grid' | 'feed' | 'compact' | 'creators' | 'list';
+    showLeaguePill?: boolean;
+    onFilterUser?: (userId: string, userName: string) => void;
+    onShare?: (entryId: string) => void;
 }
 
 export default function LeagueEntryCard({
@@ -27,17 +31,39 @@ export default function LeagueEntryCard({
     onVote,
     isVoting,
     onSelect,
-    onReact
+    onReact,
+    viewMode = 'grid',
+    showLeaguePill = false,
+    onFilterUser,
+    onShare,
 }: LeagueEntryCardProps) {
     const [error, setError] = useState(false);
-    const hasVoted = userId ? entry.votes?.[userId] === true : false;
-    const isVid = !!(entry.videoUrl || entry.settings?.modality === 'video');
+    const hasVoted = userId ? !!entry.votes?.[userId] : false;
+    const isStack = entry.isStack;
+    const stackSize = entry.stackSize || 0;
 
     return (
-        <Card className="overflow-hidden group hover:ring-2 hover:ring-primary/50 transition-all hover:shadow-xl hover:shadow-primary/5" variant="glass">
-            {/* Image / Video */}
+        <Card className={cn(
+            "overflow-hidden group hover:ring-2 hover:ring-primary/50 transition-all hover:shadow-xl hover:shadow-primary/5",
+            viewMode === 'feed' ? "rounded-3xl border-border/60" : "rounded-2xl",
+            isStack && "relative overflow-visible"
+        )} variant="glass">
+            {/* Stack shadow layers */}
+            {isStack && (
+                <>
+                    <div className="absolute inset-x-3 -bottom-1.5 h-full bg-background-secondary border border-border/40 rounded-2xl z-0 pointer-events-none opacity-50" />
+                    {stackSize > 2 && (
+                        <div className="absolute inset-x-5 -bottom-3 h-full bg-background-secondary/30 border border-border/30 rounded-2xl z-[-1] pointer-events-none opacity-30" />
+                    )}
+                </>
+            )}
+
+            {/* Media Area */}
             <div
-                className="aspect-square relative cursor-pointer overflow-hidden"
+                className={cn(
+                    "relative cursor-pointer overflow-hidden",
+                    viewMode === 'feed' ? "aspect-video" : "aspect-square"
+                )}
                 onClick={() => onSelect(entry)}
                 onMouseEnter={(e) => {
                     const video = e.currentTarget.querySelector('video');
@@ -54,9 +80,11 @@ export default function LeagueEntryCard({
                         <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Media Unavailable</span>
                     </div>
                 ) : (() => {
+                    const isVidEntry = !!(entry.videoUrl || entry.settings?.modality === 'video');
                     const imgIsVideo = /\.(mp4|webm|mov)(\?|$)/i.test(entry.imageUrl || '');
-                    const hasThumbnail = isVid && !imgIsVideo;
-                    return isVid ? (
+                    const hasThumbnail = isVidEntry && !imgIsVideo;
+
+                    return isVidEntry ? (
                         hasThumbnail ? (
                             <>
                                 <img src={entry.imageUrl} alt={entry.prompt} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" onError={() => setError(true)} />
@@ -70,9 +98,30 @@ export default function LeagueEntryCard({
                     );
                 })()}
 
-                {/* Duration / Video badge */}
+                {/* League Pill */}
+                {showLeaguePill && (
+                    <div className={cn(
+                        "absolute top-2 left-2 z-10 flex items-center gap-1.5 bg-primary/90 backdrop-blur-sm text-white rounded-full border border-primary/40 shadow-lg shadow-primary/20 pointer-events-none",
+                        viewMode === 'compact' ? "px-1.5 py-0.5" : "px-2.5 py-1"
+                    )}>
+                        <Icons.trophy className={cn(viewMode === 'compact' ? "w-2.5 h-2.5" : "w-3 h-3")} />
+                        {viewMode !== 'compact' && (
+                            <span className="text-[9px] font-black uppercase tracking-widest">Community Hub</span>
+                        )}
+                    </div>
+                )}
+
+                {/* Stack Badge */}
+                {isStack && (
+                    <div className="absolute top-2 right-2 z-10 bg-black/70 backdrop-blur-sm text-white px-2 py-0.5 rounded-full flex items-center gap-1 border border-white/10 pointer-events-none">
+                        <Icons.stack className="w-3 h-3" />
+                        <span className="text-[10px] font-black">{stackSize}</span>
+                    </div>
+                )}
+
+                {/* Video Badge */}
                 {(entry.videoUrl || entry.settings?.modality === 'video') && (
-                    <div className="absolute bottom-2 right-2 z-10 bg-black/60 backdrop-blur-sm text-white px-2 py-1 rounded-lg shadow-lg border border-white/10 flex items-center gap-1.5 min-w-[40px] justify-center pointer-events-none">
+                    <div className="absolute bottom-2 right-2 z-10 bg-black/60 backdrop-blur-sm text-white px-2 py-1 rounded-lg shadow-lg border border-white/10 flex items-center gap-1.5 pointer-events-none">
                         {entry.duration ? (
                             <span className="text-[11px] font-bold font-mono">
                                 0:{Math.round(entry.duration).toString().padStart(2, '0')}
@@ -83,90 +132,139 @@ export default function LeagueEntryCard({
                     </div>
                 )}
 
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                {/* Prompt Overlay */}
+                <div className={cn(
+                    "absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent transition-opacity",
+                    viewMode === 'compact' ? "opacity-0 group-hover:opacity-100" : "opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
+                )}>
                     <div className="absolute bottom-0 left-0 right-0 p-4">
-                        <p className="text-white text-sm line-clamp-2">{entry.prompt}</p>
+                        <p className={cn(
+                            "text-white leading-snug",
+                            viewMode === 'compact' ? "text-[10px] line-clamp-1" : "text-sm line-clamp-2"
+                        )}>{entry.prompt}</p>
                     </div>
                 </div>
             </div>
 
-            {/* Card Footer */}
-            <div className="p-4 space-y-3">
-                {/* Author Row */}
-                <Link
-                    href={`/profile/${entry.originalUserId}`}
-                    className="flex items-center gap-2 hover:opacity-80 transition-opacity group/author"
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    {entry.authorPhotoURL ? (
-                        <img
-                            src={entry.authorPhotoURL}
-                            alt={entry.authorName}
-                            className="w-7 h-7 rounded-full border border-border group-hover/author:border-primary/50 transition-colors"
-                        />
-                    ) : (
-                        <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary border border-transparent group-hover/author:border-primary/50 transition-colors">
-                            {entry.authorName.charAt(0).toUpperCase()}
-                        </div>
-                    )}
-                    <span className="text-sm font-medium truncate flex-1 group-hover/author:text-primary transition-colors">{entry.authorName}</span>
-                    <div className="flex gap-1">
-                        {(entry.authorBadges || []).map(badgeId => (
-                            <Tooltip key={badgeId} content={BADGES[badgeId]?.label || 'Award'}>
-                                <span className="text-xs">
-                                    {BADGES[badgeId]?.icon}
-                                </span>
-                            </Tooltip>
-                        ))}
-                    </div>
-                    <span className="text-xs text-foreground-muted">{formatTimeAgo(entry.publishedAt)}</span>
-                </Link>
-
-                {/* Actions Row */}
+            {/* Content Area */}
+            <div className={cn(
+                "p-4 space-y-3",
+                viewMode === 'compact' && "p-2 space-y-1"
+            )}>
+                {/* Author Info */}
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <Tooltip content={hasVoted ? 'Remove your vote' : 'Vote for this creation'}>
+                    <Link
+                        href={`/profile/${entry.originalUserId}`}
+                        className="flex items-center gap-2 hover:opacity-80 transition-opacity group/author overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {entry.authorPhotoURL && entry.authorPhotoURL !== 'null' ? (
+                            <img
+                                src={entry.authorPhotoURL}
+                                alt={entry.authorName}
+                                className={cn(
+                                    "rounded-full border border-border group-hover/author:border-primary/50 transition-colors",
+                                    viewMode === 'compact' ? "w-5 h-5" : "w-7 h-7"
+                                )}
+                            />
+                        ) : (
+                            <div className={cn(
+                                "rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary border border-transparent group-hover/author:border-primary/50 transition-colors",
+                                viewMode === 'compact' ? "w-5 h-5 text-[10px]" : "w-7 h-7 text-xs"
+                            )}>
+                                {entry.authorName.charAt(0).toUpperCase()}
+                            </div>
+                        )}
+                        <span className={cn(
+                            "font-medium truncate group-hover/author:text-primary transition-colors",
+                            viewMode === 'compact' ? "text-[10px]" : "text-sm"
+                        )}>
+                            {entry.authorName}
+                        </span>
+                    </Link>
+
+                    {onFilterUser && viewMode !== 'compact' && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                onFilterUser(entry.originalUserId, entry.authorName);
+                            }}
+                            className="p-1.5 hover:bg-primary/20 bg-background-secondary/50 rounded-lg text-foreground-muted hover:text-primary transition-all opacity-0 group-hover:opacity-100 ml-1 shadow-sm border border-transparent hover:border-primary/30"
+                            title={`Filter feed by ${entry.authorName}`}
+                        >
+                            <Icons.filter size={14} />
+                        </button>
+                    )}
+
+                    <span className={cn(
+                        "text-foreground-muted whitespace-nowrap ml-auto",
+                        viewMode === 'compact' ? "text-[8px]" : "text-xs"
+                    )}>
+                        {formatTimeAgo(entry.publishedAt)}
+                    </span>
+                </div>
+
+                {/* Actions Bar */}
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                        <Tooltip content={hasVoted ? 'Remove vote' : 'Vote'}>
                             <Button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onVote(entry.id);
-                                }}
+                                onClick={(e) => { e.stopPropagation(); onVote(entry.id); }}
                                 isLoading={isVoting}
                                 size="sm"
                                 variant={hasVoted ? 'primary' : 'outline'}
-                                className="gap-1.5 font-bold"
+                                className={cn("font-bold", viewMode === 'compact' ? "h-6 px-1.5 text-[10px]" : "gap-1.5")}
                             >
-                                <Icons.heart className={hasVoted ? 'fill-current' : ''} size={16} />
+                                <Icons.heart className={hasVoted ? 'fill-current' : ''} size={viewMode === 'compact' ? 12 : 16} />
                                 <span>{entry.voteCount}</span>
                             </Button>
                         </Tooltip>
 
-                        <Tooltip content="View comments & details">
+                        <Tooltip content="Comments">
                             <Button
                                 onClick={() => onSelect(entry)}
                                 size="sm"
                                 variant="outline"
-                                className="gap-1.5 text-foreground-muted hover:text-foreground"
+                                className={cn("text-foreground-muted", viewMode === 'compact' ? "h-6 px-1.5 text-[10px]" : "gap-1.5")}
                             >
-                                <Icons.comment size={16} />
+                                <Icons.comment size={viewMode === 'compact' ? 12 : 16} />
                                 <span>{entry.commentCount}</span>
                             </Button>
                         </Tooltip>
+
+                        {(entry.variationCount || 0) > 0 && (
+                            <Tooltip content="Community variations">
+                                <div className={cn("flex items-center text-foreground-muted", viewMode === 'compact' ? "text-[10px] gap-1" : "gap-1.5")}>
+                                    <Icons.variation size={viewMode === 'compact' ? 12 : 16} className="text-blue-400" />
+                                    <span>{entry.variationCount}</span>
+                                </div>
+                            </Tooltip>
+                        )}
                     </div>
 
-                    {/* Share */}
-                    <ShareButtons imageUrl={entry.imageUrl} prompt={entry.prompt} className="scale-75 origin-right" />
+                    {viewMode !== 'compact' && (
+                        <ShareButtons
+                            imageUrl={entry.imageUrl}
+                            prompt={entry.prompt}
+                            entryId={entry.id}
+                            onShare={onShare}
+                            className="scale-75 origin-right"
+                        />
+                    )}
                 </div>
 
-                {/* Reactions Row */}
-                <div className="pt-2 border-t border-border/50">
-                    <ReactionPicker
-                        entryId={entry.id}
-                        reactions={entry.reactions || {}}
-                        onReact={(emoji, reacted) => onReact(entry.id, emoji, reacted)}
-                    />
-                </div>
+                {/* Reactions */}
+                {viewMode !== 'compact' && (
+                    <div className="pt-2 border-t border-border/50">
+                        <ReactionPicker
+                            entryId={entry.id}
+                            reactions={entry.reactions || {}}
+                            onReact={(emoji, reacted) => onReact(entry.id, emoji, reacted)}
+                        />
+                    </div>
+                )}
             </div>
-        </Card>
+        </Card >
     );
 }

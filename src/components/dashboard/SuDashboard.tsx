@@ -4,13 +4,14 @@ import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
+import { Badge } from '@/components/ui/Badge';
+import { cn } from '@/lib/utils';
 import { CREDIT_COSTS } from '@/lib/types';
 import CollectionSelectModal from '@/components/CollectionSelectModal';
 import BulkTagModal from '@/components/BulkTagModal';
 
 // Sub-components
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
-import DashboardHero from '@/components/dashboard/DashboardHero';
 import DashboardStats from '@/components/dashboard/DashboardStats';
 import CreditActivity from '@/components/dashboard/CreditActivity';
 import RecentCreations from '@/components/dashboard/RecentCreations';
@@ -31,7 +32,7 @@ export default function SuDashboard({ dashboardData }: SuDashboardProps) {
         toggleSelectionMode, toggleImageSelection, toggleImageGroupSelection,
         handleSelectAll, handleBulkDelete, handleBulkAddToCollection,
         handleBulkPublishToLeague, handleBulkAddTags, setIsCollectionModalOpen,
-        setIsTagModalOpen, groupImagesByPromptSet, setSelectedIds, isAdmin
+        setIsTagModalOpen, groupImagesByPromptSet, setSelectedIds, isAdmin, viewMode, setViewMode
     } = dashboardData;
 
     const availableCredits = credits
@@ -62,15 +63,47 @@ export default function SuDashboard({ dashboardData }: SuDashboardProps) {
                         <h1 className="text-2xl font-bold">SU Command Center</h1>
                         <p className="text-foreground-muted">Global oversight and system management</p>
                     </div>
-                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 px-3 py-1">
-                        SUPER USER ACCESS
-                    </Badge>
+                    <div className="flex items-center gap-4">
+                        <div className="flex bg-background-secondary rounded-xl p-1 border border-primary/20 shadow-lg shadow-primary/5">
+                            <Button
+                                variant={viewMode === 'personal' ? 'primary' : 'ghost'}
+                                size="sm"
+                                onClick={() => setViewMode('personal')}
+                                className={cn(
+                                    "rounded-lg text-[9px] h-8 px-4 font-black tracking-widest uppercase transition-all",
+                                    viewMode === 'personal' ? "shadow-lg shadow-primary/20" : "text-zinc-500 hover:text-foreground"
+                                )}
+                            >
+                                My Feed
+                            </Button>
+                            <Button
+                                variant={viewMode === 'admin' ? 'primary' : 'ghost'}
+                                size="sm"
+                                onClick={() => setViewMode('admin')}
+                                className={cn(
+                                    "rounded-lg text-[9px] h-8 px-4 font-black tracking-widest uppercase transition-all",
+                                    viewMode === 'admin' ? "bg-accent hover:bg-accent-hover text-white shadow-lg shadow-accent/20" : "text-zinc-500 hover:text-foreground"
+                                )}
+                            >
+                                Admin Activity
+                            </Button>
+                            <Button
+                                variant={viewMode === 'global' ? 'primary' : 'ghost'}
+                                size="sm"
+                                onClick={() => setViewMode('global')}
+                                className={cn(
+                                    "rounded-lg text-[9px] h-8 px-4 font-black tracking-widest uppercase transition-all",
+                                    viewMode === 'global' ? "bg-error hover:bg-error-hover text-white shadow-lg shadow-error/20" : "text-zinc-500 hover:text-foreground"
+                                )}
+                            >
+                                Global Feed
+                            </Button>
+                        </div>
+                        <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 px-3 py-1">
+                            SUPER USER ACCESS
+                        </Badge>
+                    </div>
                 </div>
-
-                <DashboardHero
-                    audienceMode={profile.audienceMode}
-                    userId={user.uid}
-                />
 
                 <DashboardStats
                     availableCredits={availableCredits}
@@ -89,6 +122,14 @@ export default function SuDashboard({ dashboardData }: SuDashboardProps) {
                     <Button variant="secondary" onClick={() => router.push('/admin')} className="flex items-center gap-2 border-primary/20">
                         <Icons.settings size={20} />
                         Admin Panel
+                    </Button>
+                    <Button variant="secondary" onClick={() => router.push('/league')} className="flex items-center gap-2 border-emerald-500/20 hover:border-emerald-500/50 group transition-all">
+                        <Icons.globe size={20} className="group-hover:rotate-12 transition-transform text-emerald-500" />
+                        Community Hub
+                    </Button>
+                    <Button variant="secondary" onClick={() => router.push('/league/leaderboard')} className="flex items-center gap-2 border-yellow-500/20 hover:border-yellow-500/50 group transition-all">
+                        <Icons.trophy size={20} className="group-hover:scale-110 transition-transform text-yellow-500" />
+                        Hall of Fame
                     </Button>
                     <Button variant="secondary" onClick={() => router.push('/gallery')} className="flex items-center gap-2">
                         <Icons.image size={20} />
@@ -149,6 +190,8 @@ export default function SuDashboard({ dashboardData }: SuDashboardProps) {
                 />
 
                 <RecentCreations
+                    title={viewMode === 'personal' ? "Your Recent Creations" :
+                        viewMode === 'admin' ? "Recent Admin Activity" : "Global Creation Feed"}
                     images={recentImages}
                     loading={loadingImages}
                     isGrouped={isGrouped}
@@ -220,5 +263,3 @@ export default function SuDashboard({ dashboardData }: SuDashboardProps) {
         </div>
     );
 }
-
-import { Badge } from '@/components/ui/Badge';

@@ -8,6 +8,9 @@ import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
 import CollectionSelectModal from '@/components/CollectionSelectModal';
 import BulkTagModal from '@/components/BulkTagModal';
+import CommunityPulse from '@/components/dashboard/CommunityPulse';
+import MiniAnalytics from '@/components/dashboard/MiniAnalytics';
+import { useRouter } from 'next/navigation';
 
 interface ProModeViewProps {
     dashboardData: any;
@@ -22,6 +25,7 @@ export default function ProModeView({ dashboardData }: ProModeViewProps) {
         handleBulkAddTags, handleBulkAddToCollection, isBulkTagging, isBulkCollecting,
         collections
     } = dashboardData;
+    const router = useRouter();
 
     const handleQuickTool = (tool: string) => {
         if (!selectionMode) {
@@ -72,12 +76,28 @@ export default function ProModeView({ dashboardData }: ProModeViewProps) {
                     />
                 </div>
                 <div className="space-y-6">
+                    <MiniAnalytics userId={user.uid} />
                     <Card variant="glass" className="p-4 bg-background-secondary/30 border-primary/10">
                         <h3 className="text-xs font-black uppercase tracking-widest mb-4 flex items-center gap-2">
                             <Icons.settings size={14} className="text-primary" />
                             Quick Tools
                         </h3>
                         <div className="grid gap-2">
+                            {/* --- Primary Action --- */}
+                            <button
+                                onClick={() => router.push('/generate?newset=1')}
+                                className="w-full text-left p-3 rounded-xl text-xs font-bold transition-all flex items-center justify-between group bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 hover:border-primary/50 shadow-sm"
+                            >
+                                <span className="flex items-center gap-2">
+                                    <span className="opacity-80">✨</span>
+                                    Create New Image Set
+                                </span>
+                                <Icons.arrowRight size={12} className="opacity-60 group-hover:translate-x-0.5 transition-transform" />
+                            </button>
+
+                            <div className="border-t border-border/40 my-1" />
+
+                            {/* --- Selection-mode tools --- */}
                             {[
                                 { name: 'Bulk Tagging', icon: '🏷️' },
                                 { name: 'Manage Collections', icon: '📁' },
@@ -101,6 +121,27 @@ export default function ProModeView({ dashboardData }: ProModeViewProps) {
                                 </button>
                             ))}
                         </div>
+
+                        <div className="mt-6 pt-6 border-t border-border/50 space-y-2">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-foreground-muted mb-2 px-1">Social Discovery</p>
+                            <Button
+                                variant="secondary"
+                                onClick={() => router.push('/league')}
+                                className="w-full justify-start gap-3 h-11 border-emerald-500/10 hover:border-emerald-500/40 group/hub"
+                            >
+                                <Icons.globe size={16} className="text-emerald-500 group-hover/hub:rotate-12 transition-transform" />
+                                <span className="text-xs font-bold transition-colors">Community Hub</span>
+                            </Button>
+                            <Button
+                                variant="secondary"
+                                onClick={() => router.push('/league/leaderboard')}
+                                className="w-full justify-start gap-3 h-11 border-yellow-500/10 hover:border-yellow-500/40 group/hof"
+                            >
+                                <Icons.trophy size={16} className="text-yellow-500 group-hover/hof:scale-110 transition-transform" />
+                                <span className="text-xs font-bold transition-colors">Hall of Fame</span>
+                            </Button>
+                        </div>
+
                         {selectionMode && (
                             <Button
                                 variant="ghost"
@@ -113,6 +154,10 @@ export default function ProModeView({ dashboardData }: ProModeViewProps) {
                         )}
                     </Card>
                 </div>
+            </div>
+
+            <div className="pt-8 border-t border-border/50">
+                <CommunityPulse entries={dashboardData.recentLeagueEntries} />
             </div>
 
             {/* Modals */}

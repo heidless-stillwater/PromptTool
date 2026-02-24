@@ -2,9 +2,9 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { UserProfile, LeagueEntry } from '@/lib/types';
+import { UserProfile, LeagueEntry, GeneratedImage } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/Toast';
 import { useLeagueInteractions } from '@/hooks/useLeagueInteractions';
@@ -13,7 +13,7 @@ export function useProfile() {
     const params = useParams();
     const router = useRouter();
     const { showToast } = useToast();
-    const { user: currentUser, loading: authLoading } = useAuth();
+    const { user: currentUser, loading: authLoading, profile: authProfile } = useAuth();
 
     // Resilient userId extraction
     const userId = useMemo(() => {
@@ -38,11 +38,24 @@ export function useProfile() {
 
     // Data State
     const [author, setAuthor] = useState<UserProfile | null>(null);
+    // All generated images — the primary portfolio source
+    const [images, setImages] = useState<GeneratedImage[]>([]);
+    // League entries for interactions (vote/comment/modal)
     const [entries, setEntries] = useState<LeagueEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [queryError, setQueryError] = useState<string | null>(null);
+    const [viewMode, setViewMode] = useState<'grid' | 'feed' | 'compact' | 'list'>('grid');
+    const [isGrouped, setIsGrouped] = useState(false);
+    const [showOnlyLeague, setShowOnlyLeague] = useState(false);
 
-    // Interaction State
+    // Lookup map: leagueEntryId → LeagueEntry (for cross-referencing)
+    const leagueEntryMap = useMemo(() => {
+        const map = new Map<string, LeagueEntry>();
+        entries.forEach(e => map.set(e.id, e));
+        return map;
+    }, [entries]);
+
+    // Interaction State (still driven by leagueEntries for vote/comment)
     const {
         selectedEntry,
         setSelectedEntry,
@@ -56,20 +69,22 @@ export function useProfile() {
         handleReactUpdate,
         handleAddComment,
         handleDeleteComment,
-        handleReport
+        handleReport,
+        unpublishing,
+        handleUnpublish: originalHandleUnpublish
     } = useLeagueInteractions(entries, setEntries);
 
     const [isFollowingProfile, setIsFollowingProfile] = useState(false);
     const [followLoadingProfile, setFollowLoadingProfile] = useState(false);
 
-    // Computed Stats
+    // Computed Stats — use total images count, votes from league entries
     const stats = useMemo(() => {
         const totalVotes = entries.reduce((sum, entry) => sum + (entry.voteCount || 0), 0);
         return {
             totalVotes,
-            totalEntries: entries.length
+            totalEntries: images.length
         };
-    }, [entries]);
+    }, [entries, images]);
 
     const fetchProfile = useCallback(async () => {
         if (!userId) return;
@@ -91,22 +106,27 @@ export function useProfile() {
             const profileData = { uid: userSnap.id, ...userSnap.data() } as UserProfile;
             setAuthor(profileData);
 
-            // 2. Fetch league entries for this user
+            // 2. Fetch ALL generated images for this user (primary portfolio)
+            const imagesRef = collection(db, 'users', userId, 'images');
+            const imagesQuery = query(imagesRef, orderBy('createdAt', 'desc'));
+            const imagesSnap = await getDocs(imagesQuery);
+            const fetchedImages: GeneratedImage[] = imagesSnap.docs.map(d => ({
+                id: d.id,
+                ...d.data()
+            } as GeneratedImage));
+            setImages(fetchedImages);
+
+            // 3. Fetch league entries for interaction (vote/comment/modal)
             const entriesRef = collection(db, 'leagueEntries');
-            const q = query(
-                entriesRef,
-                where('originalUserId', '==', userId)
-            );
-
-            const snapshot = await getDocs(q);
-            const fetched: LeagueEntry[] = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
+            const entriesQuery = query(entriesRef, where('originalUserId', '==', userId));
+            const entriesSnap = await getDocs(entriesQuery);
+            const fetchedEntries: LeagueEntry[] = entriesSnap.docs.map(d => ({
+                id: d.id,
+                ...d.data()
             } as LeagueEntry));
+            setEntries(fetchedEntries);
 
-            setEntries(fetched);
-
-            // 3. Check following status
+            // 4. Check following status
             if (currentUser && currentUser.uid !== userId) {
                 const followingRef = doc(db, 'users', currentUser.uid, 'following', userId);
                 const followingSnap = await getDoc(followingRef);
@@ -166,6 +186,18 @@ export function useProfile() {
         }
     };
 
+    const handleUnpublish = useCallback(async () => {
+        if (!selectedEntry) return;
+        const imageId = selectedEntry.originalImageId;
+
+        await originalHandleUnpublish();
+
+        // After successful unpublish (handled inside originalHandleUnpublish), update local images state
+        setImages(prev => prev.map(img =>
+            img.id === imageId ? { ...img, publishedToLeague: false, leagueEntryId: undefined } : img
+        ));
+    }, [selectedEntry, originalHandleUnpublish]);
+
 
     const formatDate = (timestamp: any) => {
         if (!timestamp) return 'Unknown';
@@ -177,15 +209,18 @@ export function useProfile() {
 
     return {
         // State
-        userId, author, entries, loading, authLoading, queryError, stats,
+        userId, author, images, entries, leagueEntryMap, loading, authLoading, queryError, stats,
         isFollowingProfile, followLoadingProfile, selectedEntry,
-        currentUser,
+        currentUser, viewMode, setViewMode, isGrouped, setIsGrouped, showOnlyLeague, setShowOnlyLeague,
         comments, loadingComments, votingEntryId,
         isFollowingEntry, followLoadingEntry,
+        userRole: authProfile?.role,
 
         // Actions
         handleToggleFollowProfile, formatDate, setSelectedEntry,
         handleVote, handleReactUpdate, handleAddComment, handleDeleteComment, handleReport,
-        handleToggleFollowEntry
+        handleToggleFollowEntry,
+        handleUnpublish,
+        unpublishing
     };
 }

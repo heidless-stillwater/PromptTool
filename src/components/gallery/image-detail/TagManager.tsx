@@ -10,8 +10,8 @@ interface TagManagerProps {
 
 export default function TagManager({ tags, newTag, isUpdating, onAdd, onRemove, onChangeNewTag }: TagManagerProps) {
     return (
-        <div className="pt-2 border-t border-border/50">
-            <label className="text-xs text-foreground-muted uppercase tracking-wide flex items-center justify-between mb-2">
+        <div className="">
+            <label className="text-[10px] font-black uppercase tracking-widest text-foreground-muted flex items-center justify-between mb-2">
                 Tags
                 {isUpdating && <div className="spinner-xs" />}
             </label>
@@ -46,12 +46,12 @@ export default function TagManager({ tags, newTag, isUpdating, onAdd, onRemove, 
                     onChange={(e) => onChangeNewTag(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && onAdd()}
                     placeholder="Add a tag..."
-                    className="w-full bg-background-secondary border border-border rounded-lg pl-3 pr-10 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground"
+                    className="w-full px-4 py-2.5 pr-10 rounded-xl bg-background-secondary border border-border text-foreground text-sm transition-all duration-200 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 placeholder:text-foreground-muted"
                 />
                 <button
                     onClick={onAdd}
                     disabled={!newTag.trim() || isUpdating}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-primary hover:text-primary-hover disabled:opacity-50"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-primary hover:text-primary-hover disabled:opacity-40 transition-colors"
                 >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

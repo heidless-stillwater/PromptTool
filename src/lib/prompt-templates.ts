@@ -84,27 +84,23 @@ export const PROMPT_CATEGORIES = {
 };
 
 export function buildPromptFromMadLibs(selection: MadLibsSelection): string {
-    const parts = [selection.subject];
+    const mainParts = [];
+    if (selection.subject) mainParts.push(selection.subject);
+    if (selection.action) mainParts.push(selection.action);
+    if (selection.setting) mainParts.push(selection.setting);
 
-    if (selection.action) {
-        parts.push(selection.action);
-    }
-
-    if (selection.setting) {
-        parts.push(selection.setting);
-    }
-
-    parts.push('. ');
+    let result = mainParts.join(' ');
+    if (result) result += '. ';
 
     if (selection.style) {
-        parts.push(`Rendered in ${selection.style} style.`);
+        result += `Rendered in ${selection.style} style. `;
     }
 
     if (selection.mood) {
-        parts.push(`The mood is ${selection.mood.toLowerCase()}.`);
+        result += `The mood is ${selection.mood.toLowerCase()}.`;
     }
 
-    return parts.join(' ').trim();
+    return result.trim();
 }
 
 // Curated prompts for quick generation (Casual mode)

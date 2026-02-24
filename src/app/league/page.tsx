@@ -12,6 +12,8 @@ import { useLeague } from './useLeague';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
+import QuickLinks from '@/components/league/QuickLinks';
+import LeaguePulseStats from '@/components/league/LeaguePulseStats';
 
 import { Suspense } from 'react';
 
@@ -42,7 +44,7 @@ function LeagueContent() {
     return (
         <div className="min-h-screen">
             {/* Header */}
-            <Card variant="glass" className="sticky top-0 z-50 rounded-none border-x-0 border-t-0 border-b border-border">
+            <Card className="sticky top-0 z-50 rounded-none border-x-0 border-t-0 border-b border-border bg-black/90 backdrop-blur-md">
                 <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
                     <Link href="/dashboard" className="text-xl font-bold gradient-text">
                         AI Image Studio
@@ -71,15 +73,36 @@ function LeagueContent() {
             </Card>
 
             <main className="max-w-7xl mx-auto px-4 py-8">
+                {/* Global Live Stats */}
+                <LeaguePulseStats />
+
+                {/* Quick Links Bar */}
+                <QuickLinks
+                    activeSort={league.sortMode}
+                    onSortChange={league.setSortMode}
+                    thumbnails={league.quickLinkThumbnails}
+                />
+
                 {/* Page Title & Sorting */}
                 <LeagueHeader
                     sortMode={league.sortMode}
                     onSortChange={league.setSortMode}
+                    viewMode={league.viewMode}
+                    onViewModeChange={league.setViewMode}
+                    isGrouped={league.isGrouped}
+                    onToggleGrouped={league.handleToggleGrouped}
+                    isGroupedByUser={league.isGroupedByUser}
+                    onToggleGroupedByUser={league.handleToggleGroupedByUser}
+                    filterUserName={league.filterUserName}
+                    onClearFilter={() => league.handleFilterUser(null, null)}
                 />
 
                 {/* Entries Grid */}
                 <LeagueGrid
                     entries={league.entries}
+                    viewMode={league.viewMode}
+                    isGrouped={league.isGrouped}
+                    isGroupedByUser={league.isGroupedByUser}
                     loadingEntries={league.loadingEntries}
                     loadingMore={league.loadingMore}
                     hasMore={league.hasMore}
@@ -89,6 +112,8 @@ function LeagueContent() {
                     votingEntryId={league.votingEntryId}
                     onSelect={league.setSelectedEntry}
                     onReact={league.handleReactUpdate}
+                    onFilterUser={league.handleFilterUser}
+                    onShare={league.handleShare}
                     error={league.queryError}
                 />
             </main>
@@ -111,6 +136,12 @@ function LeagueContent() {
                     onDeleteComment={league.handleDeleteComment}
                     onReact={league.handleReactUpdate}
                     onReport={league.handleReport}
+                    collections={league.collections}
+                    onToggleCollection={league.handleToggleCollection}
+                    onUnpublish={league.handleUnpublish}
+                    isUnpublishing={league.unpublishing}
+                    onFilterUser={league.handleFilterUser}
+                    onShare={league.handleShare}
                 />
             )}
         </div>

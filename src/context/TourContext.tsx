@@ -65,8 +65,8 @@ const GENERATOR_STEPS: TourStep[] = [
     {
         id: 'magic',
         targetId: 'magic-enhance',
-        title: 'AI Magic Polish',
-        content: 'Stuck? Use Magic Enhance to let our AI polish your prompt into a masterpiece.',
+        title: 'AI Polish',
+        content: 'Stuck? Use Enhance to let our AI polish your prompt into a masterpiece.',
         position: 'bottom'
     },
     {

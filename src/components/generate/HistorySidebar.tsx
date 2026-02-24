@@ -71,11 +71,21 @@ export default function HistorySidebar({
                                     className="group relative overflow-hidden border-border/50 hover:border-primary/50 transition-all p-2 flex flex-col gap-2"
                                 >
                                     <div className="aspect-square rounded-lg overflow-hidden bg-background-secondary relative group/media">
-                                        <img
-                                            src={img.imageUrl}
-                                            alt={img.prompt}
-                                            className="w-full h-full object-cover transition-transform duration-500 group-hover/media:scale-110"
-                                        />
+                                        {/\.(mp4|webm|mov)(\?|$)/i.test(img.imageUrl) ? (
+                                            <video
+                                                src={`${img.imageUrl}#t=0.1`}
+                                                className="w-full h-full object-cover"
+                                                preload="metadata"
+                                                muted
+                                                playsInline
+                                            />
+                                        ) : (
+                                            <img
+                                                src={img.imageUrl}
+                                                alt={img.prompt}
+                                                className="w-full h-full object-cover transition-transform duration-500 group-hover/media:scale-110"
+                                            />
+                                        )}
                                         {(img.settings?.modality === 'video' || img.videoUrl) && (
                                             <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm p-1.5 rounded-lg text-white shadow-lg border border-white/10">
                                                 <Icons.video size={12} className="text-white" />

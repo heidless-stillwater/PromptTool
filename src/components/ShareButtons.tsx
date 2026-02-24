@@ -5,9 +5,10 @@ interface ShareButtonsProps {
     prompt: string;
     entryId?: string;
     className?: string;
+    onShare?: (entryId: string) => void;
 }
 
-export default function ShareButtons({ imageUrl, prompt, entryId, className = '' }: ShareButtonsProps) {
+export default function ShareButtons({ imageUrl, prompt, entryId, className = '', onShare }: ShareButtonsProps) {
     const [copied, setCopied] = useState(false);
 
     // Determine the primary share URL
@@ -19,6 +20,7 @@ export default function ShareButtons({ imageUrl, prompt, entryId, className = ''
         try {
             await navigator.clipboard.writeText(shareUrl);
             setCopied(true);
+            if (onShare && entryId) onShare(entryId);
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
             console.error('Failed to copy link:', err);
@@ -29,12 +31,14 @@ export default function ShareButtons({ imageUrl, prompt, entryId, className = ''
         const text = `Check out this AI art! 🎨✨\n\nPrompt: "${prompt.length > 100 ? prompt.substring(0, 97) + '...' : prompt}"\n\n`;
         const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`;
         window.open(url, '_blank', 'width=600,height=400');
+        if (onShare && entryId) onShare(entryId);
     };
 
     const handleShareReddit = () => {
         const title = `AI Art: ${prompt.length > 50 ? prompt.substring(0, 47) + '...' : prompt}`;
         const url = `https://www.reddit.com/submit?url=${encodeURIComponent(shareUrl)}&title=${encodeURIComponent(title)}`;
         window.open(url, '_blank', 'width=800,height=600');
+        if (onShare && entryId) onShare(entryId);
     };
 
     return (

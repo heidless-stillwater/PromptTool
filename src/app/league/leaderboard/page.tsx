@@ -65,7 +65,8 @@ export default function LeaderboardPage() {
                 const authorStats: Record<string, {
                     score: number,
                     name: string,
-                    photo: string | null
+                    photo: string | null,
+                    publishedCount: number
                 }> = {};
 
                 // We need to fetch author details for these votes
@@ -83,7 +84,8 @@ export default function LeaderboardPage() {
                             return {
                                 uid: authorId,
                                 displayName: userData.displayName || 'Unknown',
-                                photoURL: userData.photoURL || null
+                                photoURL: userData.photoURL || null,
+                                publishedCount: userData.publishedCount || 0
                             };
                         }
                     } catch (e) {
@@ -95,8 +97,7 @@ export default function LeaderboardPage() {
                 const profiles = await Promise.all(profilePromises);
                 const profilesMap = new Map(profiles.filter(p => p !== null).map(p => [p!.uid, p!]));
 
-                // Process votes
-                snapshot.docs.forEach(doc => {
+                snapshot.docs.forEach((doc) => {
                     const data = doc.data();
                     const authorId = data.authorId;
                     if (!authorId) return;
@@ -106,10 +107,13 @@ export default function LeaderboardPage() {
                         authorStats[authorId] = {
                             score: 0,
                             name: authorProfile?.displayName || 'Unknown',
-                            photo: authorProfile?.photoURL || null
+                            photo: authorProfile?.photoURL || null,
+                            publishedCount: authorProfile?.publishedCount || 0
                         };
                     }
-                    authorStats[authorId].score += 1 * (data.value || 1);
+                    if (authorStats[authorId]) {
+                        authorStats[authorId].score += 1 * (data.value || 1);
+                    }
                 });
 
                 const weeklyCreators: UserProfile[] = Object.entries(authorStats)
@@ -118,6 +122,7 @@ export default function LeaderboardPage() {
                         displayName: stats.name,
                         photoURL: stats.photo,
                         totalInfluence: stats.score,
+                        publishedCount: stats.publishedCount || 0,
                         role: 'member',
                         subscription: 'free',
                         audienceMode: 'casual',
@@ -150,6 +155,7 @@ export default function LeaderboardPage() {
             setIsMigrating(true);
             const token = await currentUser.getIdToken();
             const res = await fetch('/api/admin/migrate-influence/', {
+                method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -185,7 +191,7 @@ export default function LeaderboardPage() {
                 <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <Link href="/league" className="text-xl font-bold gradient-text">
-                            Community League
+                            Community Hub
                         </Link>
                         <span className="text-border">/</span>
                         <h1 className="text-sm font-bold uppercase tracking-widest text-foreground-muted">Hall of Fame</h1>
