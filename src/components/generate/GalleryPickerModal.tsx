@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { GeneratedImage } from '@/lib/types';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { normalizeImageData } from '@/lib/image-utils';
 import { useAuth } from '@/lib/auth-context';
 
 interface GalleryPickerModalProps {
@@ -32,10 +33,7 @@ export default function GalleryPickerModal({ isOpen, onClose, onSelect, mode = '
                 const imagesRef = collection(db, 'users', user.uid, 'images');
                 const q = query(imagesRef, orderBy('createdAt', 'desc'), limit(50));
                 const snapshot = await getDocs(q);
-                const fetched = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                } as GeneratedImage));
+                const fetched = snapshot.docs.map(doc => normalizeImageData(doc.data(), doc.id));
                 setImages(fetched);
             } catch (err) {
                 console.error('Failed to fetch gallery images:', err);

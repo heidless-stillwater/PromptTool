@@ -69,7 +69,7 @@ export default function AnalyticsPage() {
             if (!user) return;
 
             try {
-                // Fetch all league entries by this user
+                // Fetch all community entries by this user
                 const entriesRef = collection(db, 'leagueEntries');
                 const q = query(entriesRef, where('originalUserId', '==', user.uid));
                 const snapshot = await getDocs(q);
@@ -408,8 +408,8 @@ export default function AnalyticsPage() {
                         <Card className="text-center py-20 grayscale opacity-50">
                             <div className="text-6xl mb-4">📉</div>
                             <h3 className="text-xl font-bold mb-2">No data yet</h3>
-                            <p className="text-foreground-muted mb-6">Publish images to the League to start seeing analytics!</p>
-                            <Button onClick={() => router.push('/league')}>Visit League</Button>
+                            <p className="text-foreground-muted mb-6">Publish images to the Community Hub to start seeing analytics!</p>
+                            <Button onClick={() => router.push('/community')}>Visit Community Hub</Button>
                         </Card>
                     ) : (
                         <Card variant="glass" className="overflow-hidden">

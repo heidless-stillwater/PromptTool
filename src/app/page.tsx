@@ -94,7 +94,7 @@ export default function HomePage() {
                         </h1>
 
                         <p className="text-lg md:text-xl text-foreground-muted max-w-xl font-medium">
-                            Don't just generate. Master the craft. Join a guild of artists sharing the blueprints behind the world's most stunning AI imagery.
+                            Don&apos;t just generate. Master the craft. Join a guild of artists sharing the blueprints behind the world&apos;s most stunning AI imagery.
                         </p>
 
                         <div className="flex flex-col sm:flex-row items-center gap-4 pt-4">
@@ -135,7 +135,7 @@ export default function HomePage() {
                                     <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-between group cursor-pointer hover:bg-primary/10 transition-all">
                                         <div>
                                             <p className="text-[10px] font-black uppercase tracking-widest text-primary">Novice Blueprint</p>
-                                            <p className="text-[10px] text-foreground-muted font-bold uppercase tracking-tighter">"Futuristic [Place] with [Color] lighting"</p>
+                                            <p className="text-[10px] text-foreground-muted font-bold uppercase tracking-tighter">&quot;Futuristic [Place] with [Color] lighting&quot;</p>
                                         </div>
                                         <Icons.play className="text-primary w-4 h-4" />
                                     </div>
@@ -161,7 +161,7 @@ export default function HomePage() {
                         {[1, 2, 3, 4].map(i => (
                             <div key={i} className="aspect-[3/4] rounded-3xl bg-white/[0.02] border border-white/10 overflow-hidden relative group cursor-pointer">
                                 <Image
-                                    src={`/assets/landing/league-${i}.png`}
+                                    src={`/assets/landing/community-${i}.png`}
                                     alt={`Exemplar ${i}`}
                                     fill
                                     className="object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700 grayscale group-hover:grayscale-0"
@@ -173,7 +173,7 @@ export default function HomePage() {
                                             <div className="w-5 h-5 rounded-full bg-primary/20 border border-primary/40" />
                                             <span className="text-[9px] font-black uppercase tracking-widest">Master Engineer</span>
                                         </div>
-                                        <p className="text-[10px] font-medium text-white/70 line-clamp-2 italic">"Master-grade character lighting with NanoBanana..."</p>
+                                        <p className="text-[10px] font-medium text-white/70 line-clamp-2 italic">&quot;Master-grade character lighting with NanoBanana...&quot;</p>
                                         <div className="flex gap-2">
                                             <div className="px-2 py-1 rounded-md bg-white/10 text-[8px] font-black uppercase">Clone</div>
                                             <div className="px-2 py-1 rounded-md bg-white/10 text-[8px] font-black uppercase">Inspect</div>
@@ -218,7 +218,7 @@ export default function HomePage() {
                             <Card variant="glass" className="p-8 rounded-[2.5rem] border-white/5 bg-white/[0.01] transition-all hover:bg-white/[0.03]">
                                 <div className="w-12 h-12 rounded-2xl bg-founder-gold/10 flex items-center justify-center text-2xl mb-6">🎖️</div>
                                 <h3 className="text-lg font-black uppercase tracking-tight mb-2">Vanguard Status</h3>
-                                <p className="text-[10px] text-foreground-muted font-medium mb-4">Expert contributors gain access to the Collector's Badge and NanoBanana Vanguard weights.</p>
+                                <p className="text-[10px] text-foreground-muted font-medium mb-4">Expert contributors gain access to the Collector&apos;s Badge and NanoBanana Vanguard weights.</p>
                                 <div className="h-1 w-8 bg-founder-gold rounded-full" />
                             </Card>
                         </div>

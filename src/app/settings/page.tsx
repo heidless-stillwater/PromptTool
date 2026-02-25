@@ -172,10 +172,10 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <Link href="/league">
+                        <Link href="/community">
                             <Button variant="secondary" size="sm" className="h-9 gap-2 font-black uppercase tracking-widest text-[10px]">
                                 <Icons.trophy size={14} className="text-primary" />
-                                <span className="hidden sm:inline">League</span>
+                                <span className="hidden sm:inline">Community Hub</span>
                             </Button>
                         </Link>
                         <div className="h-6 w-px bg-border/50 mx-1" />

@@ -172,7 +172,7 @@ export function useAdminOverview() {
         setIsBackfilling(true);
         try {
             const token = await user.getIdToken();
-            const res = await fetch('/api/admin/league/backfill', {
+            const res = await fetch('/api/admin/community/backfill', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
             });

@@ -13,7 +13,7 @@ export default function ShareButtons({ imageUrl, prompt, entryId, className = ''
 
     // Determine the primary share URL
     const shareUrl = entryId
-        ? `${window.location.origin}/league/${entryId}`
+        ? `${window.location.origin}/community/${entryId}`
         : imageUrl;
 
     const handleCopyLink = async () => {

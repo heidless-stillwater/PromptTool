@@ -8,13 +8,14 @@ export type FirestoreTimestamp = any;
 export interface Notification {
     id: string;
     userId: string; // The person receiving the notification
-    type: 'vote' | 'comment' | 'follow' | 'mention' | 'system';
+    type: 'vote' | 'comment' | 'follow' | 'mention' | 'reaction' | 'system';
     actorId: string; // The person who triggered the notification
     actorName: string;
     actorPhotoURL?: string;
-    entryId?: string; // Optional: reference to the league entry
+    entryId?: string; // Optional: reference to the community entry
     entryImageUrl?: string;
     text?: string; // Content of the comment or system message
+    emoji?: string; // For reaction notifications
     read: boolean;
     createdAt: FirestoreTimestamp;
 }
@@ -33,8 +34,8 @@ export interface UserProfile {
     actingAs?: UserRole; // For role-switching (admin viewing as member)
     subscription: SubscriptionTier;
     audienceMode: AudienceMode;
-    totalInfluence?: number; // Sum of all upvotes across league entries
-    publishedCount?: number; // Total number of images published to the league
+    totalInfluence?: number; // Sum of all upvotes across community entries
+    publishedCount?: number; // Total number of images published to the community hub
     followerCount?: number;
     followingCount?: number;
     badges?: string[]; // Achievement tags like 'elite', 'verified'
@@ -187,18 +188,21 @@ export interface GeneratedImage {
     collectionIds?: string[];   // For multi-collection support
     sourceImageId?: string;     // For Img2Img variations - tracks parent image
     promptSetID?: string;       // Unique ID for the batch/generation set
-    publishedToLeague?: boolean;  // Whether image is published to community league
-    leagueEntryId?: string;       // Reference to leagueEntries doc when published
+    publishedToCommunity?: boolean;  // Whether image is published to community hub
+    communityEntryId?: string;       // Reference to community hub doc when published
+    publishedToLeague?: boolean;     // @deprecated Map to publishedToCommunity
+    leagueEntryId?: string;          // @deprecated Map to communityEntryId
     tags?: string[];             // Per-image tagging for discovery
     duration?: number;           // Video duration in seconds
     variationCount?: number;     // Count of variations generated from this image
+    isExemplar?: boolean;        // Whether this is an exemplar of high quality (admin set)
 }
 
 // ============================================
-// Community League Types
+// Community Hub Types
 // ============================================
 
-export interface LeagueEntry {
+export interface CommunityEntry {
     id: string;
     // Source reference
     originalImageId: string;
@@ -213,7 +217,7 @@ export interface LeagueEntry {
     authorName: string;
     authorPhotoURL: string | null;
     authorBadges?: string[];
-    // League metadata
+    // Community metadata
     publishedAt: FirestoreTimestamp;
     // Engagement
     voteCount: number;
@@ -231,9 +235,10 @@ export interface LeagueEntry {
     promptSetID?: string;       // Unique ID for the batch/generation set
     isStack?: boolean;          // UI-only: whether this card represents a stack of variations
     stackSize?: number;         // UI-only: number of variations in the stack
+    isExemplar?: boolean;        // Whether this is an exemplar of high quality (admin set)
 }
 
-export interface LeagueComment {
+export interface CommunityComment {
     id: string;
     entryId: string;
     userId: string;
@@ -362,3 +367,7 @@ export interface GenerateImageResponse {
     creditsUsed: number;
     remainingBalance: number;
 }
+// Backward compatibility aliases
+export type LeagueEntry = CommunityEntry;
+export type LeagueComment = CommunityComment;
+export type CommunityHubNotification = Notification;

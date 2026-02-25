@@ -16,8 +16,9 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Icons } from '@/components/ui/Icons';
+import { Suspense } from 'react';
 
-export default function GalleryPage() {
+function GalleryContent() {
     const { user, loading: authLoading } = useAuth();
     const gallery = useGallery();
     const searchParams = useSearchParams();
@@ -101,7 +102,7 @@ export default function GalleryPage() {
                                         Dashboard
                                     </Link>
                                     <Link
-                                        href="/league"
+                                        href="/community"
                                         className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-primary transition-all group px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 hover:border-primary/30 shadow-lg shadow-primary/5"
                                     >
                                         <Icons.users size={12} className="text-primary/70" />
@@ -157,6 +158,8 @@ export default function GalleryPage() {
                             onClearSelection={() => gallery.setSelectedImageIds(new Set())}
                             filterTag={gallery.filterTag}
                             onFilterTagChange={gallery.setFilterTag}
+                            filterExemplar={gallery.filterExemplar}
+                            onFilterExemplarChange={gallery.setFilterExemplar}
                             filterQuality={gallery.filterQuality}
                             onFilterQualityChange={gallery.setFilterQuality}
                             filterAspectRatio={gallery.filterAspectRatio}
@@ -327,6 +330,31 @@ export default function GalleryPage() {
                 type="danger"
                 isLoading={gallery.deletingId !== null || gallery.batchDeleting}
             />
+
+            {/* Unpublish Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={!!gallery.unpublishConfirmImage}
+                title="Remove from Community Hub"
+                message="Are you sure you want to remove this image from the Community Hub? This will delete all associated votes and comments."
+                confirmLabel="Remove from Hub"
+                cancelLabel="Keep it"
+                onConfirm={gallery.confirmUnpublish}
+                onCancel={() => gallery.setUnpublishConfirmImage(null)}
+                type="danger"
+                isLoading={gallery.publishingId !== null}
+            />
         </div>
+    );
+}
+
+export default function GalleryPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center">
+                <Icons.spinner className="w-8 h-8 animate-spin text-primary" />
+            </div>
+        }>
+            <GalleryContent />
+        </Suspense>
     );
 }

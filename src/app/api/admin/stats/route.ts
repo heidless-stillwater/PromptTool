@@ -26,14 +26,14 @@ export async function GET(request: NextRequest) {
         const imagesSnap = await adminDb.collectionGroup('images').count().get();
         const totalImages = imagesSnap.data().count;
 
-        const leagueSnap = await adminDb.collection('leagueEntries').get();
-        const totalPublished = leagueSnap.size;
+        const communitySnap = await adminDb.collection('leagueEntries').get();
+        const totalPublished = communitySnap.size;
 
         let totalVotes = 0;
         let totalComments = 0;
         const tagsMap: Record<string, number> = {};
 
-        leagueSnap.docs.forEach(doc => {
+        communitySnap.docs.forEach(doc => {
             const data = doc.data();
             totalVotes += data.voteCount || 0;
             totalComments += data.commentCount || 0;

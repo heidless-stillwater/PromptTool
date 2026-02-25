@@ -1,10 +1,15 @@
 
 export const formatDate = (timestamp: any) => {
-    if (!timestamp) return 'Unknown';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString('en-US', {
-        month: 'short', day: 'numeric', year: 'numeric',
-    });
+    if (!timestamp) return '';
+    try {
+        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+        if (isNaN(date.getTime())) return '';
+        return date.toLocaleDateString('en-US', {
+            month: 'short', day: 'numeric', year: 'numeric',
+        });
+    } catch {
+        return '';
+    }
 };
 
 export const formatTimeAgo = (timestamp: any) => {

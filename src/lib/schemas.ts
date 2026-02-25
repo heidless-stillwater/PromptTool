@@ -31,38 +31,83 @@ export const UserProfileSchema = z.object({
 });
 
 // ============================================
-// League Entry Schema
+// Community Entry Schema
 // ============================================
 
-export const LeagueEntrySchema = z.object({
+export const CommunityEntrySchema = z.object({
     id: z.string(),
-    originalImageId: z.string(),
-    originalUserId: z.string(),
-    imageUrl: z.string().url(),
-    videoUrl: z.string().optional(),
-    duration: z.number().optional(),
-    prompt: z.string(),
-    settings: z.any(), // GenerationSettings
-    authorName: z.string(),
-    authorPhotoURL: z.string().nullable(),
+    originalImageId: z.string().nullish(),
+    originalUserId: z.string().default(''),
+    imageUrl: z.string().min(1),  // min(1) not .url() — Firebase Storage URLs can fail strict URL validation
+    videoUrl: z.string().nullish(),
+    duration: z.number().nullish(),
+    prompt: z.string().default(''),
+    settings: z.any().optional(),
+    authorName: z.string().default(''),
+    authorPhotoURL: z.string().nullish(),
     authorBadges: z.array(z.string()).default([]),
-    publishedAt: z.any(), // Firebase Timestamp
+    publishedAt: z.any().optional(),
     voteCount: z.number().default(0),
     commentCount: z.number().default(0),
     shareCount: z.number().default(0),
     authorFollowerCount: z.number().default(0),
     reportCount: z.number().default(0),
     isModerated: z.boolean().default(false),
+    isExemplar: z.boolean().nullish(),
     votes: z.record(z.string(), z.boolean()).default({}),
-    reactions: z.record(z.string(), z.array(z.string())).optional(),
+    reactions: z.record(z.string(), z.array(z.string())).nullish(),
     collectionIds: z.array(z.string()).default([]),
     collectionNames: z.array(z.string()).default([]),
     variationCount: z.number().default(0),
     tags: z.array(z.string()).default([]),
-    promptSetID: z.string().optional(),
-    isStack: z.boolean().optional(),
-    stackSize: z.number().optional(),
+    promptSetID: z.string().nullish(),
+    isStack: z.boolean().nullish(),
+    stackSize: z.number().nullish(),
 });
+
+// ============================================
+// Runtime Parse Helpers (soft — log + filter, never throw)
+// ============================================
+
+/**
+ * Parses an array of raw Firestore items through a Zod schema.
+ * Invalid items are logged and filtered out so a single bad doc
+ * can't crash the entire query result.
+ */
+export function zParseArray<T>(
+    schema: z.ZodType<T>,
+    items: unknown[],
+    label: string
+): T[] {
+    return items.reduce<T[]>((acc, item, i) => {
+        const result = schema.safeParse(item);
+        if (result.success) {
+            acc.push(result.data);
+        } else {
+            if (process.env.NODE_ENV !== 'production') {
+                console.warn(`[Zod] ${label}[${i}] failed validation:`, result.error.flatten().fieldErrors);
+            }
+        }
+        return acc;
+    }, []);
+}
+
+/**
+ * Parses a single raw Firestore item through a Zod schema.
+ * Returns null if validation fails.
+ */
+export function zParseSingle<T>(
+    schema: z.ZodType<T>,
+    item: unknown,
+    label: string
+): T | null {
+    const result = schema.safeParse(item);
+    if (result.success) return result.data;
+    if (process.env.NODE_ENV !== 'production') {
+        console.warn(`[Zod] ${label} failed validation:`, result.error.flatten().fieldErrors);
+    }
+    return null;
+}
 
 // ============================================
 // API Response Schema

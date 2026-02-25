@@ -1,32 +1,32 @@
 import { useState, useMemo } from 'react';
-import { LeagueEntry, LeagueComment, GeneratedImage } from '@/lib/types';
+import { CommunityEntry, CommunityComment, GeneratedImage } from '@/lib/types';
 import { Icons } from '@/components/ui/Icons';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
-import LeagueEntryCard from '@/components/league/LeagueEntryCard';
-import LeagueEntryModal from '@/components/league/LeagueEntryModal';
+import CommunityEntryCard from '@/components/community/CommunityEntryCard';
+import CommunityEntryModal from '@/components/community/CommunityEntryModal';
 
 export type PortfolioViewMode = 'grid' | 'feed' | 'compact' | 'list';
 
 interface ProfilePortfolioProps {
     images: GeneratedImage[];
-    entries: LeagueEntry[];
-    leagueEntryMap: Map<string, LeagueEntry>;
+    communityEntries: CommunityEntry[];
+    communityEntryMap: Map<string, CommunityEntry>;
     currentUser: any;
     userRole?: string;
-    selectedEntry: LeagueEntry | null;
+    selectedEntry: CommunityEntry | null;
     setSelectedEntry: (entryId: string | null) => void;
     queryError: string | null;
     viewMode: PortfolioViewMode;
     onViewModeChange: (mode: PortfolioViewMode) => void;
     isGrouped: boolean;
     onToggleGrouped: () => void;
-    showOnlyLeague: boolean;
-    onToggleOnlyLeague: () => void;
+    showOnlyCommunity: boolean;
+    onToggleOnlyCommunity: () => void;
 
     // Interaction Props
-    comments: LeagueComment[];
+    comments: CommunityComment[];
     loadingComments: boolean;
     votingEntryId: string | null;
     isFollowingEntry: boolean;
@@ -34,12 +34,17 @@ interface ProfilePortfolioProps {
     onVote: (id: string) => void;
     onReact: (id: string, emoji: string) => void;
     reactingEmoji: string | null;
-    onAddComment: (text: string) => Promise<void>;
-    onDeleteComment: (id: string) => Promise<void>;
+    onAddComment: (text: string) => Promise<any>;
+    onDeleteComment: (id: string) => Promise<any>;
     onToggleFollowEntry: () => void;
-    onReport: (id: string) => Promise<void>;
-    onUnpublishEntry?: () => Promise<void>;
+    onReport: (id: string) => Promise<any>;
+    onUnpublishEntry?: () => Promise<any>;
     isUnpublishingEntry?: boolean;
+    collections?: any[];
+    viewerCollectionIds?: string[];
+    loadingViewerCollections?: boolean;
+    onToggleCollection?: (collectionId: string) => Promise<any>;
+    onCreateCollection?: (name: string) => Promise<any>;
 }
 
 /** Group images by promptSetID; images without one each get their own bucket */
@@ -299,8 +304,8 @@ const VIEW_OPTIONS: { key: PortfolioViewMode; label: string; icon: React.ReactNo
 
 export default function ProfilePortfolio({
     images,
-    entries,
-    leagueEntryMap,
+    communityEntries,
+    communityEntryMap,
     currentUser,
     userRole,
     selectedEntry,
@@ -310,8 +315,8 @@ export default function ProfilePortfolio({
     onViewModeChange,
     isGrouped,
     onToggleGrouped,
-    showOnlyLeague,
-    onToggleOnlyLeague,
+    showOnlyCommunity,
+    onToggleOnlyCommunity,
 
     // Interaction Props
     comments,
@@ -328,39 +333,44 @@ export default function ProfilePortfolio({
     onReport,
     onUnpublishEntry,
     isUnpublishingEntry,
+    collections = [],
+    viewerCollectionIds = [],
+    loadingViewerCollections = false,
+    onToggleCollection,
+    onCreateCollection,
 }: ProfilePortfolioProps) {
 
 
     // The items to render
     type RenderItem =
         | { kind: 'image'; image: GeneratedImage; count: number }
-        | { kind: 'league'; entry: LeagueEntry; image: GeneratedImage };
+        | { kind: 'community'; entry: CommunityEntry; image: GeneratedImage };
 
     const renderItems = useMemo<RenderItem[]>(() => {
         let filteredImages = images;
-        if (showOnlyLeague) {
-            filteredImages = images.filter(img => img.publishedToLeague && img.leagueEntryId);
+        if (showOnlyCommunity) {
+            filteredImages = images.filter(img => img.publishedToCommunity && img.communityEntryId);
         }
 
         if (isGrouped) {
             const groups = groupByPromptSet(filteredImages);
             return Object.values(groups).map(group => {
                 const first = group[0];
-                const entry = first.publishedToLeague && first.leagueEntryId
-                    ? leagueEntryMap.get(first.leagueEntryId)
+                const entry = first.publishedToCommunity && first.communityEntryId
+                    ? communityEntryMap.get(first.communityEntryId)
                     : undefined;
-                if (entry) return { kind: 'league', entry, image: first };
+                if (entry) return { kind: 'community', entry, image: first };
                 return { kind: 'image', image: first, count: group.length };
             });
         }
         return filteredImages.map(img => {
-            const entry = img.publishedToLeague && img.leagueEntryId
-                ? leagueEntryMap.get(img.leagueEntryId)
+            const entry = img.publishedToCommunity && img.communityEntryId
+                ? communityEntryMap.get(img.communityEntryId)
                 : undefined;
-            if (entry) return { kind: 'league', entry, image: img };
+            if (entry) return { kind: 'community', entry, image: img };
             return { kind: 'image', image: img, count: 1 };
         });
-    }, [images, isGrouped, leagueEntryMap, showOnlyLeague]);
+    }, [images, isGrouped, communityEntryMap, showOnlyCommunity]);
 
     const displayCount = renderItems.length;
 
@@ -378,9 +388,9 @@ export default function ProfilePortfolio({
 
     /** Renders one item in the current layout */
     function renderItem(item: RenderItem, key: string) {
-        if (item.kind === 'league') {
+        if (item.kind === 'community') {
             if (viewMode === 'list') {
-                // List mode: render league entry as a list card (show pill via overlay)
+                // List mode: render community entry as a list card (show pill via overlay)
                 return (
                     <div key={key} className="relative" onClick={() => setSelectedEntry(item.entry.id)}>
                         <ListCard image={item.image} count={1} isGrouped={false} />
@@ -392,7 +402,7 @@ export default function ProfilePortfolio({
                 );
             }
             return (
-                <LeagueEntryCard
+                <CommunityEntryCard
                     key={key}
                     entry={item.entry}
                     userId={currentUser?.uid}
@@ -402,7 +412,7 @@ export default function ProfilePortfolio({
                     onReact={onReact}
                     reactingEmoji={reactingEmoji}
                     viewMode={viewMode === 'compact' ? 'compact' : viewMode === 'feed' ? 'feed' : 'grid'}
-                    showLeaguePill={true}
+                    showCommunityPill={true}
                 />
             );
         }
@@ -486,18 +496,18 @@ export default function ProfilePortfolio({
                     </Button>
 
                     <Button
-                        variant={showOnlyLeague ? 'primary' : 'secondary'}
+                        variant={showOnlyCommunity ? 'primary' : 'secondary'}
                         size="sm"
-                        onClick={onToggleOnlyLeague}
+                        onClick={onToggleOnlyCommunity}
                         className={cn(
                             'h-8 px-3 gap-1.5 font-black uppercase tracking-widest text-[9px] rounded-xl border border-border/50',
-                            showOnlyLeague
+                            showOnlyCommunity
                                 ? 'shadow-lg shadow-primary/20 border-primary/50'
                                 : 'text-foreground-muted hover:text-foreground bg-background-secondary'
                         )}
                         title="Show only Community Hub entries"
                     >
-                        <Icons.globe size={13} className={showOnlyLeague ? 'text-white' : 'text-primary'} />
+                        <Icons.globe size={13} className={showOnlyCommunity ? 'text-white' : 'text-primary'} />
                         <span className="hidden sm:inline">Community Only</span>
                     </Button>
 
@@ -538,14 +548,14 @@ export default function ProfilePortfolio({
             ) : (
                 <div className={gridClass}>
                     {renderItems.map((item, i) =>
-                        renderItem(item, item.kind === 'league' ? item.entry.id : item.image.id)
+                        renderItem(item, item.kind === 'community' ? item.entry.id : item.image.id)
                     )}
                 </div>
             )}
 
-            {/* ── Detail modal (league items) ── */}
+            {/* ── Detail modal (community items) ── */}
             {selectedEntry && (
-                <LeagueEntryModal
+                <CommunityEntryModal
                     entry={selectedEntry}
                     onClose={() => setSelectedEntry(null)}
                     user={currentUser}
@@ -564,6 +574,11 @@ export default function ProfilePortfolio({
                     onReport={onReport}
                     onUnpublish={onUnpublishEntry}
                     isUnpublishing={isUnpublishingEntry}
+                    collections={collections}
+                    viewerCollectionIds={viewerCollectionIds}
+                    loadingViewerCollections={loadingViewerCollections}
+                    onToggleCollection={onToggleCollection}
+                    onCreateCollection={onCreateCollection}
                 />
             )}
         </div>

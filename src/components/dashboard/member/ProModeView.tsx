@@ -126,7 +126,7 @@ export default function ProModeView({ dashboardData }: ProModeViewProps) {
                             <p className="text-[10px] font-black uppercase tracking-widest text-foreground-muted mb-2 px-1">Social Discovery</p>
                             <Button
                                 variant="secondary"
-                                onClick={() => router.push('/league')}
+                                onClick={() => router.push('/community')}
                                 className="w-full justify-start gap-3 h-11 border-emerald-500/10 hover:border-emerald-500/40 group/hub"
                             >
                                 <Icons.globe size={16} className="text-emerald-500 group-hover/hub:rotate-12 transition-transform" />
@@ -134,7 +134,7 @@ export default function ProModeView({ dashboardData }: ProModeViewProps) {
                             </Button>
                             <Button
                                 variant="secondary"
-                                onClick={() => router.push('/league/leaderboard')}
+                                onClick={() => router.push('/community/leaderboard')}
                                 className="w-full justify-start gap-3 h-11 border-yellow-500/10 hover:border-yellow-500/40 group/hof"
                             >
                                 <Icons.trophy size={16} className="text-yellow-500 group-hover/hof:scale-110 transition-transform" />
@@ -157,7 +157,7 @@ export default function ProModeView({ dashboardData }: ProModeViewProps) {
             </div>
 
             <div className="pt-8 border-t border-border/50">
-                <CommunityPulse entries={dashboardData.recentLeagueEntries} />
+                <CommunityPulse entries={dashboardData.recentCommunityEntries} />
             </div>
 
             {/* Modals */}

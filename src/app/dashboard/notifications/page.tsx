@@ -174,7 +174,7 @@ export default function NotificationsPage() {
                         </p>
                         <div className="mt-8 flex justify-center">
                             <Button onClick={() => router.push('/league')}>
-                                Explore the League
+                                Explore the Community Hub
                             </Button>
                         </div>
                     </Card>

@@ -3,6 +3,7 @@ import { useToast } from '@/components/Toast';
 import { useImageDetails } from '@/hooks/useImageDetails';
 import ImageDisplay from './image-detail/ImageDisplay';
 import ImageMetadataSidebar from './image-detail/ImageMetadataSidebar';
+import ConfirmationModal from '@/components/ConfirmationModal';
 
 interface ImageDetailModalProps {
     selectedImage: GeneratedImage;
@@ -42,9 +43,15 @@ export default function ImageDetailModal({
         updatePromptSetID,
         addTag,
         removeTag,
-        toggleLeague,
+        toggleCommunity,
         toggleCollection,
-        downloadImage
+        createCollection,
+        downloadImage,
+        isAdmin,
+        toggleExemplar,
+        showUnpublishConfirm,
+        setShowUnpublishConfirm,
+        confirmUnpublish
     } = useImageDetails(selectedImage, onUpdate);
 
     const handleCopyPrompt = () => {
@@ -80,6 +87,7 @@ export default function ImageDetailModal({
                         onClose={onClose}
                         collections={collections}
                         onToggleCollection={toggleCollection}
+                        onCreateCollection={createCollection}
                         // Prompt Set ID
                         isEditingPromptSetID={isEditingPromptSetID}
                         editingPromptSetID={editingPromptSetID}
@@ -105,12 +113,27 @@ export default function ImageDetailModal({
                         onCopyPrompt={handleCopyPrompt}
                         onCopySeed={handleCopySeed}
                         onGenerateVariation={() => window.location.href = `/generate?ref=${selectedImage.id}`}
-                        onLeagueToggle={toggleLeague}
+                        onCommunityToggle={toggleCommunity}
                         onDownload={() => downloadImage()}
                         onDelete={() => onDelete(selectedImage.id)}
+                        isAdmin={isAdmin}
+                        onToggleExemplar={toggleExemplar}
                     />
                 </div>
             </div>
+
+            {/* Unpublish Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={showUnpublishConfirm}
+                title="Remove from Community Hub"
+                message="Are you sure you want to remove this image from the Community Hub? This will delete all associated votes and comments."
+                confirmLabel="Remove from Hub"
+                cancelLabel="Keep it"
+                onConfirm={confirmUnpublish}
+                onCancel={() => setShowUnpublishConfirm(false)}
+                type="danger"
+                isLoading={publishingId !== null}
+            />
         </div>
     );
 }

@@ -18,6 +18,8 @@ interface GalleryToolbarProps {
     onClearSelection: () => void;
     filterTag: string;
     onFilterTagChange: (value: string) => void;
+    filterExemplar: boolean;
+    onFilterExemplarChange: (value: boolean) => void;
     filterQuality: string;
     onFilterQualityChange: (value: any) => void;
     filterAspectRatio: string;
@@ -43,6 +45,7 @@ export default function GalleryToolbar({
     isGrouped, onToggleGrouped,
     selectionMode, onToggleSelectionMode, onClearSelection,
     filterTag, onFilterTagChange,
+    filterExemplar, onFilterExemplarChange,
     filterQuality, onFilterQualityChange,
     filterAspectRatio, onFilterAspectRatioChange,
     collections,
@@ -103,6 +106,21 @@ export default function GalleryToolbar({
                     >
                         <Icons.check size={14} />
                         {selectionMode ? 'Finish' : 'Select'}
+                    </Button>
+
+                    <div className="h-6 w-px bg-border/50 mx-1 hidden md:block" />
+
+                    <Button
+                        variant={filterExemplar ? 'primary' : 'secondary'}
+                        size="sm"
+                        onClick={() => onFilterExemplarChange(!filterExemplar)}
+                        className={cn(
+                            "h-10 px-4 text-[10px] font-black tracking-widest uppercase gap-2 transition-all",
+                            filterExemplar ? "bg-gradient-to-r from-amber-400 to-yellow-500 shadow-lg shadow-yellow-500/20 text-white border-amber-300" : "bg-background-secondary/50"
+                        )}
+                    >
+                        <Icons.exemplar size={14} className={filterExemplar ? "fill-current" : ""} />
+                        Exemplars
                     </Button>
 
                     <div className="h-6 w-px bg-border/50 mx-1 hidden md:block" />

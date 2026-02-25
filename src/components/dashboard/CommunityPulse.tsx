@@ -1,17 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { LeagueEntry } from '@/lib/types';
+import { CommunityEntry } from '@/lib/types';
 import { Icons } from '@/components/ui/Icons';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { useRef } from 'react';
 
 interface CommunityPulseProps {
-    entries: LeagueEntry[];
+    entries: CommunityEntry[];
 }
 
-function PulseItem({ entry }: { entry: LeagueEntry }) {
+function PulseItem({ entry }: { entry: CommunityEntry }) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const isVid = !!(entry.videoUrl || entry.settings?.modality === 'video');
 
@@ -30,7 +30,7 @@ function PulseItem({ entry }: { entry: LeagueEntry }) {
 
     return (
         <Link
-            href={`/league?entry=${entry.id}`}
+            href={`/community?entry=${entry.id}`}
             className="flex-shrink-0 w-72 group snap-start"
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
@@ -94,9 +94,9 @@ export default function CommunityPulse({ entries }: CommunityPulseProps) {
                         <p className="text-[10px] uppercase tracking-widest text-foreground-muted font-bold">Trending Creations</p>
                     </div>
                 </div>
-                <Link href="/league">
+                <Link href="/community">
                     <Button variant="ghost" size="sm" className="text-primary hover:text-primary-hover font-bold group">
-                        Live League
+                        Live Community
                         <Icons.arrowRight size={14} className="ml-1 group-hover:translate-x-1 transition-transform" />
                     </Button>
                 </Link>

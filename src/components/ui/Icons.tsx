@@ -59,7 +59,8 @@ import {
     Instagram,
     Rows,
     Tag,
-    Play
+    Play,
+    Award
 } from "lucide-react"
 
 export const Icons = {
@@ -124,5 +125,6 @@ export const Icons = {
     error: AlertTriangle,
     list: List,
     feed: LayoutList,
-    rows: Rows
+    rows: Rows,
+    exemplar: Award
 }

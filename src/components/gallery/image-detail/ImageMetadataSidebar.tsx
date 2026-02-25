@@ -12,6 +12,7 @@ interface ImageMetadataSidebarProps {
     onClose: () => void;
     collections: Collection[];
     onToggleCollection: (collectionId: string) => void;
+    onCreateCollection: (name: string) => void;
     // Prompt Set ID
     isEditingPromptSetID: boolean;
     editingPromptSetID: string;
@@ -34,9 +35,11 @@ interface ImageMetadataSidebarProps {
     onCopyPrompt: () => void;
     onCopySeed: () => void;
     onGenerateVariation: () => void;
-    onLeagueToggle: () => void;
+    onCommunityToggle: () => void;
     onDownload: () => void;
     onDelete: () => void;
+    isAdmin?: boolean;
+    onToggleExemplar?: () => void;
 }
 
 export default function ImageMetadataSidebar({
@@ -44,6 +47,7 @@ export default function ImageMetadataSidebar({
     onClose,
     collections,
     onToggleCollection,
+    onCreateCollection,
     isEditingPromptSetID,
     editingPromptSetID,
     isSavingPromptSetID,
@@ -63,9 +67,11 @@ export default function ImageMetadataSidebar({
     onCopyPrompt,
     onCopySeed,
     onGenerateVariation,
-    onLeagueToggle,
+    onCommunityToggle,
     onDownload,
-    onDelete
+    onDelete,
+    isAdmin,
+    onToggleExemplar
 }: ImageMetadataSidebarProps) {
     return (
         <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-border flex flex-col min-h-0">
@@ -126,6 +132,7 @@ export default function ImageMetadataSidebar({
                             collections={collections}
                             selectedIds={image.collectionIds || (image.collectionId ? [image.collectionId] : [])}
                             onToggle={onToggleCollection}
+                            onCreate={onCreateCollection}
                         />
                     </div>
 
@@ -167,6 +174,24 @@ export default function ImageMetadataSidebar({
                         <p className="text-sm mt-1">{formatDate(image.createdAt)}</p>
                     </div>
 
+                    {isAdmin && (
+                        <div className="pt-4 border-t border-border/50">
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={onToggleExemplar}
+                                className={`w-full justify-between h-9 text-[10px] uppercase font-black tracking-widest transition-all ${image.isExemplar ? "text-indigo-400 border-indigo-500/30 bg-indigo-500/5 hover:bg-indigo-500/10" : "text-foreground-muted hover:bg-background-secondary"
+                                    }`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Icons.exemplar size={14} className={image.isExemplar ? "fill-current" : ""} />
+                                    <span>Exemplar Status</span>
+                                </div>
+                                {image.isExemplar ? "Active" : "Off"}
+                            </Button>
+                        </div>
+                    )}
+
                     <ActionsBar
                         image={image}
                         publishingId={publishingId}
@@ -174,7 +199,7 @@ export default function ImageMetadataSidebar({
                         onCopyPrompt={onCopyPrompt}
                         onCopySeed={onCopySeed}
                         onGenerateVariation={onGenerateVariation}
-                        onLeagueToggle={onLeagueToggle}
+                        onCommunityToggle={onCommunityToggle}
                         onDownload={onDownload}
                         onDelete={onDelete}
                     />

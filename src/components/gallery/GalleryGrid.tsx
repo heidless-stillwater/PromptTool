@@ -1,13 +1,14 @@
 'use client';
 
+import { motion, AnimatePresence } from 'framer-motion';
 import { GeneratedImage } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import ImageCard from '@/components/ImageCard';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Icons } from '@/components/ui/Icons';
-
 import { SkeletonGrid } from '@/components/ui/Skeleton';
+import { staggerContainer, cardFadeIn } from '@/lib/animations';
 
 interface GalleryGridProps {
     images: GeneratedImage[];
@@ -51,7 +52,18 @@ export default function GalleryGrid({
     const router = useRouter();
 
     if (loadingImages) {
-        return <SkeletonGrid count={10} columns={5} />;
+        return (
+            <AnimatePresence>
+                <motion.div
+                    key="gallery-skeleton"
+                    initial={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                >
+                    <SkeletonGrid count={10} columns={5} />
+                </motion.div>
+            </AnimatePresence>
+        );
     }
 
     if (images.length === 0) {
@@ -91,7 +103,12 @@ export default function GalleryGrid({
 
     return (
         <div className="space-y-8">
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+            <motion.div
+                className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6"
+                variants={staggerContainer}
+                initial="initial"
+                animate="animate"
+            >
                 {isGrouped ? (
                     Object.entries(groupImagesByPromptSet(filteredImages)).map(([key, groupImages], index) => {
                         const firstImage = groupImages[0];
@@ -99,46 +116,48 @@ export default function GalleryGrid({
                         const isAnySelected = groupIds.some(id => selectedImageIds.has(id));
 
                         return (
-                            <ImageCard
-                                key={key}
-                                image={firstImage}
-                                count={groupImages.length}
-                                variant="gallery"
-                                selectionMode={selectionMode}
-                                isSelected={isAnySelected}
-                                index={index}
-                                onClick={() => {
-                                    if (selectionMode) {
-                                        onToggleGroupSelection(groupIds);
-                                    } else {
-                                        onGroupSelect(groupImages);
-                                    }
-                                }}
-                            />
+                            <motion.div key={key} variants={cardFadeIn}>
+                                <ImageCard
+                                    image={firstImage}
+                                    count={groupImages.length}
+                                    variant="gallery"
+                                    selectionMode={selectionMode}
+                                    isSelected={isAnySelected}
+                                    index={index}
+                                    onClick={() => {
+                                        if (selectionMode) {
+                                            onToggleGroupSelection(groupIds);
+                                        } else {
+                                            onGroupSelect(groupImages);
+                                        }
+                                    }}
+                                />
+                            </motion.div>
                         );
                     })
                 ) : (
                     filteredImages.map((image, index) => (
-                        <ImageCard
-                            key={image.id}
-                            image={image}
-                            variant="gallery"
-                            selectionMode={selectionMode}
-                            isSelected={selectedImageIds.has(image.id)}
-                            index={index}
-                            onClick={() => {
-                                if (selectionMode) {
-                                    onToggleImageSelection(image.id);
-                                } else {
-                                    onImageSelect(image);
-                                }
-                            }}
-                            onDelete={() => onDeleteImage(image.id)}
-                            deletingId={deletingId}
-                        />
+                        <motion.div key={image.id} variants={cardFadeIn}>
+                            <ImageCard
+                                image={image}
+                                variant="gallery"
+                                selectionMode={selectionMode}
+                                isSelected={selectedImageIds.has(image.id)}
+                                index={index}
+                                onClick={() => {
+                                    if (selectionMode) {
+                                        onToggleImageSelection(image.id);
+                                    } else {
+                                        onImageSelect(image);
+                                    }
+                                }}
+                                onDelete={() => onDeleteImage(image.id)}
+                                deletingId={deletingId}
+                            />
+                        </motion.div>
                     ))
                 )}
-            </div>
+            </motion.div>
 
             {hasMore && (
                 <div className="flex justify-center pt-8">

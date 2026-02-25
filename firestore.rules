@@ -40,7 +40,7 @@ service cloud.firestore {
       }
     }
 
-    // Community League - public reading for authenticated users
+    // Community Hub - public reading for authenticated users
     match /leagueEntries/{entryId} {
       // IMPORTANT: Explicitly allowing list for the gallery query
       allow read, list: if isAuthenticated();
@@ -53,12 +53,12 @@ service cloud.firestore {
       );
       allow delete: if isAuthenticated() && (resource.data.originalUserId == request.auth.uid || isAdmin());
       
-      // League reports (Private to admins)
+      // Hub reports (Private to admins)
       match /reports/{reportId} {
         allow read, write: if isAdmin();
       }
 
-      // League comments
+      // Community comments
       match /comments/{commentId} {
         allow read, list: if isAuthenticated();
         // Comment deletion only by author or admin

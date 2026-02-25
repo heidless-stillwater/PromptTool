@@ -25,7 +25,7 @@ Standardize how data moves through the app and ensure it's validated at the boun
     - ✅ Migrated `useLeague.ts` to consume `useLeagueEntries`, `useLeagueThumbnails`, `useCollectionsQuery`.
     - ✅ Migrated `useDashboard.ts` to consume `useDashboardImages`, `useDashboardLeagueRecent`, `useCollectionsQuery`, `useCreditHistory`.
     - ✅ Added `queryClient.invalidateQueries()` to all bulk actions (delete, collect, publish, tag).
-    - 🔄 Implement optimistic updates for Votes and Social follows via `useMutation`.
+    - ✅ Implement optimistic updates for Votes and Social follows via `useMutation`.
 
 ### 1.2 Zod Validation Layer ✅ **Wired In**
 - **Problem**: Runtime errors from missing or unexpected API data/Environment variables.
@@ -34,7 +34,7 @@ Standardize how data moves through the app and ensure it's validated at the boun
     - ✅ Created `src/lib/schemas.ts` with Zod v4 schemas for `UserProfile`, `LeagueEntry`, `ApiResponse`.
     - ✅ Added `envSchema` + `validateEnv()` function for startup env checks.
     - ✅ Wired `validateEnv()` into `layout.tsx` for fail-fast startup.
-    - 🔄 Integrate schemas with TanStack Query `queryFn` for runtime data validation.
+    - ✅ Integrate schemas with TanStack Query `queryFn` for runtime data validation.
 
 ## Phase 2: Premium UX & Motion
 Bridge the gap between "functional" and "delightful" with modern UI patterns.
@@ -55,40 +55,48 @@ Bridge the gap between "functional" and "delightful" with modern UI patterns.
     - ✅ Integrated into Dashboard page — `SkeletonDashboard` for Suspense + auth loading.
     - ✅ Integrated into Gallery page — `SkeletonGrid` replaces old spinner.
     - ✅ Integrated into RecentCreations component.
-    - 🔄 Implement smooth fade transitions from skeleton to content (Framer Motion).
+    - ✅ Implement smooth fade transitions from skeleton to content (Framer Motion).
 
-### 2.2 Framer Motion Orchestration 🔄 **Proposed**
+### 2.2 Framer Motion Orchestration ✅ **Done**
 - **Problem**: Static UI feels "stiff".
 - **Goal**: Fluid, premium micro-animations.
 - **Execution**:
-    - Staggered entrance animations for Gallery grids.
-    - Smooth layout transitions for Modals.
-    - Hover-aware physics for interactive components.
+    - ✅ Staggered entrance animations for Community Hub and Gallery grids.
+    - ✅ Smooth modal slide-up + backdrop fade for CommunityEntryModal.
+    - ✅ Hover-aware physics already on ImageCard via existing motion.div.
+    - ✅ Expanded `animations.ts` with `cardFadeIn`, `staggerContainer`, `staggerContainerSlow`, `modalSlideUp`, `backdropFade` variants.
 
 ## Phase 3: Intelligence & Community Depth
 Harnessing AI to add value and social loops to keep users engaged.
 
-### 3.1 "Magic Wand" Prompt Enhancement 🔄 **Proposed**
+### 3.1 "Magic Wand" Prompt Enhancement ✅ **Done**
 - **Problem**: Users often struggle to write detailed image prompts.
 - **Goal**: One-click prompt optimization using Gemini.
 - **Execution**:
-    - New API route `/api/generate/enhance` using Gemini 1.5.
-    - Integration into the `Generate` page UI.
+    - ✅ API route `/api/generate/enhance` using Gemini 2.5 Flash.
+    - ✅ Integration into the `Generate` page UI (freeform mode, purple ✨ Enhance button).
+    - ✅ Fixed `seed: null` Zod validation error for Professional mode users.
 
-### 3.2 Global Activity & Real-time Social 🔄 **Proposed**
+### 3.2 Global Activity & Real-time Social ✅ **Done**
 - **Problem**: The app feels "empty" despite having many users.
 - **Goal**: Show life within the community.
 - **Execution**:
-    - "Trending Now" dashboard tile.
-    - Real-time notification toast for community reactions.
-    - Improved `NotificationBell` logic.
+    - ✅ "Trending Now" dashboard tile — `CommunityPulse` now queries by `voteCount desc` (top 10) instead of `publishedAt`.
+    - ✅ Real-time notification toasts for votes, comments, follows, reactions, and mentions (with emoji prefixes).
+    - ✅ `NotificationBell` improved — fixed `/league` links → `/community?entry=`, added `reaction` type, animated dropdown open/close and unread badge with Framer Motion.
 
 ## Phase 4: Quality & Testing
 Ensuring the platform stays stable as it scales.
 
-### 4.1 Unit & Integration Testing (Vitest) 🔄 **Proposed**
+### 4.1 Unit & Integration Testing (Vitest) ✅ **Done**
 - **Goal**: Test business logic in `/src/lib/services`.
-- **Execution**: Set up Vitest + React Testing Library for service and hook validation.
+- **Execution**:
+    - ✅ Installed Vitest + @testing-library/react with jsdom environment.
+    - ✅ Created `vitest.config.ts` with `@/` path alias and Firebase mocks.
+    - ✅ `src/__tests__/schemas.test.ts` — 18 tests covering `CommunityEntrySchema` null-handling, defaults, required fields, `zParseArray`, `zParseSingle`.
+    - ✅ `src/__tests__/generation-schema.test.ts` — 15 tests covering generation + enhance schemas, null seed/guidanceScale bug, range validation.
+    - ✅ `src/__tests__/date-utils.test.ts` — 4 tests covering `formatDate` including null guard bug discovered and fixed.
+    - ✅ All **37 tests green**. Bug found: `formatDate(null)` returned `'Unknown'` → fixed to `''`.
 
 ### 4.2 End-to-End Testing (Playwright) 🔄 **Proposed**
 - **Goal**: Critical path verification.

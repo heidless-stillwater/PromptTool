@@ -4,6 +4,7 @@ import { collection, query, where, getDocs, limit, orderBy } from 'firebase/fire
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { GeneratedImage, Collection } from '@/lib/types';
+import { normalizeImageData } from '@/lib/image-utils';
 import { Input } from '@/components/ui/Input';
 import { Icons } from '@/components/ui/Icons';
 import { Card } from '@/components/ui/Card';
@@ -53,7 +54,7 @@ export default function GlobalSearch() {
 
             const imgRef = collection(db, 'users', user.uid, 'images');
             const imgSnap = await getDocs(query(imgRef, orderBy('createdAt', 'desc'), limit(100)));
-            const allImages = imgSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as GeneratedImage));
+            const allImages = imgSnap.docs.map(doc => normalizeImageData(doc.data(), doc.id));
 
             const filteredImages = allImages.filter(img =>
                 img.prompt.toLowerCase().includes(term) ||

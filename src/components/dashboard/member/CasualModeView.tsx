@@ -92,7 +92,7 @@ export default function CasualModeView({ dashboardData }: CasualModeViewProps) {
                         variant="ghost"
                         size="sm"
                         className="text-xs font-bold text-primary"
-                        onClick={() => router.push('/league')}
+                        onClick={() => router.push('/community')}
                     >
                         Explore the Collective
                     </Button>
@@ -125,7 +125,7 @@ export default function CasualModeView({ dashboardData }: CasualModeViewProps) {
                 <div className="flex flex-wrap gap-4 mb-10">
                     <Button
                         variant="secondary"
-                        onClick={() => router.push('/league')}
+                        onClick={() => router.push('/community')}
                         className="flex items-center gap-2 border-emerald-500/20 hover:border-emerald-500/50 group transition-all"
                     >
                         <Icons.globe size={18} className="group-hover:rotate-12 transition-transform text-emerald-500" />
@@ -133,14 +133,14 @@ export default function CasualModeView({ dashboardData }: CasualModeViewProps) {
                     </Button>
                     <Button
                         variant="secondary"
-                        onClick={() => router.push('/league/leaderboard')}
+                        onClick={() => router.push('/community/leaderboard')}
                         className="flex items-center gap-2 border-yellow-500/20 hover:border-yellow-500/50 group transition-all"
                     >
                         <Icons.trophy size={18} className="group-hover:scale-110 transition-transform text-yellow-500" />
                         Hall of Fame
                     </Button>
                 </div>
-                <CommunityPulse entries={dashboardData.recentLeagueEntries} />
+                <CommunityPulse entries={dashboardData.recentCommunityEntries} />
             </div>
 
             {/* Support Level: Guided Tour Invite */}

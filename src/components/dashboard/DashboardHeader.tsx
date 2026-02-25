@@ -42,7 +42,7 @@ export default function DashboardHeader({
                     <Link href="/collections" className="text-sm font-medium hover:text-primary transition-colors hidden md:block">
                         My Collections
                     </Link>
-                    <Link href="/league" className="text-sm font-medium hover:text-emerald-500 transition-colors hidden lg:block">
+                    <Link href="/community" className="text-sm font-medium hover:text-emerald-500 transition-colors hidden lg:block">
                         Community Hub
                     </Link>
                     <GlobalSearch />

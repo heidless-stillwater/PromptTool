@@ -65,10 +65,10 @@ export default function ImageDisplay({ image, onPrev, onNext }: ImageDisplayProp
                 />
             )}
 
-            {/* League badge */}
-            {image.publishedToLeague && (
+            {/* Community badge */}
+            {image.publishedToCommunity && (
                 <div className="absolute top-4 left-4 z-10 bg-yellow-500/90 text-white text-xs font-bold px-2 py-1 rounded-lg flex items-center gap-1 shadow-lg pointer-events-none">
-                    🏆 Published to League
+                    🏆 Published to Community Hub
                 </div>
             )}
         </div>

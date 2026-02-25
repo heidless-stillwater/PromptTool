@@ -145,10 +145,17 @@ export default function ImageCard({
                         "absolute top-2 z-20 pointer-events-none flex flex-col gap-1.5 transition-all duration-300",
                         selectionMode ? "left-10" : "left-2"
                     )}>
-                        {/* League Badge */}
-                        {image.publishedToLeague && (
+                        {/* Community Badge */}
+                        {image.publishedToCommunity && (
                             <div className="bg-yellow-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-lg backdrop-blur-sm w-fit">
-                                🏆 League
+                                🏆 Community
+                            </div>
+                        )}
+
+                        {/* Exemplar Badge */}
+                        {image.isExemplar && (
+                            <div className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-lg backdrop-blur-sm w-fit border border-indigo-400/30">
+                                🏅 Exemplar
                             </div>
                         )}
 
@@ -228,7 +235,7 @@ export default function ImageCard({
                         <p className="text-xs text-foreground-muted font-sans">
                             {image.settings?.quality || 'standard'} • {image.settings?.aspectRatio || '1:1'}
                         </p>
-                        {!selectionMode && <ShareButtons entryId={image.leagueEntryId} imageUrl={image.imageUrl} prompt={image.prompt} className="scale-75 origin-right" />}
+                        {!selectionMode && <ShareButtons entryId={image.communityEntryId} imageUrl={image.imageUrl} prompt={image.prompt} className="scale-75 origin-right" />}
                     </div>
                 </div>
             )}

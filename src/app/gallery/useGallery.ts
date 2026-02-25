@@ -4,9 +4,10 @@ import { db } from '@/lib/firebase';
 import { GeneratedImage, Collection, ADMIN_EMAILS } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/Toast';
+import { normalizeImageData } from '@/lib/image-utils';
 
 export function useGallery() {
-    const { user, isSu } = useAuth();
+    const { user, isSu, isAdmin } = useAuth();
     const { showToast } = useToast();
 
     // Data State
@@ -28,6 +29,7 @@ export function useGallery() {
     const [filterQuality, setFilterQuality] = useState<'all' | 'standard' | 'high' | 'ultra'>('all');
     const [filterAspectRatio, setFilterAspectRatio] = useState<string>('all');
     const [filterTag, setFilterTag] = useState<string>('all');
+    const [filterExemplar, setFilterExemplar] = useState(false);
     const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'personal' | 'admin' | 'global'>('personal');
 
@@ -54,6 +56,7 @@ export function useGallery() {
     const [isSavingPromptSetID, setIsSavingPromptSetID] = useState(false);
     const [newImageTag, setNewImageTag] = useState('');
     const [isUpdatingTags, setIsUpdatingTags] = useState(false);
+    const [unpublishConfirmImage, setUnpublishConfirmImage] = useState<GeneratedImage | null>(null);
 
     // Fetch Images
     const fetchImages = useCallback(async (isLoadMore = false) => {
@@ -103,17 +106,9 @@ export function useGallery() {
             lastVisibleRef.current = lastVisibleDoc;
             setHasMore(snapshot.docs.length === 48);
 
-            const fetchedImages: GeneratedImage[] = snapshot.docs.map(doc => {
-                const data = doc.data() as GeneratedImage;
-                if (data.collectionId && data.collectionIds === undefined) {
-                    data.collectionIds = [data.collectionId];
-                }
-                return {
-                    ...data,
-                    id: doc.id,
-                    collectionIds: data.collectionIds || [],
-                };
-            });
+            const fetchedImages: GeneratedImage[] = snapshot.docs.map(doc =>
+                normalizeImageData(doc.data(), doc.id)
+            );
 
             if (isLoadMore) {
                 setImages(prev => [...prev, ...fetchedImages]);
@@ -250,15 +245,21 @@ export function useGallery() {
         }
     };
 
-    const handleLeagueToggle = async (image: GeneratedImage) => {
+    const handleCommunityToggle = async (image: GeneratedImage) => {
         if (!user) return;
-        const action = image.publishedToLeague ? 'unpublish' : 'publish';
-        if (action === 'unpublish' && !confirm('Remove this image from the Community Hub?')) return;
+        if (image.publishedToCommunity) {
+            setUnpublishConfirmImage(image);
+        } else {
+            performCommunityToggle(image, 'publish');
+        }
+    };
 
+    const performCommunityToggle = async (image: GeneratedImage, action: 'publish' | 'unpublish') => {
+        if (!user) return;
         setPublishingId(image.id);
         try {
             const token = await user.getIdToken();
-            const res = await fetch('/api/league/publish/', {
+            const res = await fetch('/api/community/publish/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -269,18 +270,18 @@ export function useGallery() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
 
-            const updater = (img: GeneratedImage) => {
-                if (img.id !== image.id) return img;
-                return {
-                    ...img,
-                    publishedToLeague: action === 'publish',
-                    leagueEntryId: action === 'publish' ? data.leagueEntryId : undefined,
-                };
+            const updatedImage: GeneratedImage = {
+                ...image,
+                publishedToCommunity: action === 'publish',
+                communityEntryId: action === 'publish' ? data.communityEntryId : undefined,
             };
-            setImages(prev => prev.map(updater));
-            setSelectedImage(prev => prev ? updater(prev) : null);
+
+            setImages(prev => prev.map(img => img.id === image.id ? updatedImage : img));
+            if (selectedImage?.id === image.id) {
+                setSelectedImage(updatedImage);
+            }
             if (selectedGroup) {
-                setSelectedGroup(prev => prev ? prev.map(updater) : null);
+                setSelectedGroup(prev => prev ? prev.map(img => img.id === image.id ? updatedImage : img) : null);
             }
 
             showToast(
@@ -288,10 +289,11 @@ export function useGallery() {
                 'success'
             );
         } catch (error: any) {
-            console.error('[Gallery] League toggle error:', error);
-            showToast(error.message || 'Failed to update league status', 'error');
+            console.error('[Gallery] Community toggle error:', error);
+            showToast(error.message || 'Failed to update community status', 'error');
         } finally {
             setPublishingId(null);
+            setUnpublishConfirmImage(null);
         }
     };
 
@@ -310,6 +312,14 @@ export function useGallery() {
             await updateDoc(imageRef, {
                 tags: arrayUnion(tag)
             });
+
+            // Sync to community if published
+            if (selectedImage.publishedToCommunity && selectedImage.communityEntryId) {
+                const communityRef = doc(db, 'leagueEntries', selectedImage.communityEntryId);
+                await updateDoc(communityRef, {
+                    tags: arrayUnion(tag)
+                }).catch(err => console.error('[Gallery Sync] Failed to sync tag to community:', err));
+            }
 
             // Update local state
             const updatedTags = [...(selectedImage.tags || []), tag];
@@ -335,6 +345,14 @@ export function useGallery() {
             await updateDoc(imageRef, {
                 tags: arrayRemove(tag)
             });
+
+            // Sync to community if published
+            if (selectedImage.publishedToCommunity && selectedImage.communityEntryId) {
+                const communityRef = doc(db, 'leagueEntries', selectedImage.communityEntryId);
+                await updateDoc(communityRef, {
+                    tags: arrayRemove(tag)
+                }).catch(err => console.error('[Gallery Sync] Failed to sync tag removal to community:', err));
+            }
 
             // Update local state
             const updatedTags = (selectedImage.tags || []).filter(t => t !== tag);
@@ -362,6 +380,14 @@ export function useGallery() {
                 promptSetID: cleanID || deleteField()
             });
 
+            // Sync to community if published
+            if (selectedImage.publishedToCommunity && selectedImage.communityEntryId) {
+                const communityRef = doc(db, 'leagueEntries', selectedImage.communityEntryId);
+                await updateDoc(communityRef, {
+                    promptSetID: cleanID || null
+                }).catch(err => console.error('[Gallery Sync] Failed to sync Prompt Set ID to community:', err));
+            }
+
             // Update local state
             const updatedImage = { ...selectedImage, promptSetID: cleanID || undefined };
             setImages(prev => prev.map(img => img.id === selectedImage.id ? updatedImage : img));
@@ -374,6 +400,38 @@ export function useGallery() {
             showToast('Failed to update Prompt Set ID', 'error');
         } finally {
             setIsSavingPromptSetID(false);
+        }
+    };
+
+    const handleToggleExemplar = async () => {
+        if (!user || !selectedImage || !isAdmin) return;
+
+        const newValue = !selectedImage.isExemplar;
+        try {
+            const imageRef = doc(db, 'users', user.uid, 'images', selectedImage.id);
+            await updateDoc(imageRef, {
+                isExemplar: newValue
+            });
+
+            // Sync to community if published
+            if (selectedImage.publishedToCommunity && selectedImage.communityEntryId) {
+                const communityRef = doc(db, 'leagueEntries', selectedImage.communityEntryId);
+                await updateDoc(communityRef, {
+                    isExemplar: newValue
+                }).catch(err => console.error('[Gallery Sync] Failed to sync Exemplar status to community:', err));
+            }
+
+            // Update local state
+            const updatedImage = { ...selectedImage, isExemplar: newValue };
+            setSelectedImage(updatedImage);
+            setImages(prev => prev.map(img => img.id === selectedImage.id ? updatedImage : img));
+            if (selectedGroup) {
+                setSelectedGroup(prev => prev ? prev.map(img => img.id === selectedImage.id ? updatedImage : img) : null);
+            }
+            showToast(newValue ? 'Marked as Exemplar' : 'Removed Exemplar status', 'success');
+        } catch (error) {
+            console.error('Failed to toggle Exemplar status:', error);
+            showToast('Failed to update Exemplar status', 'error');
         }
     };
 
@@ -537,6 +595,9 @@ export function useGallery() {
         if (selectedImage?.id === updatedImage.id) {
             setSelectedImage(updatedImage);
         }
+        if (selectedGroup) {
+            setSelectedGroup(prev => prev ? prev.map(img => img.id === updatedImage.id ? updatedImage : img) : null);
+        }
     };
 
     // Filter Logic
@@ -560,8 +621,9 @@ export function useGallery() {
         const matchesNegPrompt = filterHasNegativePrompt === 'all' ||
             (filterHasNegativePrompt === 'yes' && !!img.settings?.negativePrompt?.trim()) ||
             (filterHasNegativePrompt === 'no' && !img.settings?.negativePrompt?.trim());
+        const matchesExemplar = !filterExemplar || !!img.isExemplar;
 
-        return matchesSearch && matchesQuality && matchesAspect && matchesCollection && matchesTag && matchesSeed && matchesGuidanceMin && matchesGuidanceMax && matchesNegPrompt;
+        return matchesSearch && matchesQuality && matchesAspect && matchesCollection && matchesTag && matchesSeed && matchesGuidanceMin && matchesGuidanceMax && matchesNegPrompt && matchesExemplar;
     });
 
     // Navigation
@@ -592,6 +654,7 @@ export function useGallery() {
         filterQuality, setFilterQuality,
         filterAspectRatio, setFilterAspectRatio,
         filterTag, setFilterTag,
+        filterExemplar, setFilterExemplar,
         showAdvancedFilters, setShowAdvancedFilters,
         filterSeed, setFilterSeed,
         filterGuidanceMin, setFilterGuidanceMin,
@@ -607,15 +670,18 @@ export function useGallery() {
         isSavingPromptSetID, setIsSavingPromptSetID,
         newImageTag, setNewImageTag,
         isUpdatingTags, setIsUpdatingTags, // Export setter
-        viewMode, setViewMode, isSu,
+        unpublishConfirmImage, setUnpublishConfirmImage,
+        viewMode, setViewMode, isSu, isAdmin,
 
         // Actions
         fetchImages, fetchCollections,
         handleDelete, handleBatchDelete, handleCreateCollection,
-        handleLeagueToggle, groupImagesByPromptSet,
+        handleCommunityToggle,
+        confirmUnpublish: () => unpublishConfirmImage && performCommunityToggle(unpublishConfirmImage, 'unpublish'),
+        groupImagesByPromptSet,
         setImages,
         handleAddImageTag, handleRemoveImageTag,
-        handleUpdatePromptSetID, handleToggleCollection, handleBatchToggleCollection,
+        handleUpdatePromptSetID, handleToggleExemplar, handleToggleCollection, handleBatchToggleCollection,
         handleDownload, handleNextImage, handlePrevImage, handleUpdateImage,
         confirmationState, confirmDelete, cancelDelete
     };

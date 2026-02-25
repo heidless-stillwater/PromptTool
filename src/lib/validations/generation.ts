@@ -17,9 +17,9 @@ export const generationSchema = z.object({
         setting: z.string().optional(),
     }).optional(),
     count: z.number().int().min(1).max(4).default(1),
-    seed: z.number().int().min(0).optional(),
+    seed: z.number().int().min(0).nullish(),
     negativePrompt: z.string().max(500).optional(),
-    guidanceScale: z.number().min(1).max(20).default(7),
+    guidanceScale: z.number().min(1).max(20).nullish().transform(v => v ?? 7),
     referenceImage: z.string().optional(), // Base64
     referenceImageUrl: z.string().optional(), // URL for thumbnail initialization
     referenceMimeType: z.string().optional(),

@@ -14,7 +14,7 @@ interface ActionsBarProps {
     onCopyPrompt: () => void;
     onCopySeed: () => void;
     onGenerateVariation: () => void;
-    onLeagueToggle: () => void;
+    onCommunityToggle: () => void;
     onDownload: () => void;
     onDelete: () => void;
 }
@@ -26,7 +26,7 @@ export default function ActionsBar({
     onCopyPrompt,
     onCopySeed,
     onGenerateVariation,
-    onLeagueToggle,
+    onCommunityToggle,
     onDownload,
     onDelete
 }: ActionsBarProps) {
@@ -63,14 +63,14 @@ export default function ActionsBar({
                     Edit Image
                 </Button>
             </Tooltip>
-            <Tooltip content={image.publishedToLeague ? 'Remove from league' : 'Share your work with the community league!'} className="col-span-2">
+            <Tooltip content={image.publishedToCommunity ? 'Remove from community' : 'Share your work with the community library!'} className="col-span-2">
                 <Button
-                    onClick={onLeagueToggle}
+                    onClick={onCommunityToggle}
                     disabled={publishingId === image.id}
                     isLoading={publishingId === image.id}
                     className={cn(
                         "w-full py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2",
-                        image.publishedToLeague
+                        image.publishedToCommunity
                             ? 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20 border border-yellow-500/20'
                             : 'bg-background-secondary hover:bg-background-tertiary text-foreground border border-border'
                     )}
@@ -78,7 +78,7 @@ export default function ActionsBar({
                     {!publishingId && (
                         <span className="text-lg">🏆</span>
                     )}
-                    {image.publishedToLeague ? 'Published to League' : 'Publish to Team League'}
+                    {image.publishedToCommunity ? 'Published to Community' : 'Publish to Community'}
                 </Button>
             </Tooltip>
             <Tooltip content="Get the file at full resolution" className="col-span-2">

@@ -4,12 +4,13 @@ import { db } from '@/lib/firebase';
 import { GeneratedImage } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/Toast';
+import { useCreateCollectionMutation } from './queries/useQueryHooks';
 
 export function useImageDetails(
     image: GeneratedImage,
     onUpdate: (updatedImage: GeneratedImage) => void
 ) {
-    const { user } = useAuth();
+    const { user, isAdmin } = useAuth();
     const { showToast } = useToast();
 
     // Prompt Set ID State
@@ -21,8 +22,10 @@ export function useImageDetails(
     const [newImageTag, setNewImageTag] = useState('');
     const [isUpdatingTags, setIsUpdatingTags] = useState(false);
 
-    // League State
+    // Community State
     const [publishingId, setPublishingId] = useState<string | null>(null);
+    const [showUnpublishConfirm, setShowUnpublishConfirm] = useState(false);
+    const createCollectionMutation = useCreateCollectionMutation();
 
     // Suggestions for Prompt Set ID
     const [existingPromptSetIDs, setExistingPromptSetIDs] = useState<{ id: string, thumbUrl: string }[]>([]);
@@ -141,15 +144,21 @@ export function useImageDetails(
         }
     };
 
-    const toggleLeague = async () => {
+    const toggleCommunity = async () => {
         if (!user) return;
-        const action = image.publishedToLeague ? 'unpublish' : 'publish';
-        if (action === 'unpublish' && !confirm('Remove this image from the Community Hub?')) return;
+        if (image.publishedToCommunity) {
+            setShowUnpublishConfirm(true);
+        } else {
+            performCommunityToggle('publish');
+        }
+    };
 
+    const performCommunityToggle = async (action: 'publish' | 'unpublish') => {
+        if (!user) return;
         setPublishingId(image.id);
         try {
             const token = await user.getIdToken();
-            const res = await fetch('/api/league/publish/', {
+            const res = await fetch('/api/community/publish/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -162,8 +171,8 @@ export function useImageDetails(
 
             onUpdate({
                 ...image,
-                publishedToLeague: action === 'publish',
-                leagueEntryId: action === 'publish' ? data.leagueEntryId : undefined,
+                publishedToCommunity: action === 'publish',
+                communityEntryId: action === 'publish' ? data.communityEntryId : undefined,
             });
 
             showToast(
@@ -171,10 +180,11 @@ export function useImageDetails(
                 'success'
             );
         } catch (error: any) {
-            console.error('[Gallery] League toggle error:', error);
-            showToast(error.message || 'Failed to update league status', 'error');
+            console.error('[Gallery] Community toggle error:', error);
+            showToast(error.message || 'Failed to update community status', 'error');
         } finally {
             setPublishingId(null);
+            setShowUnpublishConfirm(false);
         }
     };
 
@@ -212,6 +222,19 @@ export function useImageDetails(
         }
     };
 
+    const createCollection = async (name: string) => {
+        if (!user || !name.trim()) return;
+        return createCollectionMutation.mutateAsync(name, {
+            onSuccess: (data) => {
+                showToast(`Collection "${data.name}" created`, 'success');
+            },
+            onError: (error) => {
+                console.error('Error creating collection:', error);
+                showToast('Failed to create collection', 'error');
+            }
+        });
+    };
+
     const downloadImage = async (format: 'png' | 'jpeg' = 'png') => {
         try {
             console.log('[Gallery] Initiating download for image:', image.id);
@@ -237,6 +260,32 @@ export function useImageDetails(
         }
     };
 
+    const toggleExemplar = async () => {
+        if (!user || !isAdmin) return;
+
+        const newValue = !image.isExemplar;
+        try {
+            const imageRef = doc(db, 'users', image.userId || user.uid, 'images', image.id);
+            await updateDoc(imageRef, {
+                isExemplar: newValue
+            });
+
+            // Sync to community if published
+            if (image.publishedToCommunity && image.communityEntryId) {
+                const communityRef = doc(db, 'leagueEntries', image.communityEntryId);
+                await updateDoc(communityRef, {
+                    isExemplar: newValue
+                }).catch(err => console.error('[ImageDetails] Failed to sync Exemplar to community:', err));
+            }
+
+            onUpdate({ ...image, isExemplar: newValue });
+            showToast(newValue ? '🏅 Marked as Exemplar' : 'Exemplar status removed', 'success');
+        } catch (error) {
+            console.error('Failed to toggle Exemplar:', error);
+            showToast('Failed to update Exemplar status', 'error');
+        }
+    };
+
     return {
         // State
         isEditingPromptSetID,
@@ -250,13 +299,19 @@ export function useImageDetails(
         setNewImageTag,
         isUpdatingTags,
         publishingId,
+        showUnpublishConfirm,
+        setShowUnpublishConfirm,
+        isAdmin,
 
         // Actions
         updatePromptSetID,
         addTag,
         removeTag,
-        toggleLeague,
+        toggleCommunity,
+        confirmUnpublish: () => performCommunityToggle('unpublish'),
         toggleCollection,
-        downloadImage
+        createCollection,
+        downloadImage,
+        toggleExemplar
     };
 }

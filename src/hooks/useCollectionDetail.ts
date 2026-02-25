@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { Collection, GeneratedImage } from '@/lib/types';
 import { useRouter } from 'next/navigation';
+import { normalizeImageData } from '@/lib/image-utils';
 
 export function useCollectionDetail(collectionId: string) {
     const { user, loading: authLoading } = useAuth();
@@ -47,8 +48,8 @@ export function useCollectionDetail(collectionId: string) {
             ]);
 
             const imageMap = new Map();
-            snapArray.docs.forEach(d => imageMap.set(d.id, { id: d.id, ...d.data() }));
-            snapLegacy.docs.forEach(d => imageMap.set(d.id, { id: d.id, ...d.data() }));
+            snapArray.docs.forEach(d => imageMap.set(d.id, normalizeImageData(d.data(), d.id)));
+            snapLegacy.docs.forEach(d => imageMap.set(d.id, normalizeImageData(d.data(), d.id)));
 
             const fetchedImages = Array.from(imageMap.values()) as GeneratedImage[];
             fetchedImages.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));

@@ -39,8 +39,7 @@ export function SkeletonCard({ aspectRatio = '1/1' }: { aspectRatio?: string }) 
     );
 }
 
-// ============================================
-// Skeleton Grid — for gallery / league views
+// Skeleton Grid — for gallery / community views
 // ============================================
 
 export function SkeletonGrid({
@@ -79,8 +78,7 @@ export function SkeletonHeader() {
     );
 }
 
-// ============================================
-// Skeleton Feed — for league feed view
+// Skeleton Feed — for community feed view
 // ============================================
 
 export function SkeletonFeedItem() {

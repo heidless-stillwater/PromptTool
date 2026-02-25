@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense, useCallback, useRef } from 'react';
 import { PROMPT_CATEGORIES, buildPromptFromMadLibs, FEATURED_PROMPTS } from '@/lib/prompt-templates';
 import { ImageQuality, AspectRatio, MadLibsSelection, CREDIT_COSTS, SUBSCRIPTION_PLANS, GeneratedImage, MediaModality } from '@/lib/types';
+import { normalizeImageData } from '@/lib/image-utils';
 import Link from 'next/link';
 import TextOverlayEditor from '@/components/TextOverlayEditor';
 import ReactionPicker from '@/components/ReactionPicker';
@@ -387,19 +388,19 @@ function GeneratePageContent() {
                 const { db } = await import('@/lib/firebase');
 
                 // Try to find the image in the user's collection first
-                // If not found, it might be from the public league (published by another user)
+                // If not found, it might be from the Community Hub (published by another user)
                 let imgRef = doc(db, 'users', user.uid, 'images', refImageId);
                 let imgSnap = await getDoc(imgRef);
 
-                // Fallback: Check league entries if not in personal collection
+                // Fallback: Check Community Hub entries if not in personal collection
                 let data: GeneratedImage | null = null;
                 if (imgSnap.exists()) {
                     data = imgSnap.data() as GeneratedImage;
                 } else {
-                    const leagueRef = doc(db, 'leagueEntries', refImageId);
-                    const leagueSnap = await getDoc(leagueRef);
-                    if (leagueSnap.exists()) {
-                        data = leagueSnap.data() as any;
+                    const communityRef = doc(db, 'leagueEntries', refImageId);
+                    const communitySnap = await getDoc(communityRef);
+                    if (communitySnap.exists()) {
+                        data = communitySnap.data() as any;
                     }
                 }
 
@@ -559,10 +560,7 @@ function GeneratePageContent() {
             const q = query(imagesRef, orderBy('createdAt', 'desc'), limit(20));
             const snapshot = await getDocs(q);
 
-            const images = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            } as GeneratedImage));
+            const images = snapshot.docs.map(doc => normalizeImageData(doc.data(), doc.id));
 
             setHistoryImages(images);
         } catch (err) {
@@ -601,7 +599,7 @@ function GeneratePageContent() {
             setNegativePrompt(image.settings.negativePrompt);
         }
         if (image.settings.seed !== undefined) {
-            setSeed(image.settings.seed);
+            setSeed(image.settings.seed ?? undefined);
         }
         if (image.settings.guidanceScale !== undefined) {
             setGuidanceScale(image.settings.guidanceScale);
@@ -720,7 +718,7 @@ function GeneratePageContent() {
 
                             if (image.settings.aspectRatio) setAspectRatio(image.settings.aspectRatio);
                             if (image.settings.negativePrompt) setNegativePrompt(image.settings.negativePrompt);
-                            if (image.settings.seed !== undefined) setSeed(image.settings.seed);
+                            if (image.settings.seed !== undefined) setSeed(image.settings.seed ?? undefined);
                             if (image.settings.guidanceScale !== undefined) setGuidanceScale(image.settings.guidanceScale);
 
                             // Open advanced settings if we have complex settings
@@ -766,7 +764,7 @@ function GeneratePageContent() {
 
                                 if (image.settings.aspectRatio) setAspectRatio(image.settings.aspectRatio);
                                 if (image.settings.negativePrompt) setNegativePrompt(image.settings.negativePrompt);
-                                if (image.settings.seed !== undefined) setSeed(image.settings.seed);
+                                if (image.settings.seed !== undefined) setSeed(image.settings.seed ?? undefined);
                                 if (image.settings.guidanceScale !== undefined) setGuidanceScale(image.settings.guidanceScale);
 
                                 // Open advanced settings if we have complex settings
@@ -794,7 +792,7 @@ function GeneratePageContent() {
                 if (image.settings.aspectRatio) setAspectRatio(image.settings.aspectRatio);
                 if (image.settings.modality) setModality(image.settings.modality);
                 if (image.settings.negativePrompt) setNegativePrompt(image.settings.negativePrompt);
-                if (image.settings.seed !== undefined) setSeed(image.settings.seed);
+                if (image.settings.seed !== undefined) setSeed(image.settings.seed ?? undefined);
                 if (image.settings.guidanceScale !== undefined) setGuidanceScale(image.settings.guidanceScale);
             }
             setWarning('Imported prompt and settings from gallery.');
@@ -909,9 +907,9 @@ function GeneratePageContent() {
                     madlibsData: madLibs, // Always send current madLibs for metadata/style/vibe
                     count: batchSize,
                     ...(isPro && {
-                        seed,
+                        seed: seed ?? undefined,
                         negativePrompt: negativePrompt.trim() || undefined,
-                        guidanceScale,
+                        guidanceScale: guidanceScale ?? undefined,
                     }),
                     referenceImage: referenceImage?.base64,
                     referenceMimeType: referenceImage?.mimeType,

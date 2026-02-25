@@ -4,10 +4,12 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { UserProfile, LeagueEntry, GeneratedImage } from '@/lib/types';
+import { UserProfile, CommunityEntry, GeneratedImage } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/components/Toast';
-import { useLeagueInteractions } from '@/hooks/useLeagueInteractions';
+import { normalizeImageData } from '@/lib/image-utils';
+import { useCommunityInteractions } from '@/hooks/useCommunityInteractions';
+import { useCollectionsQuery } from '@/hooks/queries/useQueryHooks';
 
 export function useProfile() {
     const params = useParams();
@@ -40,20 +42,22 @@ export function useProfile() {
     const [author, setAuthor] = useState<UserProfile | null>(null);
     // All generated images — the primary portfolio source
     const [images, setImages] = useState<GeneratedImage[]>([]);
-    // League entries for interactions (vote/comment/modal)
-    const [entries, setEntries] = useState<LeagueEntry[]>([]);
+    // Community entries for interactions (vote/comment/modal)
+    const [communityEntries, setCommunityEntries] = useState<CommunityEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [queryError, setQueryError] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'grid' | 'feed' | 'compact' | 'list'>('grid');
     const [isGrouped, setIsGrouped] = useState(false);
-    const [showOnlyLeague, setShowOnlyLeague] = useState(false);
+    const [showOnlyCommunity, setShowOnlyCommunity] = useState(false);
 
-    // Lookup map: leagueEntryId → LeagueEntry (for cross-referencing)
-    const leagueEntryMap = useMemo(() => {
-        const map = new Map<string, LeagueEntry>();
-        entries.forEach(e => map.set(e.id, e));
+    // Lookup map: communityEntryId → CommunityEntry (for cross-referencing)
+    const communityEntryMap = useMemo(() => {
+        const map = new Map<string, CommunityEntry>();
+        communityEntries.forEach(e => map.set(e.id, e));
         return map;
-    }, [entries]);
+    }, [communityEntries]);
+
+    const { data: collections = [] } = useCollectionsQuery(currentUser?.uid);
 
     // Interaction State (still driven by leagueEntries for vote/comment)
     const {
@@ -72,20 +76,24 @@ export function useProfile() {
         handleReport,
         unpublishing,
         reactingEmoji,
-        handleUnpublish: originalHandleUnpublish
-    } = useLeagueInteractions(entries, [], setEntries);
+        handleUnpublish: originalHandleUnpublish,
+        handleToggleCollection,
+        handleCreateCollection,
+        viewerCollectionIds,
+        loadingViewerCollections
+    } = useCommunityInteractions(communityEntries, collections, setCommunityEntries);
 
     const [isFollowingProfile, setIsFollowingProfile] = useState(false);
     const [followLoadingProfile, setFollowLoadingProfile] = useState(false);
 
-    // Computed Stats — use total images count, votes from league entries
+    // Computed Stats — use total images count, votes from community entries
     const stats = useMemo(() => {
-        const totalVotes = entries.reduce((sum, entry) => sum + (entry.voteCount || 0), 0);
+        const totalVotes = communityEntries.reduce((sum, entry) => sum + (entry.voteCount || 0), 0);
         return {
             totalVotes,
             totalEntries: images.length
         };
-    }, [entries, images]);
+    }, [communityEntries, images]);
 
     const fetchProfile = useCallback(async () => {
         if (!userId) return;
@@ -100,7 +108,7 @@ export function useProfile() {
 
             if (!userSnap.exists()) {
                 showToast('User not found', 'error');
-                router.push('/league');
+                router.push('/community');
                 return;
             }
 
@@ -111,21 +119,20 @@ export function useProfile() {
             const imagesRef = collection(db, 'users', userId, 'images');
             const imagesQuery = query(imagesRef, orderBy('createdAt', 'desc'));
             const imagesSnap = await getDocs(imagesQuery);
-            const fetchedImages: GeneratedImage[] = imagesSnap.docs.map(d => ({
-                id: d.id,
-                ...d.data()
-            } as GeneratedImage));
+            const fetchedImages: GeneratedImage[] = imagesSnap.docs.map(d =>
+                normalizeImageData(d.data(), d.id)
+            );
             setImages(fetchedImages);
 
-            // 3. Fetch league entries for interaction (vote/comment/modal)
+            // 3. Fetch community entries for interaction (vote/comment/modal)
             const entriesRef = collection(db, 'leagueEntries');
             const entriesQuery = query(entriesRef, where('originalUserId', '==', userId));
             const entriesSnap = await getDocs(entriesQuery);
-            const fetchedEntries: LeagueEntry[] = entriesSnap.docs.map(d => ({
+            const fetchedEntries: CommunityEntry[] = entriesSnap.docs.map(d => ({
                 id: d.id,
                 ...d.data()
-            } as LeagueEntry));
-            setEntries(fetchedEntries);
+            } as CommunityEntry));
+            setCommunityEntries(fetchedEntries);
 
             // 4. Check following status
             if (currentUser && currentUser.uid !== userId) {
@@ -195,7 +202,7 @@ export function useProfile() {
 
         // After successful unpublish (handled inside originalHandleUnpublish), update local images state
         setImages(prev => prev.map(img =>
-            img.id === imageId ? { ...img, publishedToLeague: false, leagueEntryId: undefined } : img
+            img.id === imageId ? { ...img, publishedToCommunity: false, communityEntryId: undefined } : img
         ));
     }, [selectedEntry, originalHandleUnpublish]);
 
@@ -210,18 +217,23 @@ export function useProfile() {
 
     return {
         // State
-        userId, author, images, entries, leagueEntryMap, loading, authLoading, queryError, stats,
+        userId, author, images, communityEntries, communityEntryMap, loading, authLoading, queryError, stats,
         isFollowingProfile, followLoadingProfile, selectedEntry,
-        currentUser, viewMode, setViewMode, isGrouped, setIsGrouped, showOnlyLeague, setShowOnlyLeague,
+        currentUser, viewMode, setViewMode, isGrouped, setIsGrouped, showOnlyCommunity, setShowOnlyCommunity,
         comments, loadingComments, votingEntryId,
         isFollowingEntry, followLoadingEntry, reactingEmoji,
         userRole: authProfile?.role,
+        collections,
+        viewerCollectionIds,
+        loadingViewerCollections,
 
         // Actions
         handleToggleFollowProfile, formatDate, setSelectedEntry,
         handleVote, handleReactUpdate, handleAddComment, handleDeleteComment, handleReport,
         handleToggleFollowEntry,
         handleUnpublish,
+        handleToggleCollection,
+        handleCreateCollection,
         unpublishing
     };
 }

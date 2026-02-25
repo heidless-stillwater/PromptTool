@@ -24,14 +24,14 @@ interface SuDashboardProps {
 export default function SuDashboard({ dashboardData }: SuDashboardProps) {
     const router = useRouter();
     const {
-        user, profile, credits, recentImages, creditHistory, recentLeagueEntries,
-        collections, loadingImages, loadingLeague, loadingHistory, isHistoryExpanded,
+        user, profile, credits, recentImages, creditHistory, recentCommunityEntries,
+        collections, loadingImages, loadingCommunity, loadingHistory, isHistoryExpanded,
         isGrouped, selectionMode, selectedIds, isBulkDeleting, isBulkPublishing,
         isBulkCollecting, isBulkTagging, isCollectionModalOpen, isTagModalOpen, effectiveRole,
         signOut, switchRole, setAudienceMode, setIsHistoryExpanded, setIsGrouped,
         toggleSelectionMode, toggleImageSelection, toggleImageGroupSelection,
         handleSelectAll, handleBulkDelete, handleBulkAddToCollection,
-        handleBulkPublishToLeague, handleBulkAddTags, setIsCollectionModalOpen,
+        handleBulkPublishToCommunity, handleBulkAddTags, setIsCollectionModalOpen,
         setIsTagModalOpen, groupImagesByPromptSet, setSelectedIds, isAdmin, viewMode, setViewMode
     } = dashboardData;
 
@@ -102,6 +102,29 @@ export default function SuDashboard({ dashboardData }: SuDashboardProps) {
                         <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 px-3 py-1">
                             SUPER USER ACCESS
                         </Badge>
+
+                        {/* Experience Mode toggle — same as MemberDashboard */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-foreground-muted">Mode</span>
+                            <div className="flex bg-background-secondary rounded-xl p-1 border border-border/50 shadow-inner">
+                                <Button
+                                    variant={profile.audienceMode !== 'professional' ? 'primary' : 'ghost'}
+                                    size="sm"
+                                    onClick={() => setAudienceMode('casual')}
+                                    className="px-4 py-1.5 rounded-lg text-[9px] h-8 font-black tracking-widest uppercase transition-all"
+                                >
+                                    Casual
+                                </Button>
+                                <Button
+                                    variant={profile.audienceMode === 'professional' ? 'primary' : 'ghost'}
+                                    size="sm"
+                                    onClick={() => setAudienceMode('professional')}
+                                    className="px-4 py-1.5 rounded-lg text-[9px] h-8 font-black tracking-widest uppercase transition-all"
+                                >
+                                    Professional
+                                </Button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -123,11 +146,11 @@ export default function SuDashboard({ dashboardData }: SuDashboardProps) {
                         <Icons.settings size={20} />
                         Admin Panel
                     </Button>
-                    <Button variant="secondary" onClick={() => router.push('/league')} className="flex items-center gap-2 border-emerald-500/20 hover:border-emerald-500/50 group transition-all">
+                    <Button variant="secondary" onClick={() => router.push('/community')} className="flex items-center gap-2 border-emerald-500/20 hover:border-emerald-500/50 group transition-all">
                         <Icons.globe size={20} className="group-hover:rotate-12 transition-transform text-emerald-500" />
                         Community Hub
                     </Button>
-                    <Button variant="secondary" onClick={() => router.push('/league/leaderboard')} className="flex items-center gap-2 border-yellow-500/20 hover:border-yellow-500/50 group transition-all">
+                    <Button variant="secondary" onClick={() => router.push('/community/leaderboard')} className="flex items-center gap-2 border-yellow-500/20 hover:border-yellow-500/50 group transition-all">
                         <Icons.trophy size={20} className="group-hover:scale-110 transition-transform text-yellow-500" />
                         Hall of Fame
                     </Button>
@@ -179,7 +202,7 @@ export default function SuDashboard({ dashboardData }: SuDashboardProps) {
                     </div>
                 </Card>
 
-                <CommunityPulse entries={recentLeagueEntries} />
+                <CommunityPulse entries={recentCommunityEntries} />
 
                 <CreditActivity
                     isExpanded={isHistoryExpanded}
@@ -222,11 +245,11 @@ export default function SuDashboard({ dashboardData }: SuDashboardProps) {
                         <Button
                             variant="secondary"
                             size="sm"
-                            onClick={handleBulkPublishToLeague}
+                            onClick={handleBulkPublishToCommunity}
                             disabled={isBulkPublishing}
                             className="border-yellow-500/20 text-yellow-500 hover:bg-yellow-500/10"
                         >
-                            {isBulkPublishing ? <Icons.spinner className="w-3 h-3 animate-spin" /> : <><span className="mr-2">🏆</span> League</>}
+                            {isBulkPublishing ? <Icons.spinner className="w-3 h-3 animate-spin" /> : <><span className="mr-2">🏆</span> Community</>}
                         </Button>
                         <Button variant="secondary" size="sm" onClick={() => setIsTagModalOpen(true)}>
                             <span className="mr-2">🏷️</span> Tag

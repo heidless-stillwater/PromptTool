@@ -99,7 +99,7 @@ export default function AdminDashboard() {
                 <div className="lg:col-span-2 space-y-8">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h2 className="text-2xl font-black uppercase tracking-tight">Weekly League Rewards</h2>
+                            <h2 className="text-2xl font-black uppercase tracking-tight">Weekly Community Rewards</h2>
                             <p className="text-sm text-foreground-muted">Configure and grant automated rewards to top creators</p>
                         </div>
                         <Button
@@ -208,7 +208,7 @@ export default function AdminDashboard() {
 
                         <Card variant="glass" className="p-6 border-r-4 border-r-primary rounded-2xl relative overflow-hidden">
                             <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 blur-2xl rounded-full -mr-12 -mt-12" />
-                            <p className="text-[10px] font-black uppercase tracking-widest text-foreground-muted mb-4 text-right">League Status</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-foreground-muted mb-4 text-right">Community Status</p>
                             <div className="flex items-center justify-between mb-6 relative z-10">
                                 <span className="text-xs font-bold">Active Contestants</span>
                                 <span className="text-primary font-black text-sm uppercase tracking-tighter">{stats.activeContestants || 0} <span className="text-[10px]">Creators</span></span>
@@ -221,7 +221,7 @@ export default function AdminDashboard() {
                                 isLoading={isBackfilling}
                             >
                                 {!isBackfilling && <span>🛠️</span>}
-                                Repair League Data
+                                Repair Community Data
                             </Button>
                         </Card>
                     </div>
@@ -260,8 +260,8 @@ export default function AdminDashboard() {
                 isOpen={showBackfillModal}
                 onCancel={() => setShowBackfillModal(false)}
                 onConfirm={confirmBackfill}
-                title="Repair League Data?"
-                message="This will re-sync all community league posts with the latest author profiles and source image data. This is useful for fixing missing thumbnails, updating avatars, and adding video playback to older entries."
+                title="Repair Community Data?"
+                message="This will re-sync all community posts with the latest author profiles and source image data. This is useful for fixing missing thumbnails, updating avatars, and adding video playback to older entries."
                 confirmLabel="Repair Now"
                 type="warning"
             />

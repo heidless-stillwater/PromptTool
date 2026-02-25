@@ -101,6 +101,17 @@ export default function ImageGroupModal({
                                     {col.name}
                                 </span>
                             ))}
+                            {firstImage.isExemplar && (
+                                <span className="px-2 py-0.5 bg-gradient-to-r from-amber-400/20 to-yellow-500/20 text-yellow-500 text-[10px] font-bold rounded-full border border-yellow-500/30 flex items-center gap-1">
+                                    <Icons.exemplar size={12} className="fill-current" />
+                                    Exemplar
+                                </span>
+                            )}
+                            {firstImage.publishedToCommunity && (
+                                <span className="px-2 py-0.5 bg-yellow-500/10 text-yellow-500 text-[10px] font-bold rounded-full border border-yellow-500/20 flex items-center gap-1">
+                                    🏆 Community
+                                </span>
+                            )}
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -278,6 +289,11 @@ export default function ImageGroupModal({
                                         className="w-full h-full object-cover"
                                     />
                                 )}
+                                {firstImage.isExemplar && (
+                                    <div className="absolute top-1 right-1 z-30 bg-gradient-to-r from-amber-400 to-yellow-500 text-white rounded-full p-0.5 shadow-lg border border-amber-300/30">
+                                        <Icons.exemplar size={10} className="fill-current" />
+                                    </div>
+                                )}
                             </div>
                             <div className="flex-1 min-w-0 group/prompt relative z-10">
                                 <p className="text-sm text-foreground font-mono line-clamp-3 leading-relaxed pr-10">
@@ -365,9 +381,15 @@ export default function ImageGroupModal({
                                             Variation
                                         </div>
                                     )}
-                                    {image.publishedToLeague && (
-                                        <div className="absolute bottom-2 right-2 z-30 bg-yellow-500/90 text-white text-xs font-bold px-2 py-1 rounded-lg flex items-center gap-1 shadow-lg">
-                                            🏆
+                                    {image.publishedToCommunity && (
+                                        <div className="absolute bottom-2 right-2 z-30 bg-yellow-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-lg backdrop-blur-sm w-fit">
+                                            🏆 Community
+                                        </div>
+                                    )}
+                                    {image.isExemplar && (
+                                        <div className="absolute top-2 right-2 z-30 bg-gradient-to-r from-amber-400 to-yellow-500 text-white text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded shadow-lg flex items-center gap-1 border border-amber-300/30">
+                                            <Icons.exemplar size={10} />
+                                            Exemplar
                                         </div>
                                     )}
                                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-40">

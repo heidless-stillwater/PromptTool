@@ -23,7 +23,7 @@ import { useToast } from '@/components/Toast';
 import { GeneratedImage, CreditTransaction, Collection, ADMIN_EMAILS } from '@/lib/types';
 import {
     useDashboardImages,
-    useDashboardLeagueRecent,
+    useDashboardCommunityRecent,
     useCollectionsQuery,
     useCreditHistory,
     queryKeys
@@ -59,7 +59,7 @@ export function useDashboard() {
     // ── TanStack Queries ───────────────────────────────────────
 
     const { data: recentImages = [], isLoading: loadingImages } = useDashboardImages(user?.uid, viewMode, isSu);
-    const { data: recentLeagueEntries = [], isLoading: loadingLeague } = useDashboardLeagueRecent();
+    const { data: recentCommunityEntries = [], isLoading: loadingCommunity } = useDashboardCommunityRecent();
     const { data: collections = [] } = useCollectionsQuery(user?.uid);
     const { data: creditHistory = [], isLoading: loadingHistory } = useCreditHistory(user?.uid);
 
@@ -224,18 +224,18 @@ export function useDashboard() {
         }
     };
 
-    const handleBulkPublishToLeague = async () => {
+    const handleBulkPublishToCommunity = async () => {
         if (!user || selectedIds.size === 0) return;
-        if (!window.confirm(`Publish ${selectedIds.size} images to League?`)) return;
+        if (!window.confirm(`Publish ${selectedIds.size} images to Community Hub?`)) return;
 
         setIsBulkPublishing(true);
         try {
             const token = await user.getIdToken();
             await Promise.all(Array.from(selectedIds).map(async (id) => {
                 const img = recentImages.find((i: GeneratedImage) => i.id === id);
-                if (!img || img.publishedToLeague) return;
+                if (!img || img.publishedToCommunity) return;
 
-                const res = await fetch('/api/league/publish/', {
+                const res = await fetch('/api/community/publish/', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -246,16 +246,16 @@ export function useDashboard() {
 
                 if (res.ok) {
                     const data = await res.json();
-                    img.publishedToLeague = true;
-                    img.leagueEntryId = data.leagueEntryId;
+                    img.publishedToCommunity = true;
+                    img.communityEntryId = data.communityEntryId;
                 }
             }));
             queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.images(user.uid, viewMode) });
-            queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.leagueRecent });
+            queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.communityRecent });
 
             setSelectedIds(new Set());
             setSelectionMode(false);
-            showToast('Published to League!', 'success');
+            showToast('Published to Community Hub!', 'success');
         } finally {
             setIsBulkPublishing(false);
         }
@@ -285,8 +285,8 @@ export function useDashboard() {
 
     return {
         // State
-        user, profile, authLoading, credits, recentImages, creditHistory, recentLeagueEntries,
-        collections, loadingImages, loadingLeague, loadingHistory, isHistoryExpanded,
+        user, profile, authLoading, credits, recentImages, creditHistory, recentCommunityEntries,
+        collections, loadingImages, loadingCommunity, loadingHistory, isHistoryExpanded,
         isGrouped, selectionMode, selectedIds, isBulkDeleting, isBulkPublishing,
         isBulkCollecting, isBulkTagging, isCollectionModalOpen, isTagModalOpen, effectiveRole,
         isAdmin, isSu, viewMode,
@@ -295,7 +295,7 @@ export function useDashboard() {
         signOut, switchRole, setAudienceMode, setIsHistoryExpanded, setIsGrouped,
         toggleSelectionMode, toggleImageSelection, toggleImageGroupSelection,
         handleSelectAll, handleBulkDelete, handleBulkAddToCollection,
-        handleBulkPublishToLeague, handleBulkAddTags, setIsCollectionModalOpen,
+        handleBulkPublishToCommunity, handleBulkAddTags, setIsCollectionModalOpen,
         setIsTagModalOpen, groupImagesByPromptSet, setSelectedIds, setSelectionMode, setViewMode
     };
 }
