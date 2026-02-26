@@ -61,6 +61,12 @@ export default function DashboardHeader({
 
                     {isAdminOrSu && (
                         <div className="flex items-center gap-3">
+                            <Link href="/prototypes">
+                                <Button variant="secondary" size="sm" className="gap-2 border-purple-500/20 hover:border-purple-500/50 text-purple-400">
+                                    🧪
+                                    <span className="hidden sm:inline">Prototypes</span>
+                                </Button>
+                            </Link>
                             <Link href="/admin">
                                 <Button variant="secondary" size="sm" className="gap-2 border-primary/20 hover:border-primary/50">
                                     <Icons.settings size={14} />

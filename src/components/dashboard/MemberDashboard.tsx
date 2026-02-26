@@ -1,9 +1,11 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { SkeletonDashboard } from '@/components/ui/SkeletonDashboard';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { Icons } from '@/components/ui/Icons';
+import Link from 'next/link';
 
 // Specialized views
 import CasualModeView from '@/components/dashboard/member/CasualModeView';
@@ -75,6 +77,9 @@ export default function MemberDashboard({ dashboardData }: MemberDashboardProps)
             </div>
 
             <main className="max-w-7xl mx-auto px-4 py-8">
+                {/* Getting Started banner for new users */}
+                <GettingStartedBanner profile={profile} />
+
                 <Suspense fallback={<SkeletonDashboard />}>
                     {isCasual ? (
                         <CasualModeView dashboardData={dashboardData} />
@@ -84,5 +89,45 @@ export default function MemberDashboard({ dashboardData }: MemberDashboardProps)
                 </Suspense>
             </main>
         </div>
+    );
+}
+
+/** Dismissible banner linking to onboarding prototype */
+function GettingStartedBanner({ profile }: { profile: any }) {
+    const [dismissed, setDismissed] = useState(true); // Start hidden to avoid flash
+
+    useEffect(() => {
+        const wasDismissed = localStorage.getItem('onboarding_banner_dismissed');
+        const completed = profile?.hasCompletedOnboarding;
+        setDismissed(!!wasDismissed || !!completed);
+    }, [profile]);
+
+    if (dismissed) return null;
+
+    const handleDismiss = () => {
+        setDismissed(true);
+        localStorage.setItem('onboarding_banner_dismissed', 'true');
+    };
+
+    return (
+        <Card className="mb-6 p-4 border-primary/30 bg-primary/5 flex items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-500">
+            <div className="flex items-center gap-3">
+                <div className="text-2xl">🚀</div>
+                <div>
+                    <h3 className="font-bold text-sm">New here? Get started in seconds</h3>
+                    <p className="text-xs text-foreground-muted">Try our guided onboarding — create your first AI image with curated examples.</p>
+                </div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+                <Link href="/prototypes/onboarding">
+                    <Button variant="primary" size="sm" className="text-xs font-bold">
+                        ✨ Start Tour
+                    </Button>
+                </Link>
+                <button onClick={handleDismiss} className="p-1.5 rounded-lg hover:bg-background-secondary transition-colors text-foreground-muted">
+                    <Icons.close size={14} />
+                </button>
+            </div>
+        </Card>
     );
 }

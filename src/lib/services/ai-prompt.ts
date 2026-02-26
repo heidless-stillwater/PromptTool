@@ -61,6 +61,65 @@ export class AIPromptService {
     }
 
     /**
+     * Compiles a highly structured prompt using the "Nanobanana" recipe format.
+     * Takes a core subject and an ordered array of modifiers. Order dictates priority.
+     */
+    async compileNanobananaPrompt(subject: string, modifiers: { category: string, value: string }[]): Promise<string> {
+        if (!subject || subject.trim().length === 0) {
+            throw new Error("Core subject is required for Nanobanana compilation");
+        }
+
+        try {
+            const model = 'gemini-2.5-flash';
+
+            const systemInstruction = `
+        You are a master AI prompt engineer for image generation models (Stable Diffusion, Midjourney, etc).
+        We are using a structured building approach called "Nanobanana".
+        The user provides a Core Subject, and an ordered list of Modifiers (Lighting, Camera, Style, Environment, etc).
+        
+        Your Mission:
+        Weave the Core Subject and the Modifiers into a single, cohesive, vivid, highly optimized paragraph prompt.
+        
+        Rules:
+        1. The ORDER of the modifiers in the prompt should reflect their priority (the order they appear in the user's list from top to bottom).
+        2. Do not just append them mechanically with commas. Integrate them naturally, but ensure keywords are prominent.
+        3. Keep it to a single paragraph. NO line breaks. NO markdown formatting.
+        4. Return ONLY the final compiled prompt string. NO conversational fluff or explanations.
+      `;
+
+            let userPrompt = `Core Subject: "${subject}"\n`;
+            if (modifiers && modifiers.length > 0) {
+                userPrompt += `\nModifiers (in order of priority, highest first):\n`;
+                modifiers.forEach((mod, index) => {
+                    userPrompt += `${index + 1}. [${mod.category}] ${mod.value}\n`;
+                });
+            }
+            userPrompt += `\nCompiled Prompt:`;
+
+            const response = await this.client.models.generateContent({
+                model,
+                contents: [
+                    { role: 'user', parts: [{ text: userPrompt }] }
+                ],
+                config: {
+                    systemInstruction: { parts: [{ text: systemInstruction }] }
+                }
+            });
+
+            const compiledText = response.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (!compiledText) {
+                throw new Error("Failed to compile nanobanana prompt");
+            }
+
+            return compiledText.trim();
+        } catch (error: any) {
+            console.error('[AI Prompt Service] Nanobanana Compilation Error:', error);
+            throw new Error(error.message || "Failed to compile nanobanana prompt");
+        }
+    }
+
+    /**
      * Suggests relevant tags based on a list of image prompts.
      */
     async suggestTags(prompts: string[]): Promise<string[]> {

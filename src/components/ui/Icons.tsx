@@ -16,6 +16,7 @@ import {
     Trophy,
     ChevronLeft,
     ChevronRight,
+    ChevronUp,
     ChevronDown,
     Plus,
     Search,
@@ -60,10 +61,12 @@ import {
     Rows,
     Tag,
     Play,
-    Award
+    Award,
+    Save
 } from "lucide-react"
 
 export const Icons = {
+    save: Save,
     play: Play,
     tag: Tag,
     instagram: Instagram,
@@ -89,6 +92,7 @@ export const Icons = {
     trophy: Trophy,
     chevronLeft: ChevronLeft,
     chevronRight: ChevronRight,
+    chevronUp: ChevronUp,
     chevronDown: ChevronDown,
     plus: Plus,
     search: Search,

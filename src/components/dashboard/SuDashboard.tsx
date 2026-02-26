@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
 import { Badge } from '@/components/ui/Badge';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 import { CREDIT_COSTS } from '@/lib/types';
 import CollectionSelectModal from '@/components/CollectionSelectModal';
 import BulkTagModal from '@/components/BulkTagModal';
@@ -58,6 +59,20 @@ export default function SuDashboard({ dashboardData }: SuDashboardProps) {
             />
 
             <main className="max-w-7xl mx-auto px-4 py-8">
+                {/* Onboarding prototype link */}
+                <Link href="/prototypes/onboarding" className="block mb-6">
+                    <Card className="p-4 border-purple-500/30 bg-purple-500/5 hover:border-purple-500/50 transition-all cursor-pointer flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="text-2xl">🚀</div>
+                            <div>
+                                <h3 className="font-bold text-sm">Onboarding Prototype</h3>
+                                <p className="text-xs text-foreground-muted">Preview the new user onboarding experience</p>
+                            </div>
+                        </div>
+                        <Badge variant="outline" className="text-purple-400 border-purple-500/30 text-[9px] uppercase tracking-widest">Preview →</Badge>
+                    </Card>
+                </Link>
+
                 <div className="mb-6 flex items-center justify-between">
                     <div>
                         <h1 className="text-2xl font-bold">SU Command Center</h1>
