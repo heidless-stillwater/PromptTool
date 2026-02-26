@@ -1329,7 +1329,7 @@ export default function GeneratePage() {
                                 <div>
                                     <h2 className="text-[10px] uppercase tracking-widest text-primary font-black mb-4">Focus Study</h2>
                                     <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                                        <p className="text-sm leading-relaxed text-white/90 font-medium italic">"{focusedImage.prompt}"</p>
+                                        <p className="text-sm leading-relaxed text-white/90 font-medium italic">&quot;{focusedImage.prompt}&quot;</p>
                                     </div>
                                 </div>
 

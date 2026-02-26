@@ -406,7 +406,7 @@ export default function CommunityEntryModal({
                                 </div>
                             ) : (entry.collectionNames && entry.collectionNames.length > 0) ? (
                                 <div className="space-y-2 pt-2 border-t border-border/50">
-                                    <label className="text-[10px] text-foreground-muted uppercase tracking-widest font-black block">Author's Collections</label>
+                                    <label className="text-[10px] text-foreground-muted uppercase tracking-widest font-black block">Author&apos;s Collections</label>
                                     <div className="flex flex-wrap gap-1.5">
                                         {entry.collectionNames.map(name => (
                                             <Badge key={name} variant="outline" className="text-[10px] py-0 px-2 h-5 border-primary/20 bg-primary/5 text-primary">
