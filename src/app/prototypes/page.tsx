@@ -30,6 +30,13 @@ const PROTOTYPES: PrototypeEntry[] = [
         status: 'testing',
         icon: '🍌',
     },
+    {
+        slug: 'studio-classic',
+        title: 'Studio Generator (Legacy)',
+        description: 'The classic image generation interface moved to the lab for historical reference and testing.',
+        status: 'promoted',
+        icon: '🎞️',
+    },
 ];
 
 export default function PrototypesIndex() {

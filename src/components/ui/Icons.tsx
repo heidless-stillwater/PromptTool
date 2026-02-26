@@ -62,7 +62,9 @@ import {
     Tag,
     Play,
     Award,
-    Save
+    Save,
+    Star,
+    RefreshCw
 } from "lucide-react"
 
 export const Icons = {
@@ -130,5 +132,8 @@ export const Icons = {
     list: List,
     feed: LayoutList,
     rows: Rows,
-    exemplar: Award
+    exemplar: Award,
+    loader: Loader2,
+    star: Star,
+    refresh: RefreshCw
 }

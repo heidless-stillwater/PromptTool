@@ -103,13 +103,14 @@ export async function POST(request: NextRequest) {
                     result = await nanoBananaService.generateVideo({
                         prompt,
                         aspectRatio,
+                        count: count ?? 1,
                         onProgress: (current, total) => {
                             sendEvent({ type: 'progress', current, total, message: `Generating video...` });
                         }
                     });
                 } else {
                     result = await nanoBananaService.generateImage({
-                        prompt, quality: quality as any, aspectRatio, count, seed, negativePrompt, guidanceScale,
+                        prompt, quality: quality as any, aspectRatio, count: count ?? 1, seed: seed ?? undefined, negativePrompt, guidanceScale: guidanceScale ?? undefined,
                         referenceImage, referenceMimeType,
                         onProgress: (current, total) => {
                             sendEvent({ type: 'progress', current, total, message: `Generated ${current} of ${total} images...` });
@@ -128,7 +129,7 @@ export async function POST(request: NextRequest) {
                 // 3. Save Media
                 for (let i = 0; i < result.images.length; i++) {
                     const mediaData = await GenerationService.saveMedia(userId, result.images[i], {
-                        prompt, quality: quality as any, aspectRatio, promptType, madlibsData, seed, negativePrompt, guidanceScale,
+                        prompt, quality: quality as any, aspectRatio, promptType, madlibsData, seed: seed ?? undefined, negativePrompt, guidanceScale: guidanceScale ?? undefined,
                         sourceImageId, promptSetID, collectionIds, requestedModality: modality, modality,
                         initialImageUrl: referenceImageUrl
                     });

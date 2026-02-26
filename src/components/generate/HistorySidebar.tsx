@@ -71,21 +71,56 @@ export default function HistorySidebar({
                                     className="group relative overflow-hidden border-border/50 hover:border-primary/50 transition-all p-2 flex flex-col gap-2"
                                 >
                                     <div className="aspect-square rounded-lg overflow-hidden bg-background-secondary relative group/media">
-                                        {/\.(mp4|webm|mov)(\?|$)/i.test(img.imageUrl) ? (
-                                            <video
-                                                src={`${img.imageUrl}#t=0.1`}
-                                                className="w-full h-full object-cover"
-                                                preload="metadata"
-                                                muted
-                                                playsInline
-                                            />
-                                        ) : (
-                                            <img
-                                                src={img.imageUrl}
-                                                alt={img.prompt}
-                                                className="w-full h-full object-cover transition-transform duration-500 group-hover/media:scale-110"
-                                            />
-                                        )}
+                                        {(() => {
+                                            const isVideo = !!(img.settings?.modality === 'video' || img.videoUrl || /\.(mp4|webm|mov)(\?|$)/i.test(img.imageUrl));
+                                            const imgIsVideo = /\.(mp4|webm|mov)(\?|$)/i.test(img.imageUrl);
+                                            const hasThumbnail = isVideo && !imgIsVideo;
+                                            const videoSrc = (img.videoUrl || img.imageUrl);
+                                            const videoSrcWithTime = videoSrc?.includes('#t=') ? videoSrc : `${videoSrc}#t=0.1`;
+
+                                            if (isVideo) {
+                                                if (hasThumbnail) {
+                                                    return (
+                                                        <>
+                                                            <img
+                                                                src={img.imageUrl}
+                                                                alt={img.prompt}
+                                                                className="w-full h-full object-cover transition-transform duration-500 group-hover/media:scale-110"
+                                                            />
+                                                            <video
+                                                                src={videoSrcWithTime}
+                                                                className="absolute inset-0 w-full h-full object-cover opacity-0 group-hover/media:opacity-100 transition-opacity duration-300"
+                                                                loop
+                                                                muted
+                                                                playsInline
+                                                                preload="metadata"
+                                                                onMouseEnter={(e) => { e.currentTarget.play().catch(() => { }) }}
+                                                                onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0.1; }}
+                                                            />
+                                                        </>
+                                                    );
+                                                }
+                                                return (
+                                                    <video
+                                                        src={videoSrcWithTime}
+                                                        className="w-full h-full object-cover"
+                                                        loop
+                                                        muted
+                                                        playsInline
+                                                        preload="metadata"
+                                                        onMouseEnter={(e) => { e.currentTarget.play().catch(() => { }) }}
+                                                        onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0.1; }}
+                                                    />
+                                                );
+                                            }
+                                            return (
+                                                <img
+                                                    src={img.imageUrl}
+                                                    alt={img.prompt}
+                                                    className="w-full h-full object-cover transition-transform duration-500 group-hover/media:scale-110"
+                                                />
+                                            );
+                                        })()}
                                         {(img.settings?.modality === 'video' || img.videoUrl) && (
                                             <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm p-1.5 rounded-lg text-white shadow-lg border border-white/10">
                                                 <Icons.video size={12} className="text-white" />

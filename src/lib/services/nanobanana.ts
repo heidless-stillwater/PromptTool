@@ -49,34 +49,36 @@ export class NanoBananaService {
         this.apiKey = apiKey;
     }
 
-    async generateVideo(options: { prompt: string; aspectRatio: AspectRatio; onProgress?: (current: number, total: number) => void }): Promise<GenerateImageResult> {
-        const { prompt, aspectRatio, onProgress } = options;
+    async generateVideo(options: {
+        prompt: string;
+        aspectRatio: AspectRatio;
+        count?: number;
+        onProgress?: (current: number, total: number) => void
+    }): Promise<GenerateImageResult> {
+        const { prompt, aspectRatio, count = 1, onProgress } = options;
         const model = 'models/veo-2.0-generate-001';
 
         try {
             // Map aspect ratio for Veo
-            // Veo 2.0 primarily supports 16:9 and 9:16. 1:1 often works.
-            // 4:3 and 3:4 are generally not supported.
             const aspectRatioMap: Record<AspectRatio, string> = {
                 '16:9': '16:9',
                 '9:16': '9:16',
                 '1:1': '1:1',
-                '4:3': '16:9', // Fallback to 16:9
-                '3:4': '9:16', // Fallback to 9:16
+                '4:3': '16:9',
+                '3:4': '9:16',
             };
             const veoAspectRatio = aspectRatioMap[aspectRatio] || '16:9';
 
-            // 1. Initial Request
-            // Using raw fetch because predictLongRunning is not standard in SDK yet
+            // 1. Initial Request with multiple instances for batching
+            const instances = Array.from({ length: count }, () => ({ prompt }));
+
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${model}:predictLongRunning?key=${this.apiKey}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    instances: [
-                        { prompt }
-                    ],
+                    instances,
                     parameters: {
                         sampleCount: 1,
                         aspectRatio: veoAspectRatio
@@ -90,7 +92,7 @@ export class NanoBananaService {
             }
 
             const initialData = await response.json();
-            const operationName = initialData.name; // e.g., "models/.../operations/..."
+            const operationName = initialData.name;
 
             if (!operationName) {
                 throw new Error('No operation name returned from Veo API');
@@ -99,14 +101,13 @@ export class NanoBananaService {
             // 2. Poll for completion
             let pollData;
             const startTime = Date.now();
-            const timeout = 180000; // 3 minutes timeout (video gen is slow)
+            const timeout = 600000; // 10 minutes timeout for batches
 
             while (true) {
                 if (Date.now() - startTime > timeout) {
                     throw new Error('Video generation timed out');
                 }
 
-                // Wait 5 seconds between polls
                 await new Promise(resolve => setTimeout(resolve, 5000));
 
                 const pollResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${operationName}?key=${this.apiKey}`);
@@ -120,60 +121,59 @@ export class NanoBananaService {
                     break;
                 }
 
-                // Optional progress update? 
-                // Veo doesn't expose % progress easily, but we can fake it or just pulse.
-                if (onProgress) onProgress(0, 1);
+                if (onProgress) onProgress(0, count);
             }
 
             if (pollData.error) {
                 throw new Error(`Veo Generation Failed: ${pollData.error.message || JSON.stringify(pollData.error)}`);
             }
 
-            // 3. Extract Video
-            // The result is usually in response.result (for older LRO) or response (for new LRO)
-            // Based on test, it returns:
-            // "response": { "@type": "...", "generateVideoResponse": { "generatedSamples": [ { "video": { "uri": "..." } } ] } }
-            // Note: The field might be `result` or `response` depending on API version. 
-            // Our test output showed `response` at top level inside the operation JSON, returning `uri`.
-
-            const videoUri = pollData.response?.generateVideoResponse?.generatedSamples?.[0]?.video?.uri;
-
-            if (!videoUri) {
-                console.error('Full Poll Data:', JSON.stringify(pollData, null, 2));
-                throw new Error('No video URI found in completed operation');
+            // 3. Extract Videos
+            const samples = pollData.response?.generateVideoResponse?.generatedSamples || [];
+            if (samples.length === 0) {
+                throw new Error('No videos generated in completed operation');
             }
 
-            // 4. Download Video Content
-            // The URI is likely a public or authenticated download link.
-            // Usually for Generative Language API, we can fetch it directly (maybe with key).
-            const downloadUrl = `${videoUri}&key=${this.apiKey}`; // Try appending key just in case
+            const results: ImageResult[] = [];
 
-            const videoRes = await fetch(downloadUrl);
-            if (!videoRes.ok) {
-                // Try without extra key param if 400/403?
-                // Actually the URI from test output already has some params.
-                // Let's assume standard fetch works.
-                const retryRes = await fetch(videoUri);
-                if (!retryRes.ok) {
-                    throw new Error(`Failed to download video content: ${videoRes.statusText}`);
+            // 4. Download Video Content for each sample
+            for (let i = 0; i < samples.length; i++) {
+                const videoUri = samples[i]?.video?.uri;
+                if (!videoUri) continue;
+
+                try {
+                    // Try with API key first as it's often required for Generative Language API media
+                    const downloadUrl = videoUri.includes('?') ? `${videoUri}&key=${this.apiKey}` : `${videoUri}?key=${this.apiKey}`;
+                    let videoRes = await fetch(downloadUrl);
+
+                    if (!videoRes.ok) {
+                        // Fallback to raw URI if key results in error (some URLs are self-signed)
+                        videoRes = await fetch(videoUri);
+                    }
+
+                    if (videoRes.ok) {
+                        const videoBuffer = await videoRes.arrayBuffer();
+                        results.push({
+                            data: Buffer.from(videoBuffer).toString('base64'),
+                            mimeType: 'video/mp4'
+                        });
+                    } else {
+                        console.warn(`[Veo] Failed to download sample ${i}: ${videoRes.status} ${videoRes.statusText}`);
+                    }
+                } catch (err) {
+                    console.error(`[Veo] Download error for sample ${i}:`, err);
                 }
-                return {
-                    success: true,
-                    images: [{
-                        data: Buffer.from(await retryRes.arrayBuffer()).toString('base64'),
-                        mimeType: 'video/mp4'
-                    }]
-                };
+
+                if (onProgress) onProgress(i + 1, samples.length);
             }
 
-            const videoBuffer = await videoRes.arrayBuffer();
+            if (results.length === 0) {
+                throw new Error('Completed generation but failed to retrieve any video files. Please try again.');
+            }
 
             return {
                 success: true,
-                images: [{
-                    data: Buffer.from(videoBuffer).toString('base64'),
-                    mimeType: 'video/mp4' // Verify header? usually video/mp4
-                }]
+                images: results
             };
 
         } catch (error: any) {
