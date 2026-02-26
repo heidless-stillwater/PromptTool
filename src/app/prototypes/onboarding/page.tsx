@@ -420,7 +420,7 @@ export default function OnboardingPrototype() {
                                                         Choose a {wizardLabels[wizardStep].toLowerCase()} for your creation:
                                                     </p>
                                                     <div className="grid grid-cols-2 gap-2">
-                                                        {(wizardStep === 1 ? PROMPT_CATEGORIES.style : PROMPT_CATEGORIES.mood).map((option) => (
+                                                        {(wizardStep === 1 ? PROMPT_CATEGORIES.styles : PROMPT_CATEGORIES.moods).map((option: string) => (
                                                             <button
                                                                 key={option}
                                                                 onClick={() => setCustomValues(prev => ({ ...prev, [wizardKeys[wizardStep]]: option }))}
