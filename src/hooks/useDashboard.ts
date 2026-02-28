@@ -24,6 +24,7 @@ import { GeneratedImage, CreditTransaction, Collection, ADMIN_EMAILS } from '@/l
 import {
     useDashboardImages,
     useDashboardCommunityRecent,
+    useDashboardExemplars,
     useCollectionsQuery,
     useCreditHistory,
     queryKeys
@@ -60,6 +61,7 @@ export function useDashboard() {
 
     const { data: recentImages = [], isLoading: loadingImages } = useDashboardImages(user?.uid, viewMode, isSu);
     const { data: recentCommunityEntries = [], isLoading: loadingCommunity } = useDashboardCommunityRecent();
+    const { data: exemplars = [], isLoading: loadingExemplars } = useDashboardExemplars();
     const { data: collections = [] } = useCollectionsQuery(user?.uid);
     const { data: creditHistory = [], isLoading: loadingHistory } = useCreditHistory(user?.uid);
 
@@ -283,10 +285,13 @@ export function useDashboard() {
         }
     };
 
+    const availableCredits = (credits?.balance || 0) + Math.max(0, (credits?.dailyAllowance || 0) - (credits?.dailyAllowanceUsed || 0));
+    const energyPercentage = credits?.dailyAllowance ? Math.round((Math.max(0, credits.dailyAllowance - credits.dailyAllowanceUsed) / credits.dailyAllowance) * 100) : 0;
+
     return {
         // State
-        user, profile, authLoading, credits, recentImages, creditHistory, recentCommunityEntries,
-        collections, loadingImages, loadingCommunity, loadingHistory, isHistoryExpanded,
+        user, profile, authLoading, credits, availableCredits, energyPercentage, recentImages, creditHistory, recentCommunityEntries, exemplars,
+        collections, loadingImages, loadingCommunity, loadingExemplars, loadingHistory, isHistoryExpanded,
         isGrouped, selectionMode, selectedIds, isBulkDeleting, isBulkPublishing,
         isBulkCollecting, isBulkTagging, isCollectionModalOpen, isTagModalOpen, effectiveRole,
         isAdmin, isSu, viewMode,

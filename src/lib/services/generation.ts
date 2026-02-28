@@ -34,6 +34,8 @@ export interface MediaSaveOptions {
     requestedModality: MediaModality;
     modality: MediaModality;
     initialImageUrl?: string;
+    modifiers?: { category: string, value: string }[];
+    coreSubject?: string;
 }
 
 export class GenerationService {
@@ -41,7 +43,7 @@ export class GenerationService {
      * Validates user subscription tiers and constraints.
      */
     static async validateTier(userId: string, body: any) {
-        const { modality = 'image', quality, count = 1, seed, negativePrompt, guidanceScale } = body;
+        const { modality = 'image', quality, count = 1, seed, negativePrompt, guidanceScale, modifiers } = body;
 
         const userDoc = await adminDb.collection('users').doc(userId).get();
         if (!userDoc.exists) throw new Error('User not found');
@@ -161,7 +163,7 @@ export class GenerationService {
      */
     static async saveMedia(userId: string, media: { data: string, mimeType: string }, options: MediaSaveOptions) {
         const bucket = adminStorage.bucket();
-        const { modality, quality, aspectRatio, prompt, promptType, madlibsData, seed, negativePrompt, guidanceScale, sourceImageId, promptSetID, collectionIds, requestedModality, initialImageUrl } = options;
+        const { modality, quality, aspectRatio, prompt, promptType, madlibsData, seed, negativePrompt, guidanceScale, sourceImageId, promptSetID, collectionIds, requestedModality, initialImageUrl, modifiers, coreSubject } = options;
 
         const isVideo = media.mimeType.startsWith('video/');
         const extension = media.mimeType.split('/')[1] || (isVideo ? 'mp4' : 'png');
@@ -192,6 +194,8 @@ export class GenerationService {
         if (seed !== undefined) settings.seed = seed;
         if (negativePrompt) settings.negativePrompt = negativePrompt;
         if (guidanceScale !== undefined) settings.guidanceScale = guidanceScale;
+        if (modifiers) settings.modifiers = modifiers;
+        if (coreSubject) settings.coreSubject = coreSubject;
 
         const mediaData: any = {
             userId,

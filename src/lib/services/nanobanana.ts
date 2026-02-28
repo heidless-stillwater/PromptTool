@@ -6,7 +6,7 @@ import { AspectRatio, ImageQuality } from '../types';
 const MODELS = {
     standard: 'gemini-2.5-flash-image',
     high: 'gemini-2.5-flash-image',
-    ultra: 'gemini-3-pro-image-preview',
+    ultra: 'gemini-2.5-flash-image',
 } as const;
 
 // Resolution by quality
@@ -69,107 +69,99 @@ export class NanoBananaService {
             };
             const veoAspectRatio = aspectRatioMap[aspectRatio] || '16:9';
 
-            // 1. Initial Request with multiple instances for batching
-            const instances = Array.from({ length: count }, () => ({ prompt }));
+            const results: ImageResult[] = [];
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${model}:predictLongRunning?key=${this.apiKey}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    instances,
+            // Execute Veo requests concurrently as it only accepts 1 instance per long-running operation
+            const operationPromises = Array.from({ length: count }).map(async (_, index) => {
+                const requestBody = {
+                    instances: [{ prompt: prompt }],
                     parameters: {
                         sampleCount: 1,
                         aspectRatio: veoAspectRatio
                     }
-                })
+                };
+
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${model}:predictLongRunning?key=${this.apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Veo API Error (${response.status}): ${errorText}`);
+                }
+
+                const initialData = await response.json();
+                const operationName = initialData.name;
+
+                if (!operationName) {
+                    throw new Error('No operation name returned from Veo API');
+                }
+
+                return { operationName, index };
             });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Veo API Error (${response.status}): ${errorText}`);
-            }
+            // Dispatch all generation operations
+            const operations = await Promise.all(operationPromises);
 
-            const initialData = await response.json();
-            const operationName = initialData.name;
+            // Poll for all operations to complete
+            const pollStart = Date.now();
+            const timeout = 600000; // 10 minutes timeout
 
-            if (!operationName) {
-                throw new Error('No operation name returned from Veo API');
-            }
-
-            // 2. Poll for completion
-            let pollData;
-            const startTime = Date.now();
-            const timeout = 600000; // 10 minutes timeout for batches
-
-            while (true) {
-                if (Date.now() - startTime > timeout) {
-                    throw new Error('Video generation timed out');
-                }
-
-                await new Promise(resolve => setTimeout(resolve, 5000));
-
-                const pollResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${operationName}?key=${this.apiKey}`);
-                if (!pollResponse.ok) {
-                    throw new Error(`Polling failed: ${pollResponse.statusText}`);
-                }
-
-                pollData = await pollResponse.json();
-
-                if (pollData.done) {
-                    break;
-                }
-
-                if (onProgress) onProgress(0, count);
-            }
-
-            if (pollData.error) {
-                throw new Error(`Veo Generation Failed: ${pollData.error.message || JSON.stringify(pollData.error)}`);
-            }
-
-            // 3. Extract Videos
-            const samples = pollData.response?.generateVideoResponse?.generatedSamples || [];
-            if (samples.length === 0) {
-                throw new Error('No videos generated in completed operation');
-            }
-
-            const results: ImageResult[] = [];
-
-            // 4. Download Video Content for each sample
-            for (let i = 0; i < samples.length; i++) {
-                const videoUri = samples[i]?.video?.uri;
-                if (!videoUri) continue;
-
-                try {
-                    // Try with API key first as it's often required for Generative Language API media
-                    const downloadUrl = videoUri.includes('?') ? `${videoUri}&key=${this.apiKey}` : `${videoUri}?key=${this.apiKey}`;
-                    let videoRes = await fetch(downloadUrl);
-
-                    if (!videoRes.ok) {
-                        // Fallback to raw URI if key results in error (some URLs are self-signed)
-                        videoRes = await fetch(videoUri);
+            const pollPromises = operations.map(async ({ operationName, index }) => {
+                while (true) {
+                    if (Date.now() - pollStart > timeout) {
+                        throw new Error(`Video generation timed out for operation ${index}`);
                     }
 
-                    if (videoRes.ok) {
-                        const videoBuffer = await videoRes.arrayBuffer();
-                        results.push({
-                            data: Buffer.from(videoBuffer).toString('base64'),
-                            mimeType: 'video/mp4'
-                        });
-                    } else {
-                        console.warn(`[Veo] Failed to download sample ${i}: ${videoRes.status} ${videoRes.statusText}`);
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+
+                    const pollResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${operationName}?key=${this.apiKey}`);
+                    if (!pollResponse.ok) {
+                        throw new Error(`Polling failed for operation ${index}: ${pollResponse.statusText}`);
                     }
-                } catch (err) {
-                    console.error(`[Veo] Download error for sample ${i}:`, err);
+
+                    const pollData = await pollResponse.json();
+
+                    if (pollData.done) {
+                        if (pollData.error) {
+                            throw new Error(`Veo Generation Failed for operation ${index}: ${pollData.error.message || JSON.stringify(pollData.error)}`);
+                        }
+
+                        // Extract Video
+                        const sample = pollData.response?.generateVideoResponse?.generatedSamples?.[0];
+                        if (!sample || !sample.video?.uri) {
+                            throw new Error(`No video generated in completed operation ${index}`);
+                        }
+
+                        // Download Video Content
+                        const videoUri = sample.video.uri;
+                        let videoRes = await fetch(videoUri.includes('?') ? `${videoUri}&key=${this.apiKey}` : `${videoUri}?key=${this.apiKey}`);
+
+                        if (!videoRes.ok) {
+                            videoRes = await fetch(videoUri); // fallback
+                        }
+
+                        if (videoRes.ok) {
+                            const buffer = await videoRes.arrayBuffer();
+                            return {
+                                data: Buffer.from(buffer).toString('base64'),
+                                mimeType: 'video/mp4'
+                            };
+                        } else {
+                            throw new Error(`Failed to download video for operation ${index}: ${videoRes.status} ${videoRes.statusText}`);
+                        }
+                    }
                 }
+            });
 
-                if (onProgress) onProgress(i + 1, samples.length);
-            }
+            const completedVideos = await Promise.all(pollPromises);
 
-            if (results.length === 0) {
-                throw new Error('Completed generation but failed to retrieve any video files. Please try again.');
-            }
+            completedVideos.forEach((video, i) => {
+                results.push(video);
+                if (onProgress) onProgress(i + 1, count);
+            });
 
             return {
                 success: true,

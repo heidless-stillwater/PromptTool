@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Card } from '@/components/ui/Card';
+
 import { Icons } from '@/components/ui/Icons';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 
@@ -78,13 +78,13 @@ export default function MiniAnalytics({ userId }: { userId: string }) {
     }
 
     return (
-        <Card variant="glass" className="p-4 bg-primary/5 border-primary/10 overflow-hidden">
+        <div className="p-4 bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
                     <Icons.activity size={12} />
                     Engagement Pulse
                 </h3>
-                <span className="text-[10px] font-bold text-foreground-muted">Last 10 entries</span>
+                <span className="text-[10px] font-bold text-white/50">Last 10 entries</span>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -109,26 +109,26 @@ export default function MiniAnalytics({ userId }: { userId: string }) {
                             />
                         </AreaChart>
                     </ResponsiveContainer>
-                    <p className="text-[9px] font-bold text-center mt-1 text-foreground-muted uppercase tracking-tighter">Velocity</p>
+                    <p className="text-[9px] font-bold text-center mt-1 text-white/50 uppercase tracking-widest">Velocity</p>
                 </div>
 
                 {/* Quick Stats */}
                 <div className="flex flex-col justify-center">
                     <div className="flex items-baseline gap-1">
-                        <span className="text-xl font-black">{stats.totalReach}</span>
-                        <span className="text-[9px] font-bold text-foreground-muted uppercase tracking-tighter">Impact</span>
+                        <span className="text-xl font-black text-white">{stats.totalReach}</span>
+                        <span className="text-[9px] font-bold text-white/50 uppercase tracking-widest">Impact</span>
                     </div>
                     {stats.topEntry && (
-                        <div className="mt-2 flex items-center gap-2 bg-background-secondary/50 p-1.5 rounded-lg border border-border/40">
+                        <div className="mt-2 flex items-center gap-2 bg-black/40 p-1.5 rounded-xl border border-white/5">
                             <img src={stats.topEntry.imageUrl} className="w-6 h-6 rounded object-cover" alt="" />
                             <div className="overflow-hidden">
                                 <p className="text-[8px] font-black uppercase tracking-widest text-primary leading-none">Best Performer</p>
-                                <p className="text-[9px] font-bold text-foreground-muted truncate max-w-[60px]">{stats.topEntry.score} pts</p>
+                                <p className="text-[9px] font-bold text-white/70 truncate max-w-[60px]">{stats.topEntry.score} pts</p>
                             </div>
                         </div>
                     )}
                 </div>
             </div>
-        </Card>
+        </div>
     );
 }

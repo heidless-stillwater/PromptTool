@@ -24,53 +24,55 @@ export default function HistorySidebar({
 }: HistorySidebarProps) {
     return (
         <div className={cn(
-            "fixed inset-0 z-[100] transition-opacity duration-300",
+            "fixed inset-0 z-[1000] transition-opacity duration-300",
             isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         )}>
             <div
-                className="absolute inset-0 bg-background/60 backdrop-blur-sm"
+                className="absolute inset-0 bg-black/60 backdrop-blur-md"
                 onClick={onClose}
             />
             <div className={cn(
-                "absolute right-0 top-0 bottom-0 w-80 max-w-[90vw] bg-background border-l border-border transition-transform duration-500 ease-out flex flex-col shadow-2xl",
+                "absolute right-0 top-0 bottom-0 w-80 max-w-[90vw] bg-[#050508] border-l border-white/5 transition-transform duration-500 ease-out flex flex-col shadow-[0_0_100px_rgba(0,0,0,1)]",
                 isOpen ? "translate-x-0" : "translate-x-full"
             )}>
-                <div className="p-6 border-b border-border flex items-center justify-between">
+                <div className="p-8 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
                     <div>
-                        <h2 className="text-xl font-black tracking-tight">Recent History</h2>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-foreground-muted">Your latest creations</p>
+                        <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-white">Neural History</h2>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-white/20 mt-2">Chronological Cache</p>
                     </div>
                     <Button
                         variant="ghost"
                         size="icon"
                         onClick={onClose}
+                        className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 text-white/50 hover:text-white"
                     >
                         <Icons.close size={20} />
                     </Button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 scrollbar-hide">
+                <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
                     {loading && images.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-foreground-muted gap-4">
+                        <div className="flex flex-col items-center justify-center py-24 text-white/20 gap-4">
                             <Icons.spinner className="w-8 h-8 animate-spin text-primary" />
-                            <p className="text-xs font-medium animate-pulse">Retrieving history...</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">Syncing Cache...</p>
                         </div>
                     ) : images.length === 0 ? (
-                        <div className="text-center py-12 px-6">
-                            <div className="w-16 h-16 rounded-full bg-background-secondary flex items-center justify-center mx-auto mb-4">
-                                <Icons.history className="w-8 h-8 text-foreground-muted opacity-20" />
+                        <div className="text-center py-24 px-8 border border-dashed border-white/5 rounded-[32px]">
+                            <div className="w-16 h-16 rounded-[24px] bg-white/5 flex items-center justify-center mx-auto mb-6 border border-white/5">
+                                <Icons.history className="w-8 h-8 text-white/10" />
                             </div>
-                            <h3 className="text-sm font-bold mb-1">No generations yet</h3>
-                            <p className="text-xs text-foreground-muted">Create something to see it here!</p>
+                            <h3 className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-2">Vault Empty</h3>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-white/10">Synchronized masterpieces will appear here.</p>
                         </div>
                     ) : (
-                        <div className="space-y-4">
+                        <div className="grid grid-cols-1 gap-6">
                             {images.map((img) => (
-                                <Card
+                                <div
                                     key={img.id}
-                                    className="group relative overflow-hidden border-border/50 hover:border-primary/50 transition-all p-2 flex flex-col gap-2"
+                                    className="group relative rounded-[24px] overflow-hidden border border-white/10 bg-white/[0.03] hover:border-primary/40 transition-all duration-500 hover:shadow-[0_0_30px_rgba(99,102,241,0.1)] cursor-pointer"
+                                    onClick={() => onRemix(img)}
                                 >
-                                    <div className="aspect-square rounded-lg overflow-hidden bg-background-secondary relative group/media">
+                                    <div className="aspect-square relative overflow-hidden bg-black group/media">
                                         {(() => {
                                             const isVideo = !!(img.settings?.modality === 'video' || img.videoUrl || /\.(mp4|webm|mov)(\?|$)/i.test(img.imageUrl));
                                             const imgIsVideo = /\.(mp4|webm|mov)(\?|$)/i.test(img.imageUrl);
@@ -84,8 +86,8 @@ export default function HistorySidebar({
                                                         <>
                                                             <img
                                                                 src={img.imageUrl}
-                                                                alt={img.prompt}
-                                                                className="w-full h-full object-cover transition-transform duration-500 group-hover/media:scale-110"
+                                                                alt=""
+                                                                className="w-full h-full object-cover transition-transform duration-700 group-hover/media:scale-110"
                                                             />
                                                             <video
                                                                 src={videoSrcWithTime}
@@ -116,41 +118,40 @@ export default function HistorySidebar({
                                             return (
                                                 <img
                                                     src={img.imageUrl}
-                                                    alt={img.prompt}
-                                                    className="w-full h-full object-cover transition-transform duration-500 group-hover/media:scale-110"
+                                                    alt=""
+                                                    className="w-full h-full object-cover transition-transform duration-700 group-hover/media:scale-110"
                                                 />
                                             );
                                         })()}
                                         {(img.settings?.modality === 'video' || img.videoUrl) && (
-                                            <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm p-1.5 rounded-lg text-white shadow-lg border border-white/10">
+                                            <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md p-2 rounded-xl text-white shadow-lg border border-white/10 z-10 transition-transform group-hover:scale-110">
                                                 <Icons.video size={12} className="text-white" />
                                             </div>
                                         )}
-                                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/media:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
+                                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-6 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
                                             <Button
                                                 variant="primary"
                                                 size="sm"
-                                                onClick={() => onRemix(img)}
-                                                className="font-bold scale-90 group-hover/media:scale-100 transition-transform"
+                                                className="w-full bg-primary text-white font-black uppercase tracking-widest text-[9px] h-10 rounded-xl shadow-[0_0_20px_rgba(99,102,241,0.4)]"
                                             >
-                                                Remix
+                                                Load Snapshot
                                             </Button>
                                         </div>
                                     </div>
-                                    <div className="px-1">
-                                        <p className="text-[10px] text-foreground-muted line-clamp-2 italic mb-2 leading-relaxed">
-                                            &quot;{img.prompt}&quot;
-                                        </p>
-                                        <div className="flex items-center justify-between">
-                                            <Badge variant="primary" size="sm" className="bg-primary/10 text-primary border-primary/20">
-                                                {img.settings?.quality || 'standard'}
-                                            </Badge>
-                                            <span className="text-[9px] font-medium text-foreground-muted uppercase tracking-tighter">
-                                                {img.createdAt?.toDate?.() ? new Date(img.createdAt.toDate()).toLocaleDateString() : 'Just now'}
+                                    <div className="p-4 bg-white/[0.02]">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-primary-light bg-primary/10 px-2 py-0.5 rounded-lg border border-primary/20">
+                                                {img.settings?.quality || 'Standard'}
+                                            </span>
+                                            <span className="text-[8px] font-black uppercase tracking-widest text-white/20">
+                                                {img.createdAt?.toDate?.() ? new Date(img.createdAt.toDate()).toLocaleDateString() : 'Active Session'}
                                             </span>
                                         </div>
+                                        <p className="text-[10px] font-bold uppercase tracking-widest text-white/40 line-clamp-2 leading-relaxed italic">
+                                            &quot;{img.prompt}&quot;
+                                        </p>
                                     </div>
-                                </Card>
+                                </div>
                             ))}
                         </div>
                     )}

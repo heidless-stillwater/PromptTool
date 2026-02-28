@@ -10,6 +10,7 @@ import { Icons } from '@/components/ui/Icons';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
+import Tooltip from '@/components/Tooltip';
 
 export default function GlobalSearch() {
     const { user } = useAuth();
@@ -82,17 +83,19 @@ export default function GlobalSearch() {
     return (
         <div className="relative flex-1 max-w-md mx-4" ref={containerRef}>
             <div className="relative">
-                <Input
-                    placeholder="Search images, collections, tags..."
-                    value={searchQuery}
-                    onChange={(e) => {
-                        setSearchQuery(e.target.value);
-                        setIsOpen(true);
-                    }}
-                    onFocus={() => setIsOpen(true)}
-                    className="h-10 text-sm shadow-sm"
-                    icon={<Icons.search size={16} />}
-                />
+                <Tooltip content="INTELLIGENT SEARCH: Index and retrieve specific prompt strings, collection tags, or historical IDs." position="bottom">
+                    <Input
+                        placeholder="Search images, collections, tags..."
+                        value={searchQuery}
+                        onChange={(e) => {
+                            setSearchQuery(e.target.value);
+                            setIsOpen(true);
+                        }}
+                        onFocus={() => setIsOpen(true)}
+                        className="h-10 text-sm shadow-sm"
+                        icon={<Icons.search size={16} />}
+                    />
+                </Tooltip>
                 {isLoading && (
                     <div className="absolute right-3 top-1/2 -translate-y-1/2">
                         <Icons.spinner className="w-4 h-4 animate-spin text-primary" />

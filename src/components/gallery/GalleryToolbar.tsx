@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Icons } from '@/components/ui/Icons';
-import { Card } from '@/components/ui/Card';
+
 import { Badge } from '@/components/ui/Badge';
 import { cn } from '@/lib/utils';
 
@@ -59,18 +59,18 @@ export default function GalleryToolbar({
     const hasActiveAdvanced = filterSeed || filterGuidanceMin || filterGuidanceMax || filterHasNegativePrompt !== 'all';
 
     return (
-        <div className="space-y-6">
-            <Card variant="glass" className="p-4 flex flex-wrap gap-3 items-center">
+        <div className="space-y-6 sticky top-0 z-40 bg-background/50 backdrop-blur-3xl pb-6 -mx-4 px-4 pt-1 transition-all duration-300">
+            <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex flex-wrap gap-3 items-center shadow-xl">
                 {/* Filters */}
                 <div className="flex flex-wrap md:flex-nowrap gap-3 items-center w-full overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
-                    <div className="flex bg-background-secondary/50 rounded-xl p-1 border border-border/50">
+                    <div className="flex bg-black/40 rounded-[14px] p-1 border border-white/5 shadow-inner">
                         <Button
                             variant={!isGrouped ? 'primary' : 'ghost'}
                             size="sm"
                             onClick={() => !isGrouped ? null : onToggleGrouped()}
                             className={cn(
-                                "rounded-lg text-[10px] h-8 px-4 font-black tracking-widest uppercase transition-all",
-                                !isGrouped ? "shadow-lg shadow-primary/20" : "text-foreground-muted hover:text-foreground"
+                                "rounded-xl text-[10px] h-8 px-4 font-black tracking-widest uppercase transition-all",
+                                !isGrouped ? "bg-primary/10 text-primary shadow-sm" : "text-white/40 hover:text-white hover:bg-white/5"
                             )}
                         >
                             <Icons.grid size={14} className="mr-2" />
@@ -81,8 +81,8 @@ export default function GalleryToolbar({
                             size="sm"
                             onClick={() => isGrouped ? null : onToggleGrouped()}
                             className={cn(
-                                "rounded-lg text-[10px] h-8 px-4 font-black tracking-widest uppercase transition-all",
-                                isGrouped ? "shadow-lg shadow-primary/20" : "text-foreground-muted hover:text-foreground"
+                                "rounded-xl text-[10px] h-8 px-4 font-black tracking-widest uppercase transition-all",
+                                isGrouped ? "bg-primary/10 text-primary shadow-sm" : "text-white/40 hover:text-white hover:bg-white/5"
                             )}
                         >
                             <Icons.stack size={14} className="mr-2" />
@@ -90,7 +90,7 @@ export default function GalleryToolbar({
                         </Button>
                     </div>
 
-                    <div className="h-6 w-px bg-border/50 mx-1 hidden md:block" />
+                    <div className="h-6 w-px bg-white/10 mx-1 hidden md:block" />
 
                     <Button
                         variant={selectionMode ? 'primary' : 'secondary'}
@@ -100,36 +100,36 @@ export default function GalleryToolbar({
                             if (selectionMode) onClearSelection();
                         }}
                         className={cn(
-                            "h-10 px-4 text-[10px] font-black tracking-widest uppercase gap-2 transition-all",
-                            selectionMode ? "bg-accent hover:bg-accent-hover shadow-lg shadow-accent/20 border-accent" : "bg-background-secondary/50"
+                            "h-10 px-4 rounded-xl text-[10px] font-black tracking-widest uppercase gap-2 transition-all",
+                            selectionMode ? "bg-primary/20 hover:bg-primary/30 text-primary border-primary/20" : "bg-white/5 hover:bg-white/10 border-white/5 text-white/70"
                         )}
                     >
                         <Icons.check size={14} />
                         {selectionMode ? 'Finish' : 'Select'}
                     </Button>
 
-                    <div className="h-6 w-px bg-border/50 mx-1 hidden md:block" />
+                    <div className="h-6 w-px bg-white/10 mx-1 hidden md:block" />
 
                     <Button
                         variant={filterExemplar ? 'primary' : 'secondary'}
                         size="sm"
                         onClick={() => onFilterExemplarChange(!filterExemplar)}
                         className={cn(
-                            "h-10 px-4 text-[10px] font-black tracking-widest uppercase gap-2 transition-all",
-                            filterExemplar ? "bg-gradient-to-r from-amber-400 to-yellow-500 shadow-lg shadow-yellow-500/20 text-white border-amber-300" : "bg-background-secondary/50"
+                            "h-10 px-4 rounded-xl text-[10px] font-black tracking-widest uppercase gap-2 transition-all",
+                            filterExemplar ? "bg-yellow-500/20 text-yellow-500 border-yellow-500/20" : "bg-white/5 hover:bg-white/10 border-white/5 text-white/70"
                         )}
                     >
                         <Icons.exemplar size={14} className={filterExemplar ? "fill-current" : ""} />
                         Exemplars
                     </Button>
 
-                    <div className="h-6 w-px bg-border/50 mx-1 hidden md:block" />
+                    <div className="h-6 w-px bg-white/10 mx-1 hidden md:block" />
 
                     <div className="flex gap-2 items-center flex-1 md:flex-none min-w-[300px]">
                         <Select
                             value={filterTag}
                             onChange={(e) => onFilterTagChange(e.target.value)}
-                            className="h-10 text-[10px] font-black uppercase tracking-widest bg-zinc-900 text-white border-zinc-800"
+                            className="h-10 rounded-xl text-[10px] font-black uppercase tracking-widest bg-white/5 text-white border-white/5 hover:bg-white/10"
                         >
                             <option value="all">Tags: All</option>
                             {Array.from(new Set(collections.flatMap(c => c.tags || []))).sort().map(tag => (
@@ -140,7 +140,7 @@ export default function GalleryToolbar({
                         <Select
                             value={filterQuality}
                             onChange={(e) => onFilterQualityChange(e.target.value as any)}
-                            className="h-10 text-[10px] font-black uppercase tracking-widest bg-zinc-900 text-white border-zinc-800"
+                            className="h-10 rounded-xl text-[10px] font-black uppercase tracking-widest bg-white/5 text-white border-white/5 hover:bg-white/10"
                         >
                             <option value="all">Quality: All</option>
                             <option value="standard">Standard</option>
@@ -151,7 +151,7 @@ export default function GalleryToolbar({
                         <Select
                             value={filterAspectRatio}
                             onChange={(e) => onFilterAspectRatioChange(e.target.value)}
-                            className="h-10 text-[10px] font-black uppercase tracking-widest bg-zinc-900 text-white border-zinc-800"
+                            className="h-10 rounded-xl text-[10px] font-black uppercase tracking-widest bg-white/5 text-white border-white/5 hover:bg-white/10"
                         >
                             <option value="all">Aspect: All</option>
                             <option value="1:1">1:1 Square</option>
@@ -162,15 +162,15 @@ export default function GalleryToolbar({
                         </Select>
                     </div>
 
-                    <div className="h-6 w-px bg-border/50 mx-1 hidden md:block" />
+                    <div className="h-6 w-px bg-white/10 mx-1 hidden md:block" />
 
                     <Button
                         variant={(showAdvancedFilters || hasActiveAdvanced) ? 'primary' : 'secondary'}
                         size="sm"
                         onClick={onToggleAdvancedFilters}
                         className={cn(
-                            "h-10 px-4 text-[10px] font-black tracking-widest uppercase gap-2 transition-all relative",
-                            (showAdvancedFilters || hasActiveAdvanced) ? "shadow-lg shadow-primary/20" : "bg-background-secondary/50"
+                            "h-10 px-4 rounded-xl text-[10px] font-black tracking-widest uppercase gap-2 transition-all relative",
+                            (showAdvancedFilters || hasActiveAdvanced) ? "bg-primary/20 text-primary border-primary/20" : "bg-white/5 hover:bg-white/10 border-white/5 text-white/70"
                         )}
                     >
                         <Icons.filter size={14} />
@@ -221,11 +221,11 @@ export default function GalleryToolbar({
                         </>
                     )}
                 </div>
-            </Card>
+            </div>
 
             {/* Advanced Filters Panel */}
             {showAdvancedFilters && (
-                <Card variant="glass" className="p-6 border-primary/20 bg-primary/[0.03] animate-in fade-in slide-in-from-top-4 duration-300">
+                <div className="p-6 rounded-2xl border border-primary/20 bg-primary/[0.03] animate-in fade-in slide-in-from-top-4 duration-300">
                     <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center gap-3">
                             <div className="p-2 rounded-lg bg-primary/10 text-primary">
@@ -302,7 +302,7 @@ export default function GalleryToolbar({
                             </div>
                         </div>
                     </div>
-                </Card>
+                </div>
             )}
         </div>
     );

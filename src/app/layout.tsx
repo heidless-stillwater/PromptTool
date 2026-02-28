@@ -7,6 +7,7 @@ import { TourProvider } from '@/context/TourContext';
 import GuidedTour from '@/components/GuidedTour';
 import QueryProvider from '@/providers/QueryProvider';
 import { validateEnv } from '@/lib/schemas';
+import { SettingsProvider } from '@/lib/context/SettingsContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -48,12 +49,14 @@ export default function RootLayout({
             <body className={inter.className}>
                 <QueryProvider>
                     <AuthProvider>
-                        <ToastProvider>
-                            <TourProvider>
-                                <GuidedTour />
-                                {children}
-                            </TourProvider>
-                        </ToastProvider>
+                        <SettingsProvider>
+                            <ToastProvider>
+                                <TourProvider>
+                                    <GuidedTour />
+                                    {children}
+                                </TourProvider>
+                            </ToastProvider>
+                        </SettingsProvider>
                     </AuthProvider>
                 </QueryProvider>
             </body>

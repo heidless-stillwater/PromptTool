@@ -33,12 +33,12 @@ export default function ActionsBar({
     const router = useRouter();
 
     return (
-        <div className="pt-4 border-t border-border mt-auto grid grid-cols-2 gap-2">
+        <div className="pt-4 border-t border-white/5 mt-auto grid grid-cols-2 gap-2">
             <Tooltip content="Copy the original prompt text" className="flex-1">
                 <Button
                     variant="secondary"
                     onClick={onCopyPrompt}
-                    className="w-full text-xs py-2 flex items-center justify-center gap-2"
+                    className="w-full text-[10px] font-black uppercase tracking-widest py-2 flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border-white/5"
                 >
                     Copy Prompt
                 </Button>
@@ -48,7 +48,7 @@ export default function ActionsBar({
                     variant="secondary"
                     onClick={onCopySeed}
                     disabled={!image.settings?.seed}
-                    className="w-full text-xs py-2 flex items-center justify-center gap-2"
+                    className="w-full text-[10px] font-black uppercase tracking-widest py-2 flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border-white/5"
                 >
                     Copy Seed
                 </Button>
@@ -57,7 +57,7 @@ export default function ActionsBar({
                 <Button
                     variant="secondary"
                     onClick={() => router.push(`/edit?imageId=${image.id}`)}
-                    className="w-full text-xs py-2 flex items-center justify-center gap-2"
+                    className="w-full text-[10px] font-black uppercase tracking-widest py-2 flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border-white/5"
                 >
                     <span className="text-lg">✏️</span>
                     Edit Image
@@ -69,10 +69,10 @@ export default function ActionsBar({
                     disabled={publishingId === image.id}
                     isLoading={publishingId === image.id}
                     className={cn(
-                        "w-full py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2",
+                        "w-full py-2 text-[10px] uppercase font-black tracking-widest rounded-lg transition-all flex items-center justify-center gap-2",
                         image.publishedToCommunity
                             ? 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20 border border-yellow-500/20'
-                            : 'bg-background-secondary hover:bg-background-tertiary text-foreground border border-border'
+                            : 'bg-white/5 hover:bg-white/10 text-white border border-white/5'
                     )}
                 >
                     {!publishingId && (
@@ -84,7 +84,7 @@ export default function ActionsBar({
             <Tooltip content="Get the file at full resolution" className="col-span-2">
                 <Button
                     onClick={onDownload}
-                    className="w-full text-xs py-2 flex items-center justify-center gap-2"
+                    className="w-full text-[10px] font-black uppercase tracking-widest py-2 flex items-center justify-center gap-2"
                 >
                     <Icons.download size={16} />
                     Download {(image.videoUrl || image.settings?.modality === 'video') ? 'Video' : 'Image'}
@@ -95,7 +95,7 @@ export default function ActionsBar({
                 onClick={onDelete}
                 disabled={deletingId === image.id}
                 isLoading={deletingId === image.id}
-                className="col-span-2 text-xs py-2 flex items-center justify-center gap-2 opacity-80 hover:opacity-100"
+                className="col-span-2 text-[10px] font-black uppercase tracking-widest py-2 flex items-center justify-center gap-2 opacity-80 hover:opacity-100"
             >
                 {deletingId === image.id ? 'Deleting...' : 'Delete Image'}
             </Button>

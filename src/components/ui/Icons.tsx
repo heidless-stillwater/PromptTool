@@ -64,7 +64,10 @@ import {
     Award,
     Save,
     Star,
-    RefreshCw
+    RefreshCw,
+    Circle,
+    Minus,
+    Terminal
 } from "lucide-react"
 
 export const Icons = {
@@ -135,5 +138,9 @@ export const Icons = {
     exemplar: Award,
     loader: Loader2,
     star: Star,
-    refresh: RefreshCw
+    refresh: RefreshCw,
+    circle: Circle,
+    trash: Trash2,
+    minus: Minus,
+    terminal: Terminal
 }

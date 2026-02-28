@@ -1,14 +1,14 @@
 import { GeneratedImage, Collection } from '@/lib/types';
 import { formatDate } from '@/lib/date-utils';
 import React, { useRef, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import SmartVideo from '@/components/SmartVideo';
 import SmartImage from '@/components/SmartImage';
 import { Icons } from '@/components/ui/Icons';
 import { useToast } from '@/components/Toast';
 import Tooltip from '@/components/Tooltip';
-
-
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 interface ImageGroupModalProps {
     selectedGroup: GeneratedImage[];
     onClose: () => void;
@@ -41,9 +41,11 @@ export default function ImageGroupModal({
     setCollectionError
 }: ImageGroupModalProps) {
     const router = useRouter();
+    const pathname = usePathname() || '';
     const inputRef = useRef<HTMLInputElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [isCollectionDropdownOpen, setIsCollectionDropdownOpen] = useState(false);
+    const [gridSize, setGridSize] = useState<'sm' | 'md' | 'lg'>('md');
     const [copied, setCopied] = useState(false);
     const { showToast } = useToast();
 
@@ -80,19 +82,29 @@ export default function ImageGroupModal({
     ).map(c => c.id);
 
     return (
-        <div
-            className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[1000] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 md:p-12"
             onClick={onClose}
         >
+            <button
+                onClick={onClose}
+                className="absolute top-8 right-8 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center text-white z-[1010]"
+            >
+                <Icons.close size={24} />
+            </button>
+
             <div
-                className="bg-background rounded-2xl max-w-5xl w-full max-h-[90vh] flex flex-col overflow-hidden relative"
+                className="bg-black/50 border border-white/5 rounded-3xl w-full h-full flex flex-col overflow-hidden relative max-w-7xl mx-auto shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="p-4 border-b border-border flex items-center justify-between bg-background z-10">
+                <div className="p-6 border-b border-white/5 flex flex-col md:flex-row items-start md:items-center justify-between bg-transparent z-10 gap-4 flex-shrink-0">
                     <div>
-                        <h2 className="text-lg font-bold">Image Variations</h2>
-                        <div className="flex items-center gap-2 mt-1">
+                        <h2 className="text-xl font-black uppercase tracking-widest text-primary">Image Variations</h2>
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
                             <p className="text-sm text-foreground-muted">
                                 {selectedGroup.length} images • {formatDate(firstImage.createdAt)}
                             </p>
@@ -115,6 +127,41 @@ export default function ImageGroupModal({
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        <div className="flex bg-black/40 rounded-xl p-1 border border-white/5 shadow-inner">
+                            <button
+                                onClick={() => setGridSize('sm')}
+                                className={cn(
+                                    "p-1.5 rounded-lg transition-all",
+                                    gridSize === 'sm' ? "bg-primary/20 text-primary shadow-lg shadow-primary/10" : "text-white/40 hover:text-white hover:bg-white/5"
+                                )}
+                                title="Compact View"
+                            >
+                                <Icons.grid size={14} className="opacity-70" />
+                            </button>
+                            <button
+                                onClick={() => setGridSize('md')}
+                                className={cn(
+                                    "p-1.5 rounded-lg transition-all",
+                                    gridSize === 'md' ? "bg-primary/20 text-primary shadow-lg shadow-primary/10" : "text-white/40 hover:text-white hover:bg-white/5"
+                                )}
+                                title="Standard View"
+                            >
+                                <Icons.grid size={18} />
+                            </button>
+                            <button
+                                onClick={() => setGridSize('lg')}
+                                className={cn(
+                                    "p-1.5 rounded-lg transition-all",
+                                    gridSize === 'lg' ? "bg-primary/20 text-primary shadow-lg shadow-primary/10" : "text-white/40 hover:text-white hover:bg-white/5"
+                                )}
+                                title="Large View"
+                            >
+                                <Icons.image size={20} />
+                            </button>
+                        </div>
+
+                        <div className="h-6 w-px bg-white/10 mx-1 hidden md:block" />
+
                         <div className="relative" ref={dropdownRef}>
                             <button
                                 onClick={() => setIsCollectionDropdownOpen(!isCollectionDropdownOpen)}
@@ -220,34 +267,50 @@ export default function ImageGroupModal({
                             )}
                         </div>
 
+                        {pathname.includes('/generate') && (
+                            <button
+                                onClick={onClose}
+                                className="hidden md:flex px-3 py-1.5 bg-background-secondary hover:bg-background-tertiary rounded-lg text-xs font-black uppercase tracking-widest transition-all border border-border items-center gap-2 text-foreground-muted hover:text-foreground"
+                            >
+                                <Icons.arrowLeft size={14} />
+                                Return to Generator
+                            </button>
+                        )}
+
+                        <button
+                            onClick={() => {
+                                if (pathname.includes('/gallery')) {
+                                    onClose();
+                                } else {
+                                    const targetId = firstImage.promptSetID || firstImage.id;
+                                    router.push(`/gallery?set=${targetId}`);
+                                }
+                            }}
+                            className="hidden md:flex px-3 py-1.5 bg-background-secondary hover:bg-background-tertiary rounded-lg text-xs font-black uppercase tracking-widest transition-all border border-border items-center gap-2 text-foreground-muted hover:text-foreground"
+                        >
+                            <Icons.grid size={14} />
+                            Return to Gallery
+                        </button>
+
                         <button
                             onClick={() => {
                                 const sid = firstImage.promptSetID || firstImage.settings?.promptSetID;
-                                router.push(`/generate?ref=${firstImage.id}${sid ? `&sid=${sid}` : ''}`);
+                                router.push(`/generate?ref=${firstImage.id}${sid ? `&sid=${sid}` : ''}&tab=current`);
                             }}
                             className="px-3 py-1.5 bg-primary text-white hover:bg-primary-hover rounded-lg text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-primary/20 flex items-center gap-2 group"
                         >
                             <Icons.wand size={14} className="group-hover:rotate-12 transition-transform" />
                             Generate new variations
                         </button>
-
-                        <button
-                            onClick={onClose}
-                            className="p-2 hover:bg-background-secondary rounded-lg"
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                    <Tooltip content="Click to generate new variations with this prompt" className="w-full block mb-4" position="bottom">
+                <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+                    <Tooltip content="Click to generate new variations with this prompt" className="w-full block mb-6" position="bottom">
                         <div
                             onClick={() => {
                                 const sid = firstImage.promptSetID || firstImage.settings?.promptSetID;
-                                router.push(`/generate?ref=${firstImage.id}${sid ? `&sid=${sid}` : ''}`);
+                                router.push(`/generate?ref=${firstImage.id}${sid ? `&sid=${sid}` : ''}&tab=current`);
                             }}
                             className="flex gap-4 p-3 bg-background-secondary rounded-lg border border-border/50 group cursor-pointer hover:border-primary/40 hover:bg-background-tertiary transition-all relative overflow-hidden shadow-sm hover:shadow-md"
                         >
@@ -294,6 +357,11 @@ export default function ImageGroupModal({
                                         <Icons.exemplar size={10} className="fill-current" />
                                     </div>
                                 )}
+                                {(firstImage.videoUrl || firstImage.settings?.modality === 'video') && (
+                                    <div className="absolute bottom-1 left-1 z-30 bg-black/60 backdrop-blur-sm p-1 rounded-lg text-white shadow-lg border border-white/10 pointer-events-none transition-opacity">
+                                        <Icons.video size={10} className="text-white" />
+                                    </div>
+                                )}
                             </div>
                             <div className="flex-1 min-w-0 group/prompt relative z-10">
                                 <p className="text-sm text-foreground font-mono line-clamp-3 leading-relaxed pr-10">
@@ -330,7 +398,12 @@ export default function ImageGroupModal({
                         </div>
                     </Tooltip>
 
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <div className={cn(
+                        "grid gap-4 transition-all duration-500",
+                        gridSize === 'sm' ? "grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8" :
+                            gridSize === 'md' ? "grid-cols-2 md:grid-cols-3 lg:grid-cols-4" :
+                                "grid-cols-1 md:grid-cols-2 lg:grid-cols-2"
+                    )}>
                         {selectedGroup.map((image) => {
                             const isVideo = !!(image.videoUrl || image.settings?.modality === 'video');
                             return (
@@ -392,6 +465,11 @@ export default function ImageGroupModal({
                                             Exemplar
                                         </div>
                                     )}
+                                    {isVideo && (
+                                        <div className="absolute bottom-2 left-2 z-30 bg-black/60 backdrop-blur-sm p-1.5 rounded-lg text-white shadow-lg border border-white/10 pointer-events-none group-hover:opacity-0 transition-opacity">
+                                            <Icons.video size={14} className="text-white" />
+                                        </div>
+                                    )}
                                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-40">
                                         <span className="text-white text-sm font-bold bg-black/50 px-3 py-1.5 rounded-full backdrop-blur-sm border border-white/20">
                                             View Details
@@ -403,6 +481,6 @@ export default function ImageGroupModal({
                     </div>
                 </div>
             </div>
-        </div>
+        </motion.div>
     );
 }

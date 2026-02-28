@@ -16,13 +16,13 @@ interface TourContextType {
     isActive: boolean;
     currentStep: number;
     steps: TourStep[];
-    startTour: () => void;
+    startTour: (initialSteps?: TourStep[]) => void;
     nextStep: () => void;
     prevStep: () => void;
     skipTour: () => void;
 }
 
-const DASHBOARD_STEPS: TourStep[] = [
+export const DASHBOARD_STEPS: TourStep[] = [
     {
         id: 'welcome',
         targetId: 'dashboard-title',
@@ -54,32 +54,53 @@ const DASHBOARD_STEPS: TourStep[] = [
     }
 ];
 
-const GENERATOR_STEPS: TourStep[] = [
+export const GENERATOR_STEPS: TourStep[] = [
     {
-        id: 'prompting',
-        targetId: 'prompt-input',
-        title: 'The Vision Box',
-        content: 'Type your wildest ideas here. Be descriptive for the best results!',
-        position: 'bottom'
+        id: 'exemplar',
+        targetId: 'tour-exemplar-2',
+        title: 'Pick your starting point',
+        content: 'Select an exemplar from the gallery to pre-fill the prompt and modifiers.',
+        position: 'right'
     },
     {
-        id: 'magic',
-        targetId: 'magic-enhance',
-        title: 'AI Polish',
-        content: 'Stuck? Use Enhance to let our AI polish your prompt into a masterpiece.',
-        position: 'bottom'
+        id: 'modifiers',
+        targetId: 'tour-modifiers',
+        title: 'The Modifiers Core',
+        content: 'Tweak the active modifiers to refine the style and mood of your creation.',
+        position: 'top'
     },
     {
-        id: 'settings',
-        targetId: 'settings-panel',
-        title: 'Output Control',
-        content: 'Adjust quality, aspect ratio, and batch size here before manifesting your creation.',
+        id: 'modality',
+        targetId: 'tour-modality',
+        title: 'Modality',
+        content: 'Choose whether you want to generate an image or a video.',
+        position: 'left'
+    },
+    {
+        id: 'aspect-ratio',
+        targetId: 'tour-aspect-ratio',
+        title: 'Aspect Ratio',
+        content: 'Select the dimension format for your generated media.',
+        position: 'left'
+    },
+    {
+        id: 'quality',
+        targetId: 'tour-quality',
+        title: 'Quality',
+        content: 'Pick the output quality. Higher quality costs more energy credits.',
+        position: 'left'
+    },
+    {
+        id: 'batch',
+        targetId: 'tour-batch-size',
+        title: 'Batch Size',
+        content: 'Choose how many variations to generate in one go.',
         position: 'left'
     },
     {
         id: 'finish',
         targetId: 'manifest-button',
-        title: 'Manifest Reality',
+        title: 'Generate Studio Batch',
         content: "You're all set! Click here to bring your vision to life. Happy creating!",
         position: 'top'
     }
@@ -90,12 +111,16 @@ const TourContext = createContext<TourContextType | undefined>(undefined);
 export function TourProvider({ children }: { children: React.ReactNode }) {
     const [isActive, setIsActive] = useState(false);
     const [currentStep, setCurrentStep] = useState(0);
+    const [overrideSteps, setOverrideSteps] = useState<TourStep[] | null>(null);
     const router = useRouter();
     const pathname = usePathname();
 
-    const steps = pathname === '/generate' ? GENERATOR_STEPS : DASHBOARD_STEPS;
+    const defaultSteps = pathname === '/generate' ? GENERATOR_STEPS : DASHBOARD_STEPS;
+    const steps = overrideSteps || defaultSteps;
 
-    const startTour = useCallback(() => {
+    const startTour = useCallback((initialSteps?: TourStep[]) => {
+        if (initialSteps) setOverrideSteps(initialSteps);
+        else setOverrideSteps(null);
         setCurrentStep(0);
         setIsActive(true);
     }, []);
@@ -103,6 +128,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
     const skipTour = useCallback(() => {
         setIsActive(false);
         setCurrentStep(0);
+        setOverrideSteps(null);
     }, []);
 
     const nextStep = useCallback(() => {
@@ -110,9 +136,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
 
         if (currentStepData.path && pathname !== currentStepData.path) {
             router.push(currentStepData.path);
-            // We don't increment yet, wait for path change if needed
-            // But for this simple implementation, we'll assume the next step is on the new page
-            setCurrentStep(0); // Reset for the new page's steps
+            setCurrentStep(0);
             return;
         }
 
@@ -120,6 +144,7 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
             setCurrentStep(prev => prev + 1);
         } else {
             setIsActive(false);
+            setOverrideSteps(null);
         }
     }, [currentStep, steps, pathname, router]);
 
@@ -131,10 +156,17 @@ export function TourProvider({ children }: { children: React.ReactNode }) {
 
     // Handle cross-page transitions
     useEffect(() => {
-        if (isActive && pathname === '/generate' && currentStep === 0 && steps === GENERATOR_STEPS) {
-            // If we just arrived at generate while tour is active, we stay on step 0 of the new steps
+        // If we arrive at a new page and aren't using overridden steps,
+        // reset the step to 0 for the new page's default steps
+        if (isActive && !overrideSteps && currentStep !== 0) {
+            setCurrentStep(0);
         }
-    }, [pathname, isActive, steps]);
+
+        // If we arrive at the generator, clear overrides so we use generator steps naturally
+        if (pathname === '/generate' && overrideSteps === GENERATOR_STEPS) {
+            setOverrideSteps(null);
+        }
+    }, [pathname, isActive, overrideSteps, currentStep]);
 
     return (
         <TourContext.Provider value={{ isActive, currentStep, steps, startTour, nextStep, prevStep, skipTour }}>

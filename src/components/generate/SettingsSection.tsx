@@ -51,26 +51,30 @@ export default function SettingsSection({
                     <p className="text-[10px] text-foreground-muted uppercase tracking-widest mt-0.5">Define your output</p>
                 </div>
                 <div className="flex bg-background-secondary p-1 rounded-xl border border-border">
-                    <button
-                        onClick={() => setModality('image')}
-                        className={cn(
-                            "flex items-center gap-2 px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all",
-                            modality === 'image' ? "bg-background shadow-md text-primary" : "text-foreground-muted hover:text-foreground"
-                        )}
-                    >
-                        <Icons.image size={12} />
-                        Image
-                    </button>
-                    <button
-                        onClick={() => setModality('video')}
-                        className={cn(
-                            "flex items-center gap-2 px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all",
-                            modality === 'video' ? "bg-background shadow-md text-primary" : "text-foreground-muted hover:text-foreground"
-                        )}
-                    >
-                        <Icons.video size={12} />
-                        Video
-                    </button>
+                    <Tooltip content="STILL: Generate high-fidelity static architectural frames in various aspect ratios.">
+                        <button
+                            onClick={() => setModality('image')}
+                            className={cn(
+                                "flex items-center gap-2 px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all",
+                                modality === 'image' ? "bg-background shadow-md text-primary" : "text-foreground-muted hover:text-foreground"
+                            )}
+                        >
+                            <Icons.image size={12} />
+                            Image
+                        </button>
+                    </Tooltip>
+                    <Tooltip content="MOTION: Synthesize dynamic 5-second cinematic loops. Requires increased neural processing time.">
+                        <button
+                            onClick={() => setModality('video')}
+                            className={cn(
+                                "flex items-center gap-2 px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all",
+                                modality === 'video' ? "bg-background shadow-md text-primary" : "text-foreground-muted hover:text-foreground"
+                            )}
+                        >
+                            <Icons.video size={12} />
+                            Video
+                        </button>
+                    </Tooltip>
                 </div>
             </div>
 
@@ -118,7 +122,7 @@ export default function SettingsSection({
                         onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
                         className="h-11"
                     >
-                        <option value="1:1">{isCasual ? 'Square' : '1:1 (Square)'}</option>
+                        <option value="1:1" disabled={modality === 'video'}>{isCasual ? 'Square' : '1:1 (Square)'}</option>
                         <option value="4:3">{isCasual ? 'Landscape' : '4:3 (Classic)'}</option>
                         <option value="3:4">{isCasual ? 'Portrait' : '3:4 (Portrait)'}</option>
                         <option value="16:9">{isCasual ? 'Wide' : '16:9 (Cinematic)'}</option>
@@ -142,14 +146,16 @@ export default function SettingsSection({
                         maxLength={30}
                         className="h-11 text-sm bg-background-secondary text-foreground font-medium"
                     />
-                    <Button
-                        variant="secondary"
-                        size="icon"
-                        onClick={onGenerateSetID}
-                        className="h-11 w-11 shadow-sm"
-                    >
-                        <Icons.history size={18} />
-                    </Button>
+                    <Tooltip content="GENERATE ID: Creates a unique cryptographic string to group this generation batch under a specific project thread.">
+                        <Button
+                            variant="secondary"
+                            size="icon"
+                            onClick={onGenerateSetID}
+                            className="h-11 w-11 shadow-sm"
+                        >
+                            <Icons.history size={18} />
+                        </Button>
+                    </Tooltip>
                 </div>
             </div>
 
@@ -161,18 +167,19 @@ export default function SettingsSection({
                     </div>
                     <div className="grid grid-cols-4 gap-2">
                         {[1, 4, 8, 12].map((size) => (
-                            <button
-                                key={size}
-                                onClick={() => setBatchSize(size)}
-                                className={cn(
-                                    "py-2.5 rounded-xl text-xs font-black transition-all border shadow-sm",
-                                    batchSize === size
-                                        ? "bg-primary border-primary text-white shadow-primary/20"
-                                        : "bg-background-secondary text-foreground-muted border-border hover:border-primary/50"
-                                )}
-                            >
-                                {size}
-                            </button>
+                            <Tooltip key={size} content={`SYNTHESIZE ${size} VARIATION${size > 1 ? 'S' : ''}: Parallel neural processing for rapid creative exploration.`}>
+                                <button
+                                    onClick={() => setBatchSize(size)}
+                                    className={cn(
+                                        "w-full py-2.5 rounded-xl text-xs font-black transition-all border shadow-sm",
+                                        batchSize === size
+                                            ? "bg-primary border-primary text-white shadow-primary/20"
+                                            : "bg-background-secondary text-foreground-muted border-border hover:border-primary/50"
+                                    )}
+                                >
+                                    {size}
+                                </button>
+                            </Tooltip>
                         ))}
                     </div>
                 </div>

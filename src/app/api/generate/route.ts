@@ -26,6 +26,8 @@ interface GenerateRequest {
     promptSetID?: string;         // Unique ID for the batch/generation set
     collectionIds?: string[];     // Collections to add generated images to
     modality?: MediaModality;     // image | video
+    modifiers?: { category: string, value: string }[];
+    coreSubject?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -72,7 +74,7 @@ export async function POST(request: NextRequest) {
             prompt, quality, aspectRatio, promptType, madlibsData,
             count, seed, negativePrompt, guidanceScale,
             referenceImage, referenceImageUrl, referenceMimeType, sourceImageId, promptSetID,
-            collectionIds, modality
+            collectionIds, modality, modifiers, coreSubject
         } = validatedData;
 
         // 1. Validate Tier Constraints
@@ -131,7 +133,7 @@ export async function POST(request: NextRequest) {
                     const mediaData = await GenerationService.saveMedia(userId, result.images[i], {
                         prompt, quality: quality as any, aspectRatio, promptType, madlibsData, seed: seed ?? undefined, negativePrompt, guidanceScale: guidanceScale ?? undefined,
                         sourceImageId, promptSetID, collectionIds, requestedModality: modality, modality,
-                        initialImageUrl: referenceImageUrl
+                        initialImageUrl: referenceImageUrl, modifiers, coreSubject
                     });
 
                     generatedMediaData.push(mediaData);

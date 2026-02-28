@@ -68,6 +68,10 @@ service cloud.firestore {
     }
 
     // Public/Shared configuration
+    match /system/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
     match /promptTemplates/{id} { 
       allow read: if isAuthenticated(); 
       allow write: if isAdmin();

@@ -17,6 +17,11 @@ export const generationSchema = z.object({
         setting: z.string().optional(),
     }).optional(),
     count: z.number().int().min(1).max(4).default(1),
+    modifiers: z.array(z.object({
+        category: z.string(),
+        value: z.string()
+    })).optional(),
+    coreSubject: z.string().optional(),
     seed: z.number().int().min(0).nullish(),
     negativePrompt: z.string().max(500).optional(),
     guidanceScale: z.number().min(1).max(20).nullish().transform(v => v ?? 7),

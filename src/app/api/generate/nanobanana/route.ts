@@ -6,14 +6,14 @@ export const maxDuration = 60; // Extra time for Gemini
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        const { subject, modifiers } = body;
+        const { subject, modifiers, aspectRatio, proSettings } = body;
 
         if (!subject || typeof subject !== 'string') {
             return NextResponse.json({ error: 'Core subject is required' }, { status: 400 });
         }
 
         const aiPromptService = getAIPromptService();
-        const compiledPrompt = await aiPromptService.compileNanobananaPrompt(subject, modifiers || []);
+        const compiledPrompt = await aiPromptService.compileNanobananaPrompt(subject, modifiers || [], aspectRatio, proSettings);
 
         return NextResponse.json({ compiledPrompt });
     } catch (error: any) {

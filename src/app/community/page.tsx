@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import NotificationBell from '@/components/NotificationBell';
 
-import CommunityHeader from '@/components/community/CommunityHeader';
+import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import CommunityGrid from '@/components/community/CommunityGrid';
 import CommunityEntryModal from '@/components/community/CommunityEntryModal';
 import { AnimatePresence } from 'framer-motion';
@@ -14,6 +14,8 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import { Icons } from '@/components/ui/Icons';
+import CommunityHeader from '@/components/community/CommunityHeader';
+import { useAuth } from '@/lib/auth-context';
 import CommunityQuickLinks from '@/components/community/CommunityQuickLinks';
 import CommunityPulseStats from '@/components/community/CommunityPulseStats';
 import { SkeletonGrid, SkeletonHeader } from '@/components/ui/Skeleton';
@@ -34,7 +36,13 @@ function CommunityContent() {
         }
     }, [community.user, community.loadingEntries, community.profile, router]);
 
-    const { user, profile } = community;
+    const {
+        user, profile, credits, effectiveRole,
+        switchRole, setAudienceMode, signOut,
+        isAdmin, isSu
+    } = useAuth();
+
+    const availableCredits = (credits?.balance || 0) + Math.max(0, (credits?.dailyAllowance || 0) - (credits?.dailyAllowanceUsed || 0));
 
     if (!user || !profile) {
         return (
@@ -46,38 +54,17 @@ function CommunityContent() {
 
     return (
         <div className="min-h-screen">
-            {/* Header */}
-            <Card className="sticky top-0 z-50 rounded-none border-x-0 border-t-0 border-b border-border bg-black/90 backdrop-blur-md">
-                <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-                    <Link href="/dashboard" className="text-xl font-bold gradient-text">
-                        AI Image Studio
-                    </Link>
-
-                    <div className="flex items-center gap-4">
-                        <NotificationBell />
-                        <Button
-                            variant="secondary"
-                            onClick={() => router.push('/community/leaderboard')}
-                            className="text-sm px-4 py-2 flex items-center gap-2 border-yellow-400/30 hover:border-yellow-400 transition-colors"
-                        >
-                            <Icons.trophy size={16} />
-                            Hall of Fame
-                        </Button>
-                        <Button onClick={() => router.push('/generate')}>
-                            <Icons.plus size={16} className="mr-2" />
-                            Generate New
-                        </Button>
-                        <Button variant="secondary" onClick={() => router.push('/gallery')}>
-                            <Icons.image size={16} className="mr-2" />
-                            Gallery
-                        </Button>
-                        <Button variant="secondary" onClick={() => router.push('/dashboard')}>
-                            <Icons.arrowLeft size={16} className="mr-2" />
-                            Dashboard
-                        </Button>
-                    </div>
-                </div>
-            </Card>
+            <DashboardHeader
+                user={user}
+                profile={profile}
+                credits={credits}
+                availableCredits={availableCredits || 0}
+                isAdminOrSu={isAdmin || isSu}
+                effectiveRole={effectiveRole}
+                switchRole={switchRole}
+                setAudienceMode={setAudienceMode}
+                signOut={signOut}
+            />
 
             <main className="max-w-7xl mx-auto px-4 py-8">
                 {/* Global Live Stats */}

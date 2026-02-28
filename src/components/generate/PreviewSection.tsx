@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import ShareButtons from '@/components/ShareButtons';
 import { cn } from '@/lib/utils';
+import Tooltip from '@/components/Tooltip';
 
 import { useRouter } from 'next/navigation';
+import { useRef } from 'react';
 
 interface PreviewSectionProps {
     generating: boolean;
@@ -41,6 +43,7 @@ export default function PreviewSection({
     const router = useRouter();
     const currentImg = generatedImages[selectedImageIndex];
     const isVideo = modality === 'video' || currentImg?.settings?.modality === 'video' || !!currentImg?.videoUrl;
+    const lastNativeToggle = useRef(0);
 
     return (
         <div className="lg:sticky lg:top-24 lg:self-start space-y-6">
@@ -91,7 +94,26 @@ export default function PreviewSection({
                                     controls
                                     autoPlay
                                     loop
-                                    className="w-full h-full object-contain"
+                                    className="w-full h-full object-contain cursor-pointer"
+                                    onPlay={() => { lastNativeToggle.current = Date.now(); }}
+                                    onPause={() => { lastNativeToggle.current = Date.now(); }}
+                                    onClick={(e) => {
+                                        const video = e.currentTarget;
+                                        const rect = video.getBoundingClientRect();
+                                        const clickY = e.clientY - rect.top;
+
+                                        // Ignore clicks in the bottom 60px (control bar area)
+                                        if (rect.height - clickY < 60) return;
+
+                                        // Ignore clicks if a native play/pause event just fired (e.g. center play button)
+                                        if (Date.now() - lastNativeToggle.current < 200) return;
+
+                                        if (video.paused) {
+                                            video.play().catch(() => { });
+                                        } else {
+                                            video.pause();
+                                        }
+                                    }}
                                 />
                             ) : (
                                 <img
@@ -103,13 +125,17 @@ export default function PreviewSection({
 
                             {/* Hover Overlay Actions */}
                             {!generating && (
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/preview:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-4 backdrop-blur-[2px]">
-                                    <Button variant="secondary" size="icon" onClick={() => onDownload('png')} className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/70 border-white/20 text-white backdrop-blur-md">
-                                        <Icons.download size={20} />
-                                    </Button>
-                                    <Button variant="secondary" size="icon" onClick={onShowTextEditor} className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/70 border-white/20 text-white backdrop-blur-md">
-                                        <Icons.settings size={20} />
-                                    </Button>
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/preview:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-4 backdrop-blur-[2px] pointer-events-none">
+                                    <Tooltip content="EXPORT: Download the raw neural output as a high-fidelity PNG." position="top">
+                                        <Button variant="secondary" size="icon" onClick={() => onDownload('png')} className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/70 border-white/20 text-white backdrop-blur-md pointer-events-auto">
+                                            <Icons.download size={20} />
+                                        </Button>
+                                    </Tooltip>
+                                    <Tooltip content="NEURAL TEXT: Invoke the overlay engine to embed typography directly into your creation." position="top">
+                                        <Button variant="secondary" size="icon" onClick={onShowTextEditor} className="w-12 h-12 rounded-full bg-black/50 hover:bg-black/70 border-white/20 text-white backdrop-blur-md pointer-events-auto">
+                                            <Icons.settings size={20} />
+                                        </Button>
+                                    </Tooltip>
                                 </div>
                             )}
                         </>
@@ -151,7 +177,7 @@ export default function PreviewSection({
                 {/* Detailed Action Panel */}
                 {generatedImages.length > 0 && !generating && (
                     <div className="space-y-4 mt-6 animate-in slide-in-from-bottom-4 duration-500">
-                        {modality === 'image' && (
+                        <Tooltip content="ENRICH: Trigger the typography engine to add metadata, branding, or stylised text layers to this frame." position="top">
                             <Button
                                 variant="primary"
                                 onClick={onShowTextEditor}
@@ -160,7 +186,7 @@ export default function PreviewSection({
                                 <Icons.settings size={18} />
                                 {editedImage ? 'Refine Text Layers' : 'Enrich with Text'}
                             </Button>
-                        )}
+                        </Tooltip>
 
                         <div className="grid grid-cols-2 gap-3">
                             <Button
@@ -182,14 +208,16 @@ export default function PreviewSection({
                         </div>
 
                         {promptSetID && (
-                            <Button
-                                variant="ghost"
-                                onClick={() => router.push(`/gallery?set=${promptSetID}`)}
-                                className="w-full h-11 font-black uppercase tracking-widest text-[10px] text-primary hover:bg-primary/5 gap-2 border border-primary/20"
-                            >
-                                <Icons.image size={14} />
-                                View This Set in Gallery
-                            </Button>
+                            <Tooltip content="ARCHIVE VIEW: Jump to your personal gallery filtered specifically by this batch identifier." position="top">
+                                <Button
+                                    variant="ghost"
+                                    onClick={() => router.push(`/gallery?set=${promptSetID}`)}
+                                    className="w-full h-11 font-black uppercase tracking-widest text-[10px] text-primary hover:bg-primary/5 gap-2 border border-primary/20"
+                                >
+                                    <Icons.image size={14} />
+                                    View This Set in Gallery
+                                </Button>
+                            </Tooltip>
                         )}
 
                         {editedImage && (

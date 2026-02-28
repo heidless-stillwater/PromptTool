@@ -113,7 +113,7 @@ export function useCommunityInteractions(
         }
 
         setLoadingComments(true);
-        const commentsRef = collection(db, 'communityEntries', selectedEntry.id, 'comments');
+        const commentsRef = collection(db, 'leagueEntries', selectedEntry.id, 'comments');
         const q = query(commentsRef, orderBy('createdAt', 'desc'));
 
         const unsubscribe = onSnapshot(q, async (snapshot) => {

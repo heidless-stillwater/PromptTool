@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useTour } from '@/context/TourContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Icons } from './ui/Icons';
@@ -11,17 +11,41 @@ import { cn } from '@/lib/utils';
 export default function GuidedTour() {
     const { isActive, currentStep, steps, nextStep, skipTour, prevStep } = useTour();
     const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+    const hasScrolledRef = useRef(false);
     const step = steps[currentStep];
+
+    // Scroll target into view when step changes
+    useEffect(() => {
+        if (!isActive || !step) return;
+        hasScrolledRef.current = false;
+    }, [isActive, step?.id]);
 
     useEffect(() => {
         if (!isActive || !step) return;
 
+        let retryCount = 0;
+        const maxRetries = 6;
+
         const updateRect = () => {
             const el = document.getElementById(step.targetId);
             if (el) {
+                // Scroll element into view on first find
+                if (!hasScrolledRef.current) {
+                    hasScrolledRef.current = true;
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    // Re-measure after scroll settles
+                    setTimeout(() => {
+                        setTargetRect(el.getBoundingClientRect());
+                    }, 400);
+                }
                 setTargetRect(el.getBoundingClientRect());
+                retryCount = 0;
             } else {
                 setTargetRect(null);
+                retryCount++;
+                if (retryCount >= maxRetries) {
+                    nextStep();
+                }
             }
         };
 
@@ -29,7 +53,6 @@ export default function GuidedTour() {
         window.addEventListener('resize', updateRect);
         window.addEventListener('scroll', updateRect);
 
-        // Retry a few times in case elements are mounting
         const interval = setInterval(updateRect, 500);
 
         return () => {
@@ -37,34 +60,93 @@ export default function GuidedTour() {
             window.removeEventListener('scroll', updateRect);
             clearInterval(interval);
         };
-    }, [isActive, step]);
+    }, [isActive, step, nextStep]);
+
+    // Compute tooltip position with viewport clamping
+    const tooltipStyle = useMemo(() => {
+        if (!targetRect || !step) return {};
+
+        const tooltipW = 340;
+        const tooltipH = 200;
+        const pad = 16;
+        const vw = typeof window !== 'undefined' ? window.innerWidth : 1200;
+        const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+
+        let top: number;
+        let left: number;
+
+        if (step.position === 'top') {
+            top = targetRect.top - tooltipH - 20;
+            left = targetRect.left + (targetRect.width / 2) - (tooltipW / 2);
+        } else if (step.position === 'bottom') {
+            top = targetRect.bottom + 20;
+            left = targetRect.left + (targetRect.width / 2) - (tooltipW / 2);
+        } else if (step.position === 'left') {
+            top = targetRect.top + (targetRect.height / 2) - (tooltipH / 2);
+            left = targetRect.left - tooltipW - 20;
+        } else if (step.position === 'right') {
+            top = targetRect.top + (targetRect.height / 2) - (tooltipH / 2);
+            left = targetRect.right + 20;
+        } else {
+            top = targetRect.bottom + 20;
+            left = targetRect.left + (targetRect.width / 2) - (tooltipW / 2);
+        }
+
+        // Clamp to viewport
+        if (top + tooltipH > vh - pad) top = vh - tooltipH - pad;
+        if (top < pad) top = pad;
+        if (left + tooltipW > vw - pad) left = vw - tooltipW - pad;
+        if (left < pad) left = pad;
+
+        return { top, left };
+    }, [targetRect, step]);
 
     if (!isActive || !step) return null;
 
     return (
         <div className="fixed inset-0 z-[200] pointer-events-none">
-            {/* Dark Overlay with Hole */}
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-black/60 backdrop-blur-[1px] pointer-events-auto"
-                style={{
-                    clipPath: targetRect ? `polygon(
-                        0% 0%, 
-                        0% 100%, 
-                        ${targetRect.left - 8}px 100%, 
-                        ${targetRect.left - 8}px ${targetRect.top - 8}px, 
-                        ${targetRect.right + 8}px ${targetRect.top - 8}px, 
-                        ${targetRect.right + 8}px ${targetRect.bottom + 8}px, 
-                        ${targetRect.left - 8}px ${targetRect.bottom + 8}px, 
-                        ${targetRect.left - 8}px 100%, 
-                        100% 100%, 
-                        100% 0%
-                    )` : 'none'
-                }}
-                onClick={skipTour}
-            />
+            {/* Dark overlay as 4 rectangles — the hole is genuinely empty so clicks pass through */}
+            {targetRect && (<>
+                {/* Top strip */}
+                <motion.div
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="absolute left-0 right-0 bg-black/70 pointer-events-auto cursor-default"
+                    style={{ top: 0, height: Math.max(0, targetRect.top - 8) }}
+                    onClick={skipTour}
+                    onWheel={(e) => window.scrollBy({ top: e.deltaY })}
+                />
+                {/* Bottom strip */}
+                <motion.div
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="absolute left-0 right-0 bg-black/70 pointer-events-auto cursor-default"
+                    style={{ top: targetRect.bottom + 8, bottom: 0 }}
+                    onClick={skipTour}
+                    onWheel={(e) => window.scrollBy({ top: e.deltaY })}
+                />
+                {/* Left strip */}
+                <motion.div
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="absolute bg-black/70 pointer-events-auto cursor-default"
+                    style={{ top: targetRect.top - 8, height: targetRect.height + 16, left: 0, width: Math.max(0, targetRect.left - 8) }}
+                    onClick={skipTour}
+                    onWheel={(e) => window.scrollBy({ top: e.deltaY })}
+                />
+                {/* Right strip */}
+                <motion.div
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="absolute bg-black/70 pointer-events-auto cursor-default"
+                    style={{ top: targetRect.top - 8, height: targetRect.height + 16, left: targetRect.right + 8, right: 0 }}
+                    onClick={skipTour}
+                    onWheel={(e) => window.scrollBy({ top: e.deltaY })}
+                />
+            </>)}
+            {/* Fallback full overlay before target found */}
+            {!targetRect && (
+                <motion.div
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="absolute inset-0 bg-black/70 pointer-events-none"
+                />
+            )}
 
             {/* Spotlight Border Glow */}
             <AnimatePresence>
@@ -98,15 +180,8 @@ export default function GuidedTour() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
-                        className="absolute pointer-events-auto z-[210] max-w-sm"
-                        style={{
-                            top: step.position === 'top' ? targetRect.top - 200 :
-                                step.position === 'bottom' ? targetRect.bottom + 20 :
-                                    targetRect.top + (targetRect.height / 2) - 100,
-                            left: step.position === 'left' ? targetRect.left - 380 :
-                                step.position === 'right' ? targetRect.right + 20 :
-                                    targetRect.left + (targetRect.width / 2) - 180,
-                        }}
+                        className="absolute pointer-events-auto z-[210]"
+                        style={{ ...tooltipStyle, width: 340 }}
                     >
                         <Card variant="glass" className="p-6 shadow-2xl border-primary/20 bg-background/90 backdrop-blur-xl">
                             <div className="flex items-center gap-2 mb-3">

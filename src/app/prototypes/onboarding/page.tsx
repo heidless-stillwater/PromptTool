@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { useTour, GENERATOR_STEPS } from '@/context/TourContext';
 import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { CommunityEntry } from '@/lib/types';
@@ -20,6 +21,7 @@ type OnboardingStep = 'welcome' | 'exemplar-picker' | 'exemplar-showcase' | 'cre
 export default function OnboardingPrototype() {
     const { user, profile } = useAuth();
     const router = useRouter();
+    const { startTour } = useTour();
     const [step, setStep] = useState<OnboardingStep>('welcome');
     const [exemplars, setExemplars] = useState<CommunityEntry[]>([]);
     const [selectedExemplar, setSelectedExemplar] = useState<CommunityEntry | null>(null);
@@ -81,6 +83,7 @@ export default function OnboardingPrototype() {
     const handleUseAsIs = () => {
         if (!selectedExemplar) return;
         const params = new URLSearchParams({ prompt: selectedExemplar.prompt || '' });
+        startTour(GENERATOR_STEPS);
         completeOnboarding(`/generate?${params.toString()}`);
     };
 
@@ -90,6 +93,7 @@ export default function OnboardingPrototype() {
         if (customValues.mood) parts.push(customValues.mood + ' mood');
         const prompt = parts.join(', ');
         const params = new URLSearchParams({ prompt });
+        startTour(GENERATOR_STEPS);
         completeOnboarding(`/generate?${params.toString()}`);
     };
 
@@ -97,6 +101,11 @@ export default function OnboardingPrototype() {
         enter: { opacity: 0, x: 60 },
         center: { opacity: 1, x: 0 },
         exit: { opacity: 0, x: -60 },
+    };
+
+    const handleStartTour = () => {
+        startTour();
+        completeOnboarding('/generate');
     };
 
     // ──────────────────────────── SCREEN 1: WELCOME ────────────────────────────
@@ -128,7 +137,7 @@ export default function OnboardingPrototype() {
                                 <div className="text-4xl mb-4">🎨</div>
                                 <h2 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors">Create Something Now</h2>
                                 <p className="text-sm text-foreground-muted leading-relaxed">
-                                    Jump straight into creating with guided examples. Pick an exemplar, customise it, and generate your first masterpiece.
+                                    Jump straight into creating with guided examples. We&apos;ll give you a quick tour of the generator to help you create your first masterpiece.
                                 </p>
                                 <div className="mt-4 flex items-center gap-2 text-primary text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity">
                                     Let&apos;s go <Icons.arrowRight size={14} />
@@ -199,6 +208,10 @@ export default function OnboardingPrototype() {
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                             {exemplars.map((entry, i) => {
                                 const isVideo = !!(entry.videoUrl || entry.settings?.modality === 'video');
+                                const videoSrc = entry.videoUrl || entry.imageUrl;
+                                const videoSrcWithTime = videoSrc?.includes('#t=') ? videoSrc : `${videoSrc}#t=0.1`;
+                                const hasValidImageThumbnail = !!entry.imageUrl && entry.imageUrl !== videoSrc;
+
                                 return (
                                     <motion.div
                                         key={entry.id}
@@ -207,29 +220,49 @@ export default function OnboardingPrototype() {
                                         transition={{ delay: i * 0.05 }}
                                     >
                                         <Card
-                                            className="overflow-hidden cursor-pointer hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all group"
+                                            className="overflow-hidden cursor-pointer hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all group group/media"
                                             onClick={() => handleSelectExemplar(entry)}
                                         >
-                                            <div className="aspect-square relative overflow-hidden">
-                                                <img
-                                                    src={entry.imageUrl}
-                                                    alt={entry.prompt || 'Exemplar'}
-                                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                                                />
-                                                {isVideo && (
-                                                    <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm p-1.5 rounded-lg">
-                                                        <Icons.video size={14} className="text-white" />
-                                                    </div>
+                                            <div className="aspect-square relative overflow-hidden bg-black">
+                                                {isVideo ? (
+                                                    <>
+                                                        {hasValidImageThumbnail && (
+                                                            <img
+                                                                src={entry.imageUrl}
+                                                                alt={entry.prompt || 'Exemplar'}
+                                                                className="w-full h-full object-cover group-hover/media:opacity-0 transition-opacity duration-500"
+                                                            />
+                                                        )}
+                                                        <video
+                                                            src={videoSrcWithTime}
+                                                            className={`absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ${hasValidImageThumbnail ? 'opacity-0 group-hover/media:opacity-100 transition-opacity' : ''}`}
+                                                            muted
+                                                            loop
+                                                            playsInline
+                                                            preload="metadata"
+                                                            onMouseEnter={(e) => { e.currentTarget.play().catch(() => { }) }}
+                                                            onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0.1; }}
+                                                        />
+                                                        <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm p-1.5 rounded-lg z-20 pointer-events-none">
+                                                            <Icons.video size={14} className="text-white" />
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <img
+                                                        src={entry.imageUrl}
+                                                        alt={entry.prompt || 'Exemplar'}
+                                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                                                    />
                                                 )}
-                                                <div className="absolute top-2 left-2">
+
+                                                <div className="absolute top-2 left-2 z-20">
                                                     <Badge className="bg-amber-500/90 text-white text-[9px] font-black uppercase tracking-widest border-0">
                                                         ⭐ Exemplar
                                                     </Badge>
                                                 </div>
-                                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3 z-20">
                                                     <p className="text-white text-xs line-clamp-2 italic">&quot;{entry.prompt}&quot;</p>
-                                                </div>
-                                            </div>
+                                                </div>                                            </div>
                                         </Card>
                                     </motion.div>
                                 );
@@ -270,12 +303,44 @@ export default function OnboardingPrototype() {
                                 transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
                                 className="max-w-3xl w-full"
                             >
-                                <div className="aspect-video rounded-2xl overflow-hidden mb-6 border border-white/10 shadow-2xl">
-                                    <img
-                                        src={current.imageUrl}
-                                        alt={current.prompt || 'Exemplar'}
-                                        className="w-full h-full object-cover"
-                                    />
+                                <div className="aspect-video rounded-2xl overflow-hidden mb-6 border border-white/10 shadow-2xl bg-black relative">
+                                    {(() => {
+                                        const isVideo = !!(current.videoUrl || current.settings?.modality === 'video');
+                                        const videoSrc = current.videoUrl || current.imageUrl;
+                                        const videoSrcWithTime = videoSrc?.includes('#t=') ? videoSrc : `${videoSrc}#t=0.1`;
+                                        const hasValidImageThumbnail = !!current.imageUrl && current.imageUrl !== videoSrc;
+
+                                        if (isVideo) {
+                                            return (
+                                                <>
+                                                    {hasValidImageThumbnail && (
+                                                        <img
+                                                            src={current.imageUrl}
+                                                            alt={current.prompt || 'Exemplar'}
+                                                            className="w-full h-full object-cover absolute inset-0 z-0"
+                                                        />
+                                                    )}
+                                                    <video
+                                                        src={videoSrcWithTime}
+                                                        className="w-full h-full object-cover relative z-10"
+                                                        autoPlay
+                                                        muted
+                                                        loop
+                                                        playsInline
+                                                        preload="auto"
+                                                    />
+                                                </>
+                                            );
+                                        }
+
+                                        return (
+                                            <img
+                                                src={current.imageUrl}
+                                                alt={current.prompt || 'Exemplar'}
+                                                className="w-full h-full object-cover relative z-10"
+                                            />
+                                        );
+                                    })()}
                                 </div>
                                 <div className="text-center">
                                     <p className="text-lg italic text-foreground-muted mb-2">&quot;{current.prompt}&quot;</p>

@@ -54,18 +54,19 @@ export default function PromptSection({
             {!isCasual && (
                 <div className="flex p-1 bg-background-secondary rounded-xl border border-border shadow-sm">
                     {(['freeform', 'madlibs', 'featured'] as PromptMode[]).map((mode) => (
-                        <button
-                            key={mode}
-                            onClick={() => setPromptMode(mode)}
-                            className={cn(
-                                "flex-1 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all",
-                                promptMode === mode
-                                    ? "bg-background shadow-md text-primary"
-                                    : "text-foreground-muted hover:text-foreground"
-                            )}
-                        >
-                            {mode === 'freeform' ? 'Free Text' : mode === 'madlibs' ? 'Builder' : 'Featured'}
-                        </button>
+                        <Tooltip key={mode} content={mode === 'freeform' ? "FREESTYLE: Total architectural freedom. Describe your vision in pure natural language." : mode === 'madlibs' ? "CONSTRUCT: A modular approach. Select core DNA components to build a structured prompt." : "CURATED: Direct inspiration. Load proven architectural templates from the Stillwater collection."}>
+                            <button
+                                onClick={() => setPromptMode(mode)}
+                                className={cn(
+                                    "flex-1 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all",
+                                    promptMode === mode
+                                        ? "bg-background shadow-md text-primary"
+                                        : "text-foreground-muted hover:text-foreground"
+                                )}
+                            >
+                                {mode === 'freeform' ? 'Free Text' : mode === 'madlibs' ? 'Builder' : 'Featured'}
+                            </button>
+                        </Tooltip>
                     ))}
                 </div>
             )}
@@ -135,7 +136,7 @@ export default function PromptSection({
                                         accept="image/*"
                                         onChange={onUploadReference}
                                     />
-                                    <Tooltip content="Upload Reference">
+                                    <Tooltip content="UPLOAD: Introduce a local image as a structural or aesthetic baseline for neural synthesis.">
                                         <Button
                                             variant="secondary"
                                             size="icon"
@@ -146,7 +147,7 @@ export default function PromptSection({
                                         </Button>
                                     </Tooltip>
 
-                                    <Tooltip content="Set Reference Image">
+                                    <Tooltip content="VAULT SYNC: Select a previous generation from your Neural Vault to use as an architectural reference.">
                                         <Button
                                             variant="secondary"
                                             size="icon"
@@ -157,7 +158,7 @@ export default function PromptSection({
                                         </Button>
                                     </Tooltip>
 
-                                    <Tooltip content="Import Prompt from Gallery">
+                                    <Tooltip content="DNA EXTRACTION: Clone the prompt and settings from a successful generation in the public commons.">
                                         <Button
                                             variant="secondary"
                                             size="icon"
@@ -174,45 +175,47 @@ export default function PromptSection({
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
                             >
-                                <Button
-                                    id="magic-enhance"
-                                    variant="secondary"
-                                    size="sm"
-                                    onClick={handleEnhancePrompt}
-                                    disabled={enhancing || !prompt.trim()}
-                                    className="h-8 px-3 text-[9px] font-black uppercase tracking-widest bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/20 hover:from-purple-500/20 hover:to-pink-500/20 text-purple-600 transition-all group relative overflow-hidden"
-                                >
-                                    <AnimatePresence mode="wait">
-                                        {enhancing ? (
-                                            <motion.div
-                                                key="spinner"
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, y: -10 }}
-                                                className="flex items-center"
-                                            >
-                                                <Icons.spinner size={12} className="mr-2 animate-spin" />
-                                                Enhancing...
-                                            </motion.div>
-                                        ) : (
-                                            <motion.div
-                                                key="wand"
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, y: -10 }}
-                                                className="flex items-center"
-                                            >
-                                                <Icons.wand size={12} className="mr-2 text-purple-500 group-hover:rotate-12 transition-transform shadow-[0_0_10px_rgba(168,85,247,0.5)]" />
-                                                Enhance
+                                <Tooltip content="MAGIC ENHANCE: Triggers the NanoBanana engine to expand and refine your prompt for superior neural fidelity.">
+                                    <Button
+                                        id="magic-enhance"
+                                        variant="secondary"
+                                        size="sm"
+                                        onClick={handleEnhancePrompt}
+                                        disabled={enhancing || !prompt.trim()}
+                                        className="h-8 px-3 text-[9px] font-black uppercase tracking-widest bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/20 hover:from-purple-500/20 hover:to-pink-500/20 text-purple-600 transition-all group relative overflow-hidden"
+                                    >
+                                        <AnimatePresence mode="wait">
+                                            {enhancing ? (
                                                 <motion.div
-                                                    className="absolute inset-x-0 top-0 h-full w-full bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:animate-shimmer pointer-events-none"
-                                                    style={{ transform: 'skewX(-20deg)' }}
-                                                    transition={{ duration: 0.5 }}
-                                                />
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                </Button>
+                                                    key="spinner"
+                                                    initial={{ opacity: 0, y: 10 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    exit={{ opacity: 0, y: -10 }}
+                                                    className="flex items-center"
+                                                >
+                                                    <Icons.spinner size={12} className="mr-2 animate-spin" />
+                                                    Enhancing...
+                                                </motion.div>
+                                            ) : (
+                                                <motion.div
+                                                    key="wand"
+                                                    initial={{ opacity: 0, y: 10 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    exit={{ opacity: 0, y: -10 }}
+                                                    className="flex items-center"
+                                                >
+                                                    <Icons.wand size={12} className="mr-2 text-purple-500 group-hover:rotate-12 transition-transform shadow-[0_0_10px_rgba(168,85,247,0.5)]" />
+                                                    Enhance
+                                                    <motion.div
+                                                        className="absolute inset-x-0 top-0 h-full w-full bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:animate-shimmer pointer-events-none"
+                                                        style={{ transform: 'skewX(-20deg)' }}
+                                                        transition={{ duration: 0.5 }}
+                                                    />
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </Button>
+                                </Tooltip>
                             </motion.div>
                         </div>
 

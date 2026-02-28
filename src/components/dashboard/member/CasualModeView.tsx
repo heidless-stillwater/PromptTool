@@ -1,167 +1,125 @@
 'use client';
 
-import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useState } from 'react';
 import WalletWisdom from './WalletWisdom';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import { useTour } from '@/context/TourContext';
 import CommunityPulse from '@/components/dashboard/CommunityPulse';
+import Exemplars from '@/components/dashboard/Exemplars';
+import Gallery from '@/components/dashboard/Gallery';
+import { Card } from '@/components/ui/Card';
+import { cn } from '@/lib/utils';
+import UserPulseStats from '@/components/dashboard/UserPulseStats';
 
 interface CasualModeViewProps {
     dashboardData: any;
 }
 
 export default function CasualModeView({ dashboardData }: CasualModeViewProps) {
-    const { profile, credits } = dashboardData;
+    const { profile, credits, recentImages } = dashboardData;
     const router = useRouter();
     const [isTourModalOpen, setIsTourModalOpen] = useState(false);
     const { startTour } = useTour();
 
-    const handleTryStyle = (prompt: string) => {
-        router.push(`/generate?prompt=${encodeURIComponent(prompt)}`);
-    };
-
     return (
-        <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {/* Guided Welcome */}
-            <section className="text-center py-4">
-                <h1 id="dashboard-title" className="text-4xl md:text-5xl font-black gradient-text mb-4 tracking-tighter">
-                    What will you create today, {profile?.displayName || 'Creator'}?
-                </h1>
-                <p className="text-lg text-foreground-muted max-w-2xl mx-auto font-medium">
-                    Your imagination is the only limit. Start with a style below or jump into the studio.
-                </p>
-            </section>
-
-            {/* Support Level: Wallet Wisdom */}
-            <div id="wallet-wisdom">
-                <WalletWisdom credits={credits} />
+        <div className="space-y-24 animate-in fade-in slide-in-from-bottom-8 duration-1000">
+            {/* Refined Header like Community */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-4">
+                <div>
+                    <h1 className="text-3xl font-black text-white flex items-center gap-3 uppercase tracking-widest">
+                        <Icons.zap className="text-primary w-8 h-8" />
+                        Neural Workstation
+                    </h1>
+                    <p className="text-white/40 mt-2 font-bold uppercase tracking-widest text-[10px]">
+                        Architect high-fidelity intelligence. Your neural studio is primed.
+                    </p>
+                </div>
+                <div className="flex flex-wrap gap-4">
+                    <Button
+                        onClick={() => router.push('/generate')}
+                        className="bg-primary text-white hover:bg-primary/90 px-8 h-12 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/20 transition-all hover:scale-105"
+                    >
+                        <Icons.plus size={16} className="mr-2" />
+                        Enter Studio
+                    </Button>
+                    <Link href="/community">
+                        <Button
+                            variant="secondary"
+                            className="bg-background-secondary border border-border/50 hover:bg-background-tertiary px-8 h-12 rounded-xl text-[10px] font-black uppercase tracking-widest text-white/50 hover:text-white transition-all"
+                        >
+                            <Icons.globe size={16} className="mr-2" />
+                            Global Showcase
+                        </Button>
+                    </Link>
+                </div>
             </div>
 
-            {/* Support Level: Starter Prompts */}
-            <section id="starter-styles" className="space-y-6">
-                <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-black uppercase tracking-widest flex items-center gap-2">
-                        <Icons.sparkles className="text-primary" size={20} />
-                        Choose Your First Adventure
-                    </h2>
-                    <Button
-                        id="studio-link"
-                        variant="ghost"
-                        size="sm"
-                        className="text-xs font-bold text-primary"
-                        onClick={() => router.push('/generate')}
-                    >
-                        View More Styles
-                    </Button>
-                </div>
+            {/* Live Stats like Community Pulse */}
+            <UserPulseStats dashboardData={dashboardData} />
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {[
-                        { title: 'Neon Cyberpunk', style: 'Highly detailed, futuristic city, rainy streets, cinematic lighting', color: 'from-purple-500/20 to-blue-500/20' },
-                        { title: 'Dreamy Watercolor', style: 'Soft edges, pastel colors, whimsical landscape, ethereal atmosphere', color: 'from-pink-500/20 to-yellow-500/20' },
-                        { title: 'Epic Oil Painting', style: 'Thick brushstrokes, dramatic lighting, classical portrait style', color: 'from-orange-500/20 to-red-500/20' }
-                    ].map((card, i) => (
-                        <Card
-                            key={i}
-                            onClick={() => handleTryStyle(card.style)}
-                            className={`p-6 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer border-none bg-gradient-to-br ${card.color} group relative overflow-hidden`}
-                        >
-                            <div className="absolute right-0 bottom-0 opacity-10 group-hover:scale-110 transition-transform">
-                                <Icons.image size={80} />
-                            </div>
-                            <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors">{card.title}</h3>
-                            <p className="text-xs text-foreground-muted leading-relaxed mb-4 italic">&quot;{card.style}&quot;</p>
-                            <Button variant="secondary" size="sm" className="w-full font-bold bg-background/50 backdrop-blur-sm border-white/10 pointer-events-none">Try This Style</Button>
-                        </Card>
-                    ))}
+            {/* Support Level: Wallet Wisdom */}
+            <div id="wallet-wisdom" className="relative">
+                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                <div className="py-12">
+                    <WalletWisdom credits={credits} />
                 </div>
-            </section>
-
-            {/* Support Level: Clone an Exemplar */}
-            <section id="clone-exemplars" className="space-y-6">
-                <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-black uppercase tracking-widest flex items-center gap-2">
-                        <Icons.copy className="text-primary" size={20} />
-                        Clone an Exemplar
-                    </h2>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-xs font-bold text-primary"
-                        onClick={() => router.push('/community')}
-                    >
-                        Explore the Collective
-                    </Button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {[
-                        { title: 'The Stillwater Lake', style: 'A cinematic, ethereal landscape of a stillwater lake at twilight, glowing bioluminescent plants, floating mountain islands in the distance, hyper-realistic, 8K, serene deep blue and teal color palette', color: 'from-stillwater-deep/20 to-stillwater-teal/20' },
-                        { title: 'Neon Vision', style: 'A high-detail cyberpunk portrait of a female cyborg with glowing neon circuit patterns on her skin, iridescent rain-slicked skin, cinematic lighting, ultra-sharp focus, vibrant magenta and primary blue accents', color: 'from-purple-500/20 to-primary/20' },
-                        { title: 'Nature\'s Prism', style: 'Macro photography of an iridescent beetle shell reflecting a rainbow of metallic colors, hyper-detailed textures, soft bokeh background, 8K resolution, professional lighting', color: 'from-emerald-500/20 to-primary/20' }
-                    ].map((card, i) => (
-                        <Card
-                            key={i}
-                            onClick={() => handleTryStyle(card.style)}
-                            className={`p-6 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer border-none bg-gradient-to-br ${card.color} group relative overflow-hidden`}
-                        >
-                            <div className="absolute right-0 bottom-0 opacity-10 group-hover:scale-110 transition-transform">
-                                <Icons.copy size={80} />
-                            </div>
-                            <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors">{card.title}</h3>
-                            <p className="text-xs text-foreground-muted leading-relaxed mb-4 italic">&quot;{card.style}&quot;</p>
-                            <Button variant="secondary" size="sm" className="w-full font-bold bg-background/50 backdrop-blur-sm border-white/10 pointer-events-none">Clone This Recipe</Button>
-                        </Card>
-                    ))}
-                </div>
-            </section>
+                <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+            </div>
 
             {/* Community Engagement */}
-            <div className="pt-8 border-t border-border/50">
-                <div className="flex flex-wrap gap-4 mb-10">
-                    <Button
-                        variant="secondary"
-                        onClick={() => router.push('/community')}
-                        className="flex items-center gap-2 border-emerald-500/20 hover:border-emerald-500/50 group transition-all"
-                    >
-                        <Icons.globe size={18} className="group-hover:rotate-12 transition-transform text-emerald-500" />
-                        Community Hub
-                    </Button>
-                    <Button
-                        variant="secondary"
-                        onClick={() => router.push('/community/leaderboard')}
-                        className="flex items-center gap-2 border-yellow-500/20 hover:border-yellow-500/50 group transition-all"
-                    >
-                        <Icons.trophy size={18} className="group-hover:scale-110 transition-transform text-yellow-500" />
-                        Hall of Fame
-                    </Button>
+            <div className="space-y-24">
+                <div id="community-pulse">
+                    <div className="flex items-center gap-4 mb-10 px-4">
+                        <div className="w-12 h-px bg-gradient-to-r from-transparent to-primary" />
+                        <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-primary">Global Showcase</h2>
+                        <div className="flex-1 h-px bg-gradient-to-r from-primary/30 to-transparent" />
+                    </div>
+                    <CommunityPulse entries={dashboardData.recentCommunityEntries} />
                 </div>
-                <CommunityPulse entries={dashboardData.recentCommunityEntries} />
+
+                <div id="your-gallery">
+                    <div className="flex items-center gap-4 mb-10 px-4">
+                        <div className="w-12 h-px bg-gradient-to-r from-transparent to-primary" />
+                        <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-primary">Private Vault</h2>
+                        <div className="flex-1 h-px bg-gradient-to-r from-primary/30 to-transparent" />
+                    </div>
+                    <Gallery images={recentImages} />
+                </div>
+
+                <div id="curated-exemplars">
+                    <div className="flex items-center gap-4 mb-10 px-4">
+                        <div className="w-12 h-px bg-gradient-to-r from-transparent to-primary" />
+                        <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-primary">Neural Prototypes</h2>
+                        <div className="flex-1 h-px bg-gradient-to-r from-primary/30 to-transparent" />
+                    </div>
+                    <Exemplars entries={dashboardData.exemplars} />
+                </div>
             </div>
 
             {/* Support Level: Guided Tour Invite */}
-            <Card variant="glass" className="p-6 bg-accent/5 border-accent/20 flex flex-col md:flex-row items-center justify-between gap-6">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center text-accent">
+            <div className="p-8 bg-white/[0.02] border border-white/5 rounded-[32px] flex flex-col md:flex-row items-center justify-between gap-8 backdrop-blur-md relative overflow-hidden group">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
+                <div className="flex items-center gap-8 relative z-10">
+                    <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center text-primary-light border border-white/5 shadow-inner">
                         <Icons.info size={24} />
                     </div>
                     <div>
-                        <p className="font-bold">New to AI Image Studio?</p>
-                        <p className="text-xs text-foreground-muted">Check out our 1-minute guide to get the most out of your credits.</p>
+                        <p className="font-black uppercase tracking-[0.2em] text-[12px] text-white mb-2">Architectural Onboarding</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 leading-relaxed max-w-md">Initialize your workflow with a comprehensive 1-minute briefing on system capabilities.</p>
                     </div>
                 </div>
                 <Button
-                    variant="secondary"
-                    className="border-accent/20 text-accent hover:bg-accent/10 whitespace-nowrap"
+                    variant="ghost"
+                    className="relative z-10 border border-white/10 text-white/60 hover:text-white hover:bg-white/5 hover:border-white/20 whitespace-nowrap bg-black/40 text-[10px] font-black uppercase tracking-[0.2em] px-10 h-14 rounded-2xl transition-all"
                     onClick={() => setIsTourModalOpen(true)}
                 >
-                    Take the Tour
+                    Initialize Briefing
                 </Button>
-            </Card>
+            </div>
 
             <ConfirmationModal
                 isOpen={isTourModalOpen}

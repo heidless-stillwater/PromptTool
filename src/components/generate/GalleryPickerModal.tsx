@@ -67,7 +67,7 @@ export default function GalleryPickerModal({ isOpen, onClose, onSelect, mode = '
                             {/* Header */}
                             <div className="flex items-center justify-between p-6 border-b border-border/50">
                                 <div>
-                                    <h2 className="text-xl font-black tracking-tighter text-white uppercase">Your Gallery</h2>
+                                    <h2 className="text-xl font-black tracking-tighter text-white uppercase">Neural Vault</h2>
                                     <p className="text-xs text-foreground-muted font-bold uppercase tracking-widest mt-1">
                                         {mode === 'reference' ? 'Select a reference image' : 'Select a prompt to import'}
                                     </p>
@@ -103,24 +103,55 @@ export default function GalleryPickerModal({ isOpen, onClose, onSelect, mode = '
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                                        {images.map((image) => (
-                                            <motion.button
-                                                key={image.id}
-                                                whileHover={{ scale: 1.05 }}
-                                                whileTap={{ scale: 0.95 }}
-                                                onClick={() => onSelect(image)}
-                                                className="group relative aspect-square rounded-xl overflow-hidden border border-border/50 bg-background-secondary hover:border-primary/50 transition-all shadow-lg hover:shadow-primary/20"
-                                            >
-                                                <img
-                                                    src={image.imageUrl}
-                                                    alt={image.prompt}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                    <Badge className="bg-primary text-white font-black text-[10px] uppercase">Select</Badge>
-                                                </div>
-                                            </motion.button>
-                                        ))}
+                                        {images.map((image) => {
+                                            const imgIsVideo = /\.(mp4|webm|mov)(\?|$)/i.test(image.imageUrl || '');
+                                            const videoSrc = image.videoUrl || (imgIsVideo ? image.imageUrl : null);
+                                            const videoSrcWithTime = videoSrc?.includes('#t=') ? videoSrc : `${videoSrc}#t=0.1`;
+
+                                            return (
+                                                <motion.button
+                                                    key={image.id}
+                                                    whileHover={{ scale: 1.05 }}
+                                                    whileTap={{ scale: 0.95 }}
+                                                    onClick={() => onSelect(image)}
+                                                    className="group/item relative aspect-square rounded-xl overflow-hidden border border-border/50 bg-background-secondary hover:border-primary/50 transition-all shadow-lg hover:shadow-primary/20"
+                                                >
+                                                    {videoSrc ? (
+                                                        <>
+                                                            {!imgIsVideo && (
+                                                                <img
+                                                                    src={image.imageUrl}
+                                                                    alt={image.prompt}
+                                                                    className="w-full h-full object-cover group-hover/item:opacity-0 transition-opacity duration-300"
+                                                                />
+                                                            )}
+                                                            <video
+                                                                src={videoSrcWithTime}
+                                                                className={`absolute inset-0 w-full h-full object-cover ${!imgIsVideo ? 'opacity-0 group-hover/item:opacity-100 transition-opacity duration-300' : ''}`}
+                                                                muted
+                                                                playsInline
+                                                                loop
+                                                                preload="metadata"
+                                                                onMouseEnter={(e) => { e.currentTarget.play().catch(() => { }) }}
+                                                                onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0.1; }}
+                                                            />
+                                                            <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm p-1 rounded-lg text-white z-10">
+                                                                <Icons.video size={12} className="text-white" />
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <img
+                                                            src={image.imageUrl}
+                                                            alt={image.prompt}
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    )}
+                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/item:opacity-100 transition-opacity flex items-center justify-center z-20">
+                                                        <Badge className="bg-primary text-white font-black text-[10px] uppercase">Select</Badge>
+                                                    </div>
+                                                </motion.button>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>

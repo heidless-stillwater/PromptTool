@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useSettings } from '@/lib/context/SettingsContext';
 
 interface TooltipProps {
     content: string;
@@ -10,7 +11,12 @@ interface TooltipProps {
 }
 
 export default function Tooltip({ content, children, position = 'top', className = '' }: TooltipProps) {
+    const { helpModeEnabled } = useSettings();
     const [isVisible, setIsVisible] = useState(false);
+
+    if (!helpModeEnabled) {
+        return <div className={`inline-block ${className}`}>{children}</div>;
+    }
 
     const positionClasses = {
         top: 'bottom-full left-1/2 -translate-x-1/2 mb-2',

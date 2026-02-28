@@ -162,6 +162,8 @@ export interface GenerationSettings {
     negativePrompt?: string;
     seed?: number;
     guidanceScale?: number;
+    modifiers?: { category: string, value: string }[];
+    coreSubject?: string;
 }
 
 export interface MadLibsSelection {

@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import UserAvatar from '@/components/UserAvatar';
 import { useToast } from '@/components/Toast';
+import Tooltip from '@/components/Tooltip';
 
 export default function NotificationBell() {
     const { user } = useAuth();
@@ -195,25 +196,27 @@ export default function NotificationBell() {
 
     return (
         <div className="relative" ref={dropdownRef}>
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                className="relative p-2 rounded-xl bg-background-secondary/50 border border-border hover:bg-background-tertiary transition-colors group"
-            >
-                <span className="text-xl group-hover:scale-110 transition-transform block">🔔</span>
-                <AnimatePresence>
-                    {unreadCount > 0 && (
-                        <motion.span
-                            key="badge"
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            exit={{ scale: 0 }}
-                            className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-[10px] font-black text-white rounded-full flex items-center justify-center ring-4 ring-background"
-                        >
-                            {unreadCount > 9 ? '9+' : unreadCount}
-                        </motion.span>
-                    )}
-                </AnimatePresence>
-            </button>
+            <Tooltip content="NEURAL ACTIVITY: Monitor community interactions, upvotes, and system transmissions." position="bottom">
+                <button
+                    onClick={() => setIsOpen(!isOpen)}
+                    className="relative p-2 rounded-xl bg-background-secondary/50 border border-border hover:bg-background-tertiary transition-colors group"
+                >
+                    <span className="text-xl group-hover:scale-110 transition-transform block">🔔</span>
+                    <AnimatePresence>
+                        {unreadCount > 0 && (
+                            <motion.span
+                                key="badge"
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                exit={{ scale: 0 }}
+                                className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-[10px] font-black text-white rounded-full flex items-center justify-center ring-4 ring-background"
+                            >
+                                {unreadCount > 9 ? '9+' : unreadCount}
+                            </motion.span>
+                        )}
+                    </AnimatePresence>
+                </button>
+            </Tooltip>
 
             <AnimatePresence>
                 {isOpen && (

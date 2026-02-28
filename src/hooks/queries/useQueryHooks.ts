@@ -28,6 +28,7 @@ export const queryKeys = {
         images: (userId: string, viewMode: string) =>
             ['dashboard', 'images', userId, viewMode] as const,
         communityRecent: ['dashboard', 'communityRecent'] as const,
+        exemplars: ['dashboard', 'exemplars'] as const,
         creditHistory: (userId: string) =>
             ['dashboard', 'creditHistory', userId] as const,
     },
@@ -195,6 +196,33 @@ export function useDashboardCommunityRecent() {
             return zParseArray(CommunityEntrySchema.partial().required({ id: true, imageUrl: true, prompt: true }), raw, 'DashboardCommunityRecent');
         },
         staleTime: 3 * 60 * 1000, // 3 min — trending doesn't change every second
+    });
+}
+
+// ============================================
+// Dashboard Exemplars
+// ============================================
+
+export function useDashboardExemplars() {
+    return useQuery({
+        queryKey: queryKeys.dashboard.exemplars,
+        queryFn: async () => {
+            const entriesRef = collection(db, 'leagueEntries');
+            // Simplified query without orderBy to ensure it works without additional indexes
+            const q = query(entriesRef, where('isExemplar', '==', true), limit(15));
+            const snap = await getDocs(q);
+            const raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            // Be more lenient with fields for the dashboard preview
+            return raw.map((item: any) => ({
+                id: item.id,
+                imageUrl: item.imageUrl || item.url || '',
+                prompt: item.prompt || item.promptText || 'Untitled Mastery',
+                authorName: item.authorName || 'Pro Creator',
+                modality: item.settings?.modality || 'image',
+                videoUrl: item.videoUrl || ''
+            }));
+        },
+        staleTime: 10 * 60 * 1000, // 10 min — exemplars change rarely
     });
 }
 
@@ -695,19 +723,24 @@ export function useToggleCollectionMutation() {
                 .filter(c => newIds.includes(c.id))
                 .map(c => c.name);
 
-            const { doc, writeBatch, increment, serverTimestamp, setDoc } = await import('firebase/firestore');
+            const { doc, writeBatch, increment, serverTimestamp, setDoc, getDoc } = await import('firebase/firestore');
             const batch = writeBatch(db);
 
             if (isAuthor) {
                 // AUTHOR FLOW: Update shared entry and personal original image
                 const entryRef = doc(db, 'leagueEntries', entry.id);
-                const imageRef = doc(db, 'users', user.uid, 'images', entry.originalImageId);
-
                 batch.update(entryRef, {
                     collectionIds: newIds,
                     collectionNames: newNames
                 });
-                batch.update(imageRef, { collectionIds: newIds });
+
+                if (entry.originalImageId) {
+                    const imageRef = doc(db, 'users', user.uid, 'images', entry.originalImageId);
+                    const imageSnap = await getDoc(imageRef);
+                    if (imageSnap.exists()) {
+                        batch.update(imageRef, { collectionIds: newIds });
+                    }
+                }
             } else {
                 // VIEWER FLOW: Create/Update a "reference" image in viewer's gallery
                 const refImageRef = doc(db, 'users', user.uid, 'images', entry.id);
@@ -825,14 +858,20 @@ export function useUpdateEntryMutation() {
         mutationFn: async ({ entryId, originalImageId, data }: { entryId: string; originalImageId: string; data: any }) => {
             if (!user) throw new Error('Auth required');
 
-            const { doc, writeBatch } = await import('firebase/firestore');
+            const { doc, writeBatch, getDoc } = await import('firebase/firestore');
             const batch = writeBatch(db);
 
             const entryRef = doc(db, 'leagueEntries', entryId);
-            const imageRef = doc(db, 'users', user.uid, 'images', originalImageId);
-
             batch.update(entryRef, data);
-            batch.update(imageRef, data);
+
+            // Only update the original image if it hasn't been deleted by the user
+            if (originalImageId) {
+                const imageRef = doc(db, 'users', user.uid, 'images', originalImageId);
+                const imageSnap = await getDoc(imageRef);
+                if (imageSnap.exists()) {
+                    batch.update(imageRef, data);
+                }
+            }
 
             await batch.commit();
             return data;

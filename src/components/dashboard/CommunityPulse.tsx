@@ -35,7 +35,7 @@ function PulseItem({ entry }: { entry: CommunityEntry }) {
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
         >
-            <div className="aspect-video rounded-2xl overflow-hidden relative mb-3 border border-border shadow-sm group-hover:shadow-xl group-hover:shadow-primary/10 group-hover:border-primary/50 transition-all duration-300">
+            <div className="aspect-video rounded-2xl overflow-hidden relative mb-3 border border-white/10 shadow-sm group-hover:shadow-2xl group-hover:shadow-primary/20 group-hover:border-primary/50 transition-all duration-300">
                 {isVid ? (
                     <div className="w-full h-full relative overflow-hidden">
                         <video
@@ -72,7 +72,7 @@ function PulseItem({ entry }: { entry: CommunityEntry }) {
                     </div>
                 </div>
             </div>
-            <p className="text-sm font-medium text-foreground-muted line-clamp-1 group-hover:text-foreground transition-colors px-1 italic">
+            <p className="text-[10px] font-bold text-white/50 line-clamp-1 group-hover:text-white transition-colors px-1 uppercase tracking-widest mt-2">
                 &quot;{entry.prompt}&quot;
             </p>
         </Link>
@@ -90,14 +90,14 @@ export default function CommunityPulse({ entries }: CommunityPulseProps) {
                         <Icons.zap size={20} className="text-orange-500 fill-orange-500 animate-pulse" />
                     </div>
                     <div>
-                        <h2 className="text-xl font-black tracking-tight">Community Pulse</h2>
-                        <p className="text-[10px] uppercase tracking-widest text-foreground-muted font-bold">Trending Creations</p>
+                        <h2 className="text-xl font-black uppercase tracking-widest text-white/90">Community Pulse</h2>
+                        <p className="text-[10px] uppercase tracking-widest text-white/50 font-bold mt-1">Trending Creations</p>
                     </div>
                 </div>
                 <Link href="/community">
-                    <Button variant="ghost" size="sm" className="text-primary hover:text-primary-hover font-bold group">
+                    <Button variant="ghost" size="sm" className="text-white/50 hover:text-primary font-black text-[10px] uppercase tracking-widest group border border-white/5 hover:border-primary/30 rounded-xl px-4">
                         Live Community
-                        <Icons.arrowRight size={14} className="ml-1 group-hover:translate-x-1 transition-transform" />
+                        <Icons.arrowRight size={14} className="ml-2 opacity-60 group-hover:translate-x-1 group-hover:opacity-100 transition-all" />
                     </Button>
                 </Link>
             </div>

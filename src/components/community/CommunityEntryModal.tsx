@@ -287,7 +287,8 @@ export default function CommunityEntryModal({
                                 <Tooltip content="Create variation" className="w-full mt-2">
                                     <Button
                                         onClick={() => {
-                                            router.push(`/generate?ref=${entry.id}`);
+                                            const sid = entry.promptSetID || entry.settings?.promptSetID;
+                                            router.push(`/generate?ref=${entry.id}${sid ? `&sid=${sid}` : ''}`);
                                         }}
                                         variant="outline"
                                         size="sm"

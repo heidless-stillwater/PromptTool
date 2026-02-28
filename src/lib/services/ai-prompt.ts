@@ -64,13 +64,14 @@ export class AIPromptService {
      * Compiles a highly structured prompt using the "Nanobanana" recipe format.
      * Takes a core subject and an ordered array of modifiers. Order dictates priority.
      */
-    async compileNanobananaPrompt(subject: string, modifiers: { category: string, value: string }[]): Promise<string> {
+    async compileNanobananaPrompt(subject: string, modifiers: { category: string, value: string }[], aspectRatio?: string, proSettings?: { mediaType?: string; quality?: string; guidanceScale?: number; negativePrompt?: string; }): Promise<string> {
         if (!subject || subject.trim().length === 0) {
             throw new Error("Core subject is required for Nanobanana compilation");
         }
 
         try {
             const model = 'gemini-2.5-flash';
+            console.log(`[AI Prompt Service] Compiling Nanobanana prompt for subject: "${subject}" with ${modifiers.length} modifiers`);
 
             const systemInstruction = `
         You are a master AI prompt engineer for image generation models (Stable Diffusion, Midjourney, etc).
@@ -85,9 +86,21 @@ export class AIPromptService {
         2. Do not just append them mechanically with commas. Integrate them naturally, but ensure keywords are prominent.
         3. Keep it to a single paragraph. NO line breaks. NO markdown formatting.
         4. Return ONLY the final compiled prompt string. NO conversational fluff or explanations.
+        5. IMPORTANT OVERRIDE RULE: The user has selected specific Pro Core Settings (like Modality, Quality, Aspect Ratio). These are the ultimate source of truth. If the original prompt or modifiers mention ANY values that contradict the user's Pro Core Settings, OVERRIDE THEM or completely REMOVE THEM from the compiled prompt. Ensure the final prompt strictly adheres to the user's selected constraints.
       `;
 
             let userPrompt = `Core Subject: "${subject}"\n`;
+            if (aspectRatio) {
+                userPrompt += `\nTarget Aspect Ratio (Overrides any conflicting aspect ratio!): ${aspectRatio}\n`;
+            }
+            if (proSettings) {
+                userPrompt += `\nPro Core Settings (Overrides any conflicting keywords!):\n`;
+                if (proSettings.mediaType) userPrompt += `- Modality: ${proSettings.mediaType}\n`;
+                if (proSettings.quality) userPrompt += `- Quality: ${proSettings.quality}\n`;
+                if (proSettings.guidanceScale) userPrompt += `- Guidance Scale (CFG): ${proSettings.guidanceScale} (Higher means strict adherence to prompt)\n`;
+                if (proSettings.negativePrompt) userPrompt += `- Negative Prompt (EXCLUDE THESE!): ${proSettings.negativePrompt}\n`;
+            }
+
             if (modifiers && modifiers.length > 0) {
                 userPrompt += `\nModifiers (in order of priority, highest first):\n`;
                 modifiers.forEach((mod, index) => {
@@ -109,12 +122,14 @@ export class AIPromptService {
             const compiledText = response.candidates?.[0]?.content?.parts?.[0]?.text;
 
             if (!compiledText) {
+                console.error('[AI Prompt Service] No compiled text in response:', response);
                 throw new Error("Failed to compile nanobanana prompt");
             }
 
+            console.log('[AI Prompt Service] Successfully compiled prompt:', compiledText.substring(0, 50) + '...');
             return compiledText.trim();
         } catch (error: any) {
-            console.error('[AI Prompt Service] Nanobanana Compilation Error:', error);
+            console.error('[AI Prompt Service] Nanobanana Compilation Error Detail:', error);
             throw new Error(error.message || "Failed to compile nanobanana prompt");
         }
     }

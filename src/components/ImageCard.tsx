@@ -74,9 +74,11 @@ export default function ImageCard({
                 <>
                     <div className="absolute top-1 left-1 right-1 bottom-0 bg-background-secondary border border-border rounded-2xl -z-10 translate-y-2 opacity-50 transition-transform group-hover:translate-y-3" />
                     <div className="absolute top-1 left-2 right-2 bottom-0 bg-background-tertiary border border-border rounded-2xl -z-20 translate-y-4 opacity-30 transition-transform group-hover:translate-y-5" />
-                    <div className="absolute top-2 right-2 z-20 bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg">
-                        {count} images
-                    </div>
+                    <Tooltip content={`BATCH STACK: This entry contains ${count} variations generated from the same architectural config.`} position="top">
+                        <div className="absolute top-2 right-2 z-20 bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg pointer-events-auto">
+                            {count} images
+                        </div>
+                    </Tooltip>
                 </>
             )}
 
@@ -147,23 +149,29 @@ export default function ImageCard({
                     )}>
                         {/* Community Badge */}
                         {image.publishedToCommunity && (
-                            <div className="bg-yellow-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-lg backdrop-blur-sm w-fit">
-                                🏆 Community
-                            </div>
+                            <Tooltip content="COMMONS: This creation has been shared with the Stillwater community for public discovery." position="right">
+                                <div className="bg-yellow-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-lg backdrop-blur-sm w-fit pointer-events-auto">
+                                    🏆 Community
+                                </div>
+                            </Tooltip>
                         )}
 
                         {/* Exemplar Badge */}
                         {image.isExemplar && (
-                            <div className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-lg backdrop-blur-sm w-fit border border-indigo-400/30">
-                                🏅 Exemplar
-                            </div>
+                            <Tooltip content="EXEMPLAR: A high-fidelity benchmark generation curated by the Stillwater neural team." position="right">
+                                <div className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-lg backdrop-blur-sm w-fit border border-indigo-400/30 pointer-events-auto">
+                                    🏅 Exemplar
+                                </div>
+                            </Tooltip>
                         )}
 
                         {/* Variation Badge (Single Item Only) */}
                         {!isStack && image.sourceImageId && (
-                            <div className="px-1.5 py-0.5 bg-accent/90 text-white text-[10px] font-bold rounded uppercase shadow-sm backdrop-blur-sm w-fit">
-                                Variation
-                            </div>
+                            <Tooltip content="DERIVATIVE: This creation was synthesized using a previous generation as a structural reference." position="right">
+                                <div className="px-1.5 py-0.5 bg-accent/90 text-white text-[10px] font-bold rounded uppercase shadow-sm backdrop-blur-sm w-fit pointer-events-auto">
+                                    Variation
+                                </div>
+                            </Tooltip>
                         )}
                     </div>
 
