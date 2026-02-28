@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
+import { Collection } from '@/lib/types';
 
 export type SortMode = 'trending' | 'newest' | 'alltime' | 'liked' | 'shared' | 'variations' | 'recent' | 'creations' | 'influence' | 'images' | 'followed';
 export type ViewMode = 'grid' | 'feed' | 'compact' | 'creators';
@@ -15,8 +16,15 @@ interface CommunityHeaderProps {
     onToggleGrouped: () => void;
     isGroupedByUser: boolean;
     onToggleGroupedByUser: () => void;
+    isGroupedByCollection: boolean;
+    onToggleGroupedByCollection: () => void;
     filterUserName: string | null;
+    filterCollectionName?: string | null;
     onClearFilter: () => void;
+    collections?: Collection[];
+    onFilterCollection?: (colId: string, colName: string) => void;
+    onManageCollections?: () => void;
+    canManageCollections?: boolean;
 }
 
 export default function CommunityHeader({
@@ -28,8 +36,15 @@ export default function CommunityHeader({
     onToggleGrouped,
     isGroupedByUser,
     onToggleGroupedByUser,
+    isGroupedByCollection,
+    onToggleGroupedByCollection,
     filterUserName,
-    onClearFilter
+    filterCollectionName,
+    onClearFilter,
+    collections,
+    onFilterCollection,
+    onManageCollections,
+    canManageCollections = false
 }: CommunityHeaderProps) {
     const tabs = [
         { key: 'trending', label: 'Trending', icon: <Icons.zap size={16} className="text-orange-400" /> },
@@ -49,11 +64,20 @@ export default function CommunityHeader({
                         Vote for your favorite AI-generated images from the community
                     </p>
 
-                    {filterUserName && (
+                    {(filterUserName || filterCollectionName) && (
                         <div className="flex items-center gap-2 mt-4">
                             <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/20 rounded-full">
-                                <Icons.user size={14} className="text-primary" />
-                                <span className="text-xs font-bold text-primary">Creator: {filterUserName}</span>
+                                {filterUserName ? (
+                                    <>
+                                        <Icons.user size={14} className="text-primary" />
+                                        <span className="text-xs font-bold text-primary">Creator: {filterUserName}</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Icons.stack size={14} className="text-primary" />
+                                        <span className="text-xs font-bold text-primary">Collection: {filterCollectionName}</span>
+                                    </>
+                                )}
                                 <button
                                     onClick={onClearFilter}
                                     className="ml-1 hover:bg-primary/20 rounded-full transition-colors p-0.5"
@@ -106,30 +130,48 @@ export default function CommunityHeader({
                         ))}
                     </div>
 
-                    <div className="flex gap-2">
-                        {/* Stacking Toggle */}
-                        <Button
-                            variant={isGrouped ? 'primary' : 'secondary'}
-                            size="sm"
-                            onClick={onToggleGrouped}
-                            className={`rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] h-10 px-3 sm:px-4 ${isGrouped ? 'shadow-lg shadow-primary/20' : 'text-foreground-muted hover:text-foreground bg-background-secondary border-border/50'}`}
-                            title="Group related images from the same batch"
-                        >
-                            <Icons.stack size={16} />
-                            <span className="hidden sm:inline">Batch Stack</span>
-                        </Button>
+                    {/* Collection Selector */}
+                    {collections && collections.length > 0 && onFilterCollection && (
+                        <div className="flex bg-background-secondary rounded-xl border border-border/50 shadow-inner px-2 py-0 items-center h-[40px] relative group h-full">
+                            <Icons.stack size={14} className="text-foreground-muted mx-2 shrink-0 pointer-events-none absolute left-0" />
+                            <select
+                                className="bg-transparent pl-8 pr-8 py-2 text-sm focus:outline-none focus:ring-0 font-medium appearance-none text-foreground-muted hover:text-foreground cursor-pointer h-full border-none w-full"
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (!val) {
+                                        onClearFilter();
+                                        return;
+                                    }
+                                    const col = collections.find(c => c.id === val);
+                                    if (col) onFilterCollection(col.id, col.name);
+                                }}
+                                value={filterCollectionName ? collections.find(c => c.name === filterCollectionName)?.id || "" : ""}
+                                title="Filter by collection"
+                            >
+                                <option value="" className="bg-background text-foreground">All Collections</option>
+                                {collections.map(c => (
+                                    <option key={c.id} value={c.id} className="bg-background text-foreground">
+                                        {c.name}
+                                    </option>
+                                ))}
+                            </select>
+                            <Icons.chevronDown size={14} className="text-foreground-muted pointer-events-none absolute right-3 shrink-0" />
+                        </div>
+                    )}
 
-                        {/* User Stacking Toggle */}
-                        <Button
-                            variant={isGroupedByUser ? 'primary' : 'secondary'}
-                            size="sm"
-                            onClick={onToggleGroupedByUser}
-                            className={`rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] h-10 px-3 sm:px-4 ${isGroupedByUser ? 'shadow-lg shadow-primary/20' : 'text-foreground-muted hover:text-foreground bg-background-secondary border-border/50'}`}
-                            title="Group all images by the same creator"
-                        >
-                            <Icons.user size={16} />
-                            <span className="hidden sm:inline">User Stack</span>
-                        </Button>
+                    <div className="flex gap-2 h-full">
+                        {canManageCollections && onManageCollections && (
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={onManageCollections}
+                                className="rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] h-10 px-3 sm:px-4 text-primary bg-primary/5 hover:bg-primary/10 border-primary/20"
+                                title="Manage Community Collections"
+                            >
+                                <Icons.stack size={16} />
+                                <span className="hidden sm:inline">Collections</span>
+                            </Button>
+                        )}
                     </div>
                 </div>
             </div>

@@ -20,12 +20,16 @@ import { useAuth } from '@/lib/auth-context';
 import CommunityQuickLinks from '@/components/community/CommunityQuickLinks';
 import CommunityPulseStats from '@/components/community/CommunityPulseStats';
 import { SkeletonGrid, SkeletonHeader } from '@/components/ui/Skeleton';
+import { useSettings } from '@/lib/context/SettingsContext';
+import ManageCollectionsModal from '@/components/community/ManageCollectionsModal';
 
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 
 function CommunityContent() {
     const community = useCommunity();
     const router = useRouter();
+    const { userLevel } = useSettings();
+    const [isManageCollectionsOpen, setIsManageCollectionsOpen] = useState(false);
 
     // Redirect if not logged in
     useEffect(() => {
@@ -42,6 +46,8 @@ function CommunityContent() {
         switchRole, setAudienceMode, signOut,
         isAdmin, isSu
     } = useAuth();
+
+    const canManageCollections = userLevel === 'master' || isAdmin || isSu;
 
     const availableCredits = (credits?.balance || 0) + Math.max(0, (credits?.dailyAllowance || 0) - (credits?.dailyAllowanceUsed || 0));
 
@@ -88,8 +94,18 @@ function CommunityContent() {
                     onToggleGrouped={community.handleToggleGrouped}
                     isGroupedByUser={community.isGroupedByUser}
                     onToggleGroupedByUser={community.handleToggleGroupedByUser}
+                    isGroupedByCollection={community.isGroupedByCollection}
+                    onToggleGroupedByCollection={community.handleToggleGroupedByCollection}
                     filterUserName={community.filterUserName}
-                    onClearFilter={() => community.handleFilterUser(null, null)}
+                    filterCollectionName={community.filterCollectionName}
+                    onClearFilter={() => {
+                        community.handleFilterUser(null, null);
+                        community.handleFilterCollection(null, null);
+                    }}
+                    collections={community.collections}
+                    onFilterCollection={community.handleFilterCollection}
+                    onManageCollections={() => setIsManageCollectionsOpen(true)}
+                    canManageCollections={canManageCollections}
                 />
 
                 {/* Entries Grid */}
@@ -98,6 +114,7 @@ function CommunityContent() {
                     viewMode={community.viewMode}
                     isGrouped={community.isGrouped}
                     isGroupedByUser={community.isGroupedByUser}
+                    isGroupedByCollection={community.isGroupedByCollection}
                     loadingEntries={community.loadingEntries}
                     loadingMore={community.loadingMore}
                     hasMore={community.hasMore}
@@ -108,6 +125,7 @@ function CommunityContent() {
                     onSelect={community.setSelectedEntry}
                     onReact={community.handleReactUpdate}
                     onFilterUser={community.handleFilterUser}
+                    onFilterCollection={community.handleFilterCollection}
                     onShare={community.handleShare}
                     onSelectBatch={community.setSelectedGroup}
                     reactingEmoji={community.reactingEmoji}
@@ -150,6 +168,16 @@ function CommunityContent() {
                         onUpdatePromptSetID={community.handleUpdatePromptSetID}
                         isAdmin={community.isAdmin}
                         onToggleExemplar={community.handleToggleExemplar}
+                    />
+                )}
+            </AnimatePresence>
+
+            {/* Collection Management Modal */}
+            <AnimatePresence>
+                {isManageCollectionsOpen && (
+                    <ManageCollectionsModal
+                        isOpen={isManageCollectionsOpen}
+                        onClose={() => setIsManageCollectionsOpen(false)}
                     />
                 )}
             </AnimatePresence>

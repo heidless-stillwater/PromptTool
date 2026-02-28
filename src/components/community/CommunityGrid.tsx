@@ -26,7 +26,9 @@ interface CommunityGridProps {
     viewMode: 'grid' | 'feed' | 'compact' | 'creators';
     isGrouped: boolean;
     isGroupedByUser: boolean;
+    isGroupedByCollection: boolean;
     onFilterUser: (userId: string, userName: string) => void;
+    onFilterCollection?: (colId: string, colName: string) => void;
     onShare: (entryId: string) => void;
     onSelectBatch?: (entries: CommunityEntry[]) => void;
     sortMode?: string;
@@ -48,7 +50,9 @@ export default function CommunityGrid({
     viewMode,
     isGrouped,
     isGroupedByUser,
+    isGroupedByCollection,
     onFilterUser,
+    onFilterCollection,
     onShare,
     onSelectBatch,
     sortMode,
@@ -88,16 +92,23 @@ export default function CommunityGrid({
 
     const processedEntries = useMemo(() => {
         if (viewMode === 'creators') return entries;
-        if (!isGrouped && !isGroupedByUser) return entries;
+        if (!isGrouped && !isGroupedByUser && !isGroupedByCollection) return entries;
 
         const groups: Record<string, CommunityEntry[]> = {};
         const standalone: CommunityEntry[] = [];
 
         entries.forEach(entry => {
-            // Grouping priority: User ID > Prompt Set ID
-            const groupKey = isGroupedByUser
-                ? entry.originalUserId
-                : (isGrouped ? entry.promptSetID : null);
+            let groupKey = null;
+
+            // Grouping priority: Collection > User ID > Prompt Set ID
+            if (isGroupedByCollection && entry.collectionNames && entry.collectionNames.length > 0) {
+                const colId = entry.collectionIds?.[0] || 'unknown';
+                groupKey = `collection:${colId}`;
+            } else if (isGroupedByUser) {
+                groupKey = entry.originalUserId ? `user:${entry.originalUserId}` : null;
+            } else if (isGrouped) {
+                groupKey = entry.promptSetID ? `batch:${entry.promptSetID}` : null;
+            }
 
             if (groupKey) {
                 if (!groups[groupKey]) groups[groupKey] = [];
@@ -128,7 +139,7 @@ export default function CommunityGrid({
             const indexB = entries.findIndex(e => e.id === b.id);
             return indexA - indexB;
         });
-    }, [entries, isGrouped, isGroupedByUser, viewMode]);
+    }, [entries, isGrouped, isGroupedByUser, isGroupedByCollection, viewMode]);
 
     if (error) {
         return (
@@ -298,6 +309,7 @@ export default function CommunityGrid({
                                         onReact={onReact}
                                         viewMode="compact"
                                         onFilterUser={onFilterUser}
+                                        onFilterCollection={onFilterCollection}
                                         onShare={onShare}
                                     />
                                 </motion.div>
@@ -336,7 +348,7 @@ export default function CommunityGrid({
                 initial="initial"
                 animate="animate"
             >
-                {processedEntries.map((entry) => (
+                {(viewMode === 'compact' ? entries : processedEntries).map((entry) => (
                     <motion.div key={entry.id} variants={cardFadeIn}>
                         <CommunityEntryCard
                             entry={entry}
@@ -348,6 +360,7 @@ export default function CommunityGrid({
                             reactingEmoji={reactingEmoji}
                             viewMode={viewMode}
                             onFilterUser={onFilterUser}
+                            onFilterCollection={onFilterCollection}
                             onShare={onShare}
                         />
                     </motion.div>

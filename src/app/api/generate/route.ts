@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, adminStorage } from '@/lib/firebase-admin';
 import { getNanoBananaService } from '@/lib/services/nanobanana';
+import { getAIPromptService } from '@/lib/services/ai-prompt';
 import { GenerationService } from '@/lib/services/generation';
 import { CREDIT_COSTS, ImageQuality, AspectRatio, GeneratedImage, MadLibsSelection, SUBSCRIPTION_PLANS, MediaModality } from '@/lib/types';
 import { generationSchema } from '@/lib/validations/generation';
@@ -99,11 +100,44 @@ export async function POST(request: NextRequest) {
         (async () => {
             try {
                 const nanoBananaService = getNanoBananaService();
+                const aiPromptService = getAIPromptService();
+
+                let generationPrompt = prompt;
+
+                // 2. Prior to generating: Run "weave" operation if coreSubject and modifiers are present
+                if (coreSubject && modifiers && modifiers.length > 0) {
+                    try {
+                        console.log(`[Generate API] Weaving Nanobanana prompt for subject: "${coreSubject}"`);
+                        await sendEvent({
+                            type: 'progress',
+                            current: 0,
+                            total: count ?? 1,
+                            message: 'Weaving prompt DNA...'
+                        });
+
+                        generationPrompt = await aiPromptService.compileNanobananaPrompt(
+                            coreSubject,
+                            modifiers,
+                            aspectRatio,
+                            {
+                                mediaType: modality,
+                                quality: quality as any,
+                                guidanceScale: guidanceScale ?? undefined,
+                                negativePrompt: negativePrompt ?? undefined
+                            }
+                        );
+                        console.log('[Generate API] Weave successful:', generationPrompt.substring(0, 100) + '...');
+                    } catch (weaveError) {
+                        console.error('[Generate API] Weave failed, falling back to raw prompt:', weaveError);
+                        // Fallback to original prompt if weave fails
+                    }
+                }
+
                 let result;
 
                 if (modality === 'video') {
                     result = await nanoBananaService.generateVideo({
-                        prompt,
+                        prompt: generationPrompt,
                         aspectRatio,
                         count: count ?? 1,
                         onProgress: (current, total) => {
@@ -112,7 +146,7 @@ export async function POST(request: NextRequest) {
                     });
                 } else {
                     result = await nanoBananaService.generateImage({
-                        prompt, quality: quality as any, aspectRatio, count: count ?? 1, seed: seed ?? undefined, negativePrompt, guidanceScale: guidanceScale ?? undefined,
+                        prompt: generationPrompt, quality: quality as any, aspectRatio, count: count ?? 1, seed: seed ?? undefined, negativePrompt, guidanceScale: guidanceScale ?? undefined,
                         referenceImage, referenceMimeType,
                         onProgress: (current, total) => {
                             sendEvent({ type: 'progress', current, total, message: `Generated ${current} of ${total} images...` });
@@ -131,7 +165,7 @@ export async function POST(request: NextRequest) {
                 // 3. Save Media
                 for (let i = 0; i < result.images.length; i++) {
                     const mediaData = await GenerationService.saveMedia(userId, result.images[i], {
-                        prompt, quality: quality as any, aspectRatio, promptType, madlibsData, seed: seed ?? undefined, negativePrompt, guidanceScale: guidanceScale ?? undefined,
+                        prompt: generationPrompt, quality: quality as any, aspectRatio, promptType, madlibsData, seed: seed ?? undefined, negativePrompt, guidanceScale: guidanceScale ?? undefined,
                         sourceImageId, promptSetID, collectionIds, requestedModality: modality, modality,
                         initialImageUrl: referenceImageUrl, modifiers, coreSubject
                     });
@@ -143,7 +177,7 @@ export async function POST(request: NextRequest) {
                 // 4. Deduct Credits
                 const newBalance = await GenerationService.deductCredits(validation, result.images.length, {
                     modality, quality: quality as any, aspectRatio, promptType, isAdvanced: isUsingAdvanced,
-                    prompt, firstImageUrl: generatedMediaData[0]?.imageUrl
+                    prompt: generationPrompt, firstImageUrl: generatedMediaData[0]?.imageUrl
                 });
 
                 // 5. Complete

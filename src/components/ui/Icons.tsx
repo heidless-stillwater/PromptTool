@@ -67,7 +67,8 @@ import {
     RefreshCw,
     Circle,
     Minus,
-    Terminal
+    Terminal,
+    Lock
 } from "lucide-react"
 
 export const Icons = {
@@ -142,5 +143,6 @@ export const Icons = {
     circle: Circle,
     trash: Trash2,
     minus: Minus,
-    terminal: Terminal
+    terminal: Terminal,
+    lock: Lock
 }

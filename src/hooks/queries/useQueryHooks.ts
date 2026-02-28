@@ -16,8 +16,8 @@ import { SortMode } from '@/components/community/CommunityHeader';
 export const queryKeys = {
     community: {
         all: ['community'] as const,
-        entries: (sort: string, filterUserId: string | null) =>
-            ['community', 'entries', sort, filterUserId] as const,
+        entries: (sort: string, filterUserId: string | null, filterCollectionId: string | null = null) =>
+            ['community', 'entries', sort, filterUserId, filterCollectionId] as const,
         thumbnails: ['community', 'thumbnails'] as const,
         entry: (id: string) => ['community', 'entry', id] as const,
     },
@@ -87,9 +87,14 @@ export function useCommunityThumbnails() {
 
 function buildCommunityQuery(
     sortMode: SortMode,
-    filterUserId: string | null
+    filterUserId: string | null,
+    filterCollectionId: string | null = null
 ) {
     const entriesRef = collection(db, 'leagueEntries');
+
+    if (filterCollectionId) {
+        return query(entriesRef, where('collectionIds', 'array-contains', filterCollectionId), orderBy('publishedAt', 'desc'));
+    }
 
     if (filterUserId) {
         return query(entriesRef, where('originalUserId', '==', filterUserId), orderBy('publishedAt', 'desc'));
@@ -142,11 +147,11 @@ async function enrichCommunityEntriesWithProfiles(entries: CommunityEntry[]): Pr
     });
 }
 
-export function useCommunityEntries(sortMode: SortMode, filterUserId: string | null) {
+export function useCommunityEntries(sortMode: SortMode, filterUserId: string | null, filterCollectionId: string | null = null) {
     return useQuery({
-        queryKey: queryKeys.community.entries(sortMode, filterUserId),
+        queryKey: queryKeys.community.entries(sortMode, filterUserId, filterCollectionId),
         queryFn: async () => {
-            const baseQuery = buildCommunityQuery(sortMode, filterUserId);
+            const baseQuery = buildCommunityQuery(sortMode, filterUserId, filterCollectionId);
             const q = query(baseQuery, limit(20));
             const snapshot = await getDocs(q);
 

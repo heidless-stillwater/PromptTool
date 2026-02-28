@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys, useCollectionsQuery } from './queries/useQueryHooks';
 import { useToast } from '@/components/Toast';
 import { db } from '@/lib/firebase';
 import {
@@ -20,38 +22,24 @@ import { Collection } from '@/lib/types';
 export function useCollections() {
     const { user, loading: authLoading } = useAuth();
     const { showToast } = useToast();
-    const [collections, setCollections] = useState<Collection[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const queryClient = useQueryClient();
+
+    // Use TanStack Query as the source of truth
+    const {
+        data: collections = [],
+        isLoading: queryLoading,
+        refetch: refresh
+    } = useCollectionsQuery(user?.uid);
+
     const [isCreating, setIsCreating] = useState(false);
 
-    const fetchCollections = useCallback(async () => {
-        if (!user) return;
-        try {
-            const colRef = collection(db, 'users', user.uid, 'collections');
-            const q = query(colRef, orderBy('createdAt', 'desc'));
-            const snapshot = await getDocs(q);
-            const fetched = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            } as Collection));
-            setCollections(fetched);
-        } catch (error) {
-            console.error('Failed to fetch collections:', error);
-            showToast('Failed to load collections', 'error');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [user, showToast]);
-
-    useEffect(() => {
+    const invalidateQuery = useCallback(() => {
         if (user) {
-            fetchCollections();
-        } else if (!authLoading) {
-            setIsLoading(false);
+            queryClient.invalidateQueries({ queryKey: queryKeys.collections.all(user.uid) });
         }
-    }, [user, authLoading, fetchCollections]);
+    }, [user, queryClient]);
 
-    const handleCreate = async (name: string) => {
+    const handleCreate = async (name: string, privacy: 'public' | 'private' = 'private') => {
         if (!name || !name.trim() || !user) {
             showToast('Collection name is required', 'error');
             return;
@@ -68,7 +56,7 @@ export function useCollections() {
                 userId: user.uid,
                 name: name.trim(),
                 imageCount: 0,
-                privacy: 'private',
+                privacy: privacy,
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
             };
@@ -82,7 +70,8 @@ export function useCollections() {
                 updatedAt: new Date(),
             } as any;
 
-            setCollections(prev => [created, ...prev]);
+            // Optimistically update the query data if we wanted, but simple invalidation is safer here
+            invalidateQuery();
             showToast('Collection created', 'success');
             return created;
         } catch (error) {
@@ -97,7 +86,7 @@ export function useCollections() {
         if (!user) return;
         try {
             await deleteDoc(doc(db, 'users', user.uid, 'collections', id));
-            setCollections(prev => prev.filter(c => c.id !== id));
+            invalidateQuery();
             showToast('Collection deleted', 'success');
         } catch (error) {
             console.error('Failed to delete collection:', error);
@@ -120,9 +109,7 @@ export function useCollections() {
                 updatedAt: serverTimestamp()
             });
 
-            setCollections(prev => prev.map(c =>
-                c.id === id ? { ...c, name: newName.trim() } : c
-            ));
+            invalidateQuery();
             showToast('Collection renamed', 'success');
         } catch (error) {
             console.error('Failed to rename collection:', error);
@@ -140,9 +127,7 @@ export function useCollections() {
                 updatedAt: serverTimestamp()
             });
 
-            setCollections(prev => prev.map(c =>
-                c.id === id ? { ...c, privacy: newPrivacy } : c
-            ));
+            invalidateQuery();
             showToast(`Collection is now ${newPrivacy}`, 'success');
         } catch (error) {
             console.error('Failed to update privacy:', error);
@@ -152,12 +137,12 @@ export function useCollections() {
 
     return {
         collections,
-        isLoading,
+        isLoading: queryLoading || (authLoading && !user),
         isCreating,
         handleCreate,
         handleDelete,
         handleRename,
         handleTogglePrivacy,
-        refresh: fetchCollections
+        refresh
     };
 }

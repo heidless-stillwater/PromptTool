@@ -341,6 +341,43 @@ function GeneratePageContent() {
     const handleGenerate = async () => {
         if (!displayPrompt || !user) return;
 
+        let finalPrompt = displayPrompt;
+
+        // Automate 'weave' if in subject mode
+        if (promptEditMode === 'subject') {
+            setIsCompiling(true);
+            try {
+                const res = await fetch('/api/generate/nanobanana', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        subject: coreSubject,
+                        modifiers: activeModifiers.map(m => ({ category: m.category, value: m.value })),
+                        aspectRatio: genState.aspectRatio,
+                        proSettings: {
+                            mediaType: genState.mediaType,
+                            quality: genState.quality,
+                            guidanceScale: genState.guidanceScale,
+                            negativePrompt: genState.negativePrompt
+                        }
+                    })
+                });
+                const data = await res.json();
+                if (data.compiledPrompt) {
+                    setCompiledPrompt(data.compiledPrompt);
+                    setPromptEditMode('full');
+                    finalPrompt = data.compiledPrompt;
+                } else if (data.error) {
+                    throw new Error(data.error);
+                }
+            } catch (e) {
+                console.error('Auto-weave failed:', e);
+                showToast('Failed to weave prompt automagically. Using raw input.', 'info');
+            } finally {
+                setIsCompiling(false);
+            }
+        }
+
         setIsGenerating(true);
         setGeneratedImages(null);
         setGenerationProgress(0);
@@ -357,7 +394,7 @@ function GeneratePageContent() {
                 },
                 signal: abortControllerRef.current.signal,
                 body: JSON.stringify({
-                    prompt: displayPrompt,
+                    prompt: finalPrompt,
                     quality: genState.quality,
                     aspectRatio: genState.aspectRatio,
                     modality: genState.mediaType,

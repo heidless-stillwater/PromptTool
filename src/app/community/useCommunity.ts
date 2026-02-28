@@ -25,8 +25,11 @@ export function useCommunity() {
     const [viewMode, setViewMode] = useState<'grid' | 'feed' | 'compact' | 'creators'>('grid');
     const [isGrouped, setIsGrouped] = useState(false);
     const [isGroupedByUser, setIsGroupedByUser] = useState(false);
+    const [isGroupedByCollection, setIsGroupedByCollection] = useState(false);
     const [filterUserId, setFilterUserId] = useState<string | null>(null);
     const [filterUserName, setFilterUserName] = useState<string | null>(null);
+    const [filterCollectionId, setFilterCollectionId] = useState<string | null>(null);
+    const [filterCollectionName, setFilterCollectionName] = useState<string | null>(null);
     const [selectedGroup, setSelectedGroup] = useState<CommunityEntry[] | null>(null);
 
     // ── Pagination (still manual — TanStack infinite query is a future step) ──
@@ -44,7 +47,7 @@ export function useCommunity() {
         isLoading: loadingEntries,
         error: queryErrorObj,
         refetch: refetchEntries,
-    } = useCommunityEntries(sortMode, filterUserId);
+    } = useCommunityEntries(sortMode, filterUserId, filterCollectionId);
 
     const queryError = queryErrorObj ? (queryErrorObj as Error).message : null;
 
@@ -66,11 +69,11 @@ export function useCommunity() {
         setExtraEntries([]);
         lastVisibleRef.current = null;
         setHasMore(queriedEntries.length === 20);
-    }, [sortMode, filterUserId]);
+    }, [sortMode, filterUserId, filterCollectionId]);
 
     // ── Real-time listener for newest entries ───────────────
     useEffect(() => {
-        if (!user || (sortMode !== 'recent' && sortMode !== 'newest') || filterUserId) return;
+        if (!user || (sortMode !== 'recent' && sortMode !== 'newest') || filterUserId || filterCollectionId) return;
 
         const q = query(collection(db, 'leagueEntries'), orderBy('publishedAt', 'desc'), limit(1));
 
@@ -83,13 +86,14 @@ export function useCommunity() {
         });
 
         return () => unsubscribe();
-    }, [user, sortMode, filterUserId, refetchEntries]);
+    }, [user, sortMode, filterUserId, filterCollectionId, refetchEntries]);
 
     // ── Persist view mode & grouping ────────────────────────
     useEffect(() => {
         const savedView = localStorage.getItem('communityViewMode');
         const savedGroup = localStorage.getItem('communityIsGrouped');
         const savedGroupByUser = localStorage.getItem('communityIsGroupedByUser');
+        const savedGroupByCollection = localStorage.getItem('communityIsGroupedByCollection');
 
         if (savedView === 'grid' || savedView === 'feed' || savedView === 'compact' || savedView === 'creators') {
             setViewMode(savedView);
@@ -99,6 +103,7 @@ export function useCommunity() {
 
         if (savedGroup === 'true') setIsGrouped(true);
         if (savedGroupByUser === 'true') setIsGroupedByUser(true);
+        if (savedGroupByCollection === 'true') setIsGroupedByCollection(true);
     }, []);
 
     // ── View / Sort handlers ────────────────────────────────
@@ -122,6 +127,12 @@ export function useCommunity() {
         const next = !isGroupedByUser;
         setIsGroupedByUser(next);
         localStorage.setItem('communityIsGroupedByUser', String(next));
+    };
+
+    const handleToggleGroupedByCollection = () => {
+        const next = !isGroupedByCollection;
+        setIsGroupedByCollection(next);
+        localStorage.setItem('communityIsGroupedByCollection', String(next));
     };
 
     // ── Interaction hooks ───────────────────────────────────
@@ -174,7 +185,9 @@ export function useCommunity() {
             const entriesRef = collection(db, 'leagueEntries');
             let q;
 
-            if (filterUserId) {
+            if (filterCollectionId) {
+                q = query(entriesRef, where('collectionIds', 'array-contains', filterCollectionId), orderBy('publishedAt', 'desc'));
+            } else if (filterUserId) {
                 q = query(entriesRef, where('originalUserId', '==', filterUserId), orderBy('publishedAt', 'desc'));
             } else if (sortMode === 'newest' || sortMode === 'recent') {
                 q = query(entriesRef, orderBy('publishedAt', 'desc'));
@@ -252,12 +265,24 @@ export function useCommunity() {
         } finally {
             setLoadingMore(false);
         }
-    }, [user, sortMode, filterUserId, entries.length, refetchEntries, showToast]);
+    }, [user, sortMode, filterUserId, filterCollectionId, entries.length, refetchEntries, showToast]);
 
-    // ── Filter by user ──────────────────────────────────────
+    // ── Filter by user & collection ─────────────────────────
     const handleFilterUser = (uid: string | null, name: string | null) => {
         setFilterUserId(uid);
         setFilterUserName(name);
+        setFilterCollectionId(null);
+        setFilterCollectionName(null);
+        setExtraEntries([]);
+        lastVisibleRef.current = null;
+        setHasMore(true);
+    };
+
+    const handleFilterCollection = (colId: string | null, name: string | null) => {
+        setFilterCollectionId(colId);
+        setFilterCollectionName(name);
+        setFilterUserId(null);
+        setFilterUserName(null);
         setExtraEntries([]);
         lastVisibleRef.current = null;
         setHasMore(true);
@@ -300,9 +325,12 @@ export function useCommunity() {
         handleToggleGrouped,
         isGroupedByUser,
         handleToggleGroupedByUser,
-        filterUserId,
-        filterUserName,
+        isGroupedByCollection,
+        handleToggleGroupedByCollection,
+        filterUserId, filterUserName,
         handleFilterUser,
+        filterCollectionId, filterCollectionName,
+        handleFilterCollection,
         queryError,
         fetchEntries,
         selectedEntry,

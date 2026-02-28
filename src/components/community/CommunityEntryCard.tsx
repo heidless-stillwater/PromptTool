@@ -23,6 +23,7 @@ interface CommunityEntryCardProps {
     viewMode?: 'grid' | 'feed' | 'compact' | 'creators' | 'list';
     showCommunityPill?: boolean;
     onFilterUser?: (userId: string, userName: string) => void;
+    onFilterCollection?: (colId: string, colName: string) => void;
     onShare?: (entryId: string) => void;
 }
 
@@ -37,6 +38,7 @@ export default function CommunityEntryCard({
     viewMode = 'grid',
     showCommunityPill = false,
     onFilterUser,
+    onFilterCollection,
     onShare,
 }: CommunityEntryCardProps) {
     const [error, setError] = useState(false);
@@ -220,6 +222,37 @@ export default function CommunityEntryCard({
                         {formatTimeAgo(entry.publishedAt)}
                     </span>
                 </div>
+
+                {/* Collection Info */}
+                {entry.collectionNames && entry.collectionNames.length > 0 && entry.collectionIds && entry.collectionIds.length > 0 && (
+                    <div className={cn(
+                        "flex items-start",
+                        viewMode === 'compact' ? "pt-0.5" : "pt-1 pb-1"
+                    )}>
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                if (onFilterCollection) {
+                                    onFilterCollection(entry.collectionIds![0], entry.collectionNames![0]);
+                                }
+                            }}
+                            className={cn(
+                                "inline-flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 rounded-full max-w-full hover:bg-primary/20 transition-colors cursor-pointer",
+                                viewMode === 'compact' ? "px-1.5 py-0.5" : "px-2 py-0.5"
+                            )}
+                            title={`Filter feed by collection ${entry.collectionNames[0]}`}
+                        >
+                            <Icons.stack className="flex-shrink-0" size={viewMode === 'compact' ? 8 : 10} />
+                            <span className={cn(
+                                "truncate font-black uppercase tracking-widest",
+                                viewMode === 'compact' ? "text-[7px]" : "text-[8px]"
+                            )}>
+                                {entry.collectionNames[0]}
+                            </span>
+                        </button>
+                    </div>
+                )}
 
                 {/* Actions Bar */}
                 <div className="flex items-center justify-between gap-2">
