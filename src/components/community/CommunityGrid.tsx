@@ -28,6 +28,7 @@ interface CommunityGridProps {
     isGroupedByUser: boolean;
     onFilterUser: (userId: string, userName: string) => void;
     onShare: (entryId: string) => void;
+    onSelectBatch?: (entries: CommunityEntry[]) => void;
     sortMode?: string;
     error: string | null;
 }
@@ -49,6 +50,7 @@ export default function CommunityGrid({
     isGroupedByUser,
     onFilterUser,
     onShare,
+    onSelectBatch,
     sortMode,
     error
 }: CommunityGridProps) {
@@ -113,7 +115,9 @@ export default function CommunityGrid({
                     ...first,
                     isStack: true,
                     stackSize: group.length,
-                });
+                    // Store reference to full group for selection logic
+                    _fullGroup: group
+                } as any);
             } else {
                 standalone.push(group[0]);
             }
@@ -284,7 +288,13 @@ export default function CommunityGrid({
                                         userId={userId || ''}
                                         onVote={onVote}
                                         isVoting={votingEntryId === entry.id}
-                                        onSelect={onSelect}
+                                        onSelect={(id) => {
+                                            if ((entry as any).isStack && (entry as any)._fullGroup && onSelectBatch) {
+                                                onSelectBatch((entry as any)._fullGroup);
+                                            } else {
+                                                onSelect(id);
+                                            }
+                                        }}
                                         onReact={onReact}
                                         viewMode="compact"
                                         onFilterUser={onFilterUser}

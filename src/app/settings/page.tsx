@@ -12,9 +12,25 @@ import { Input } from '@/components/ui/Input';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { cn } from '@/lib/utils';
+import DashboardHeader from '@/components/dashboard/DashboardHeader';
 
 export default function SettingsPage() {
-    const { user, profile, loading } = useAuth();
+    const auth = useAuth();
+    const {
+        user,
+        profile,
+        credits,
+        effectiveRole,
+        switchRole,
+        setAudienceMode,
+        signOut,
+        isAdmin,
+        isSu,
+        loading
+    } = auth;
+
+    const availableCredits = (credits?.balance || 0) + Math.max(0, (credits?.dailyAllowance || 0) - (credits?.dailyAllowanceUsed || 0));
+
     const router = useRouter();
     const { showToast } = useToast();
 
@@ -157,36 +173,17 @@ export default function SettingsPage() {
 
     return (
         <div className="min-h-screen bg-background text-foreground">
-            {/* Header */}
-            <Card variant="glass" className="sticky top-0 z-50 border-x-0 border-t-0 rounded-none border-b border-border p-0">
-                <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <Link href="/dashboard">
-                            <Button variant="secondary" size="icon" className="w-9 h-9">
-                                <Icons.arrowLeft size={18} />
-                            </Button>
-                        </Link>
-                        <Link href="/dashboard" className="text-xl font-black tracking-tighter gradient-text hover:opacity-80 transition-opacity">
-                            STILLWATER<span className="text-foreground"> STUDIO</span>
-                        </Link>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <Link href="/community">
-                            <Button variant="secondary" size="sm" className="h-9 gap-2 font-black uppercase tracking-widest text-[10px]">
-                                <Icons.trophy size={14} className="text-primary" />
-                                <span className="hidden sm:inline">Community Hub</span>
-                            </Button>
-                        </Link>
-                        <div className="h-6 w-px bg-border/50 mx-1" />
-                        <Link href="/dashboard">
-                            <Button variant="primary" size="sm" className="h-9 px-4 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20">
-                                Dashboard
-                            </Button>
-                        </Link>
-                    </div>
-                </div>
-            </Card>
+            <DashboardHeader
+                user={user}
+                profile={profile}
+                credits={credits}
+                availableCredits={availableCredits}
+                isAdminOrSu={isAdmin || isSu}
+                effectiveRole={effectiveRole}
+                switchRole={switchRole}
+                setAudienceMode={setAudienceMode}
+                signOut={signOut}
+            />
 
             <main className="max-w-4xl mx-auto px-4 py-16">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-16 relative">

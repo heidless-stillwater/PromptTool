@@ -154,6 +154,13 @@ export function useGallery() {
             if (selectedImage?.id === imageId) {
                 setSelectedImage(null);
             }
+            if (selectedGroup) {
+                setSelectedGroup(prev => {
+                    if (!prev) return null;
+                    const filtered = prev.filter(img => img.id !== imageId);
+                    return filtered.length > 0 ? filtered : null;
+                });
+            }
             showToast('Image deleted successfully', 'success');
         } catch (error) {
             console.error('Delete error:', error);
@@ -172,6 +179,13 @@ export function useGallery() {
                 deleteDoc(doc(db, 'users', user.uid, 'images', id))
             ));
             setImages(prev => prev.filter(img => !selectedImageIds.has(img.id)));
+            if (selectedGroup) {
+                setSelectedGroup(prev => {
+                    if (!prev) return null;
+                    const filtered = prev.filter(img => !selectedImageIds.has(img.id));
+                    return filtered.length > 0 ? filtered : null;
+                });
+            }
             setSelectedImageIds(new Set());
             setSelectionMode(false);
             showToast('Batch delete complete!', 'success');

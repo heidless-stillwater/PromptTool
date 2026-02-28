@@ -1,4 +1,6 @@
 'use client';
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 import Link from 'next/link';
 import NotificationBell from '@/components/NotificationBell';
@@ -34,6 +36,13 @@ export default function DashboardHeader({
     onHistoryOpen
 }: DashboardHeaderProps) {
     const { helpModeEnabled, toggleHelpMode, userLevel, setUserLevel } = useSettings();
+    const [isLevelExpanded, setIsLevelExpanded] = useState(false);
+
+    const levelColors = {
+        novice: 'bg-primary text-white shadow-primary/20',
+        journeyman: 'bg-amber-500 text-black shadow-amber-500/20',
+        master: 'bg-purple-600 text-white shadow-purple-600/20'
+    };
     return (
         <div className="sticky top-0 z-50 bg-[#050508]/60 backdrop-blur-xl border-b border-white/5 shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
             <div className="max-w-[1920px] mx-auto px-8 py-5 flex items-center justify-between">
@@ -58,41 +67,62 @@ export default function DashboardHeader({
                     </div>
 
                     {/* Proficiency Selector (Novice/Journeyman/Master) */}
-                    <div className="hidden md:flex items-center gap-2 p-1 bg-white/[0.03] border border-white/5 rounded-xl backdrop-blur-md">
-                        <span className="text-[8px] font-black uppercase tracking-widest text-white/20 px-2">Level</span>
-                        <button
-                            onClick={() => setUserLevel('novice')}
-                            className={cn(
-                                "px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all duration-300",
-                                userLevel === 'novice'
-                                    ? "bg-primary text-white shadow-lg shadow-primary/20"
-                                    : "text-white/30 hover:text-white hover:bg-white/5"
+                    <div className="hidden md:flex items-center p-1 bg-white/[0.03] border border-white/5 rounded-2xl backdrop-blur-md relative overflow-hidden h-10">
+                        <AnimatePresence mode="wait">
+                            {!isLevelExpanded ? (
+                                <motion.button
+                                    key="collapsed"
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: 10 }}
+                                    onClick={() => setIsLevelExpanded(true)}
+                                    className="flex items-center gap-3 px-4 py-1.5 h-full group/level"
+                                >
+                                    <div className="flex flex-col items-start">
+                                        <span className="text-[7px] font-black uppercase tracking-[0.2em] text-white/20 leading-none mb-1">Active Level</span>
+                                        <div className="flex items-center gap-2">
+                                            <div className={cn("w-1.5 h-1.5 rounded-full", userLevel === 'novice' ? 'bg-primary' : userLevel === 'journeyman' ? 'bg-amber-500' : 'bg-purple-500')} />
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-white group-hover/level:text-primary transition-colors">
+                                                {userLevel}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <Icons.chevronDown size={10} className="text-white/20 group-hover/level:text-white transition-colors ml-1" />
+                                </motion.button>
+                            ) : (
+                                <motion.div
+                                    key="expanded"
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.95 }}
+                                    className="flex items-center gap-1"
+                                >
+                                    <button
+                                        onClick={() => setIsLevelExpanded(false)}
+                                        className="p-1.5 hover:bg-white/5 rounded-lg text-white/20 hover:text-white transition-all mr-1"
+                                    >
+                                        <Icons.arrowLeft size={12} />
+                                    </button>
+                                    {(['novice', 'journeyman', 'master'] as const).map((lvl) => (
+                                        <button
+                                            key={lvl}
+                                            onClick={() => {
+                                                setUserLevel(lvl);
+                                                setIsLevelExpanded(false);
+                                            }}
+                                            className={cn(
+                                                "px-4 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all duration-300 h-full",
+                                                userLevel === lvl
+                                                    ? cn(levelColors[lvl as keyof typeof levelColors], "shadow-lg")
+                                                    : "text-white/30 hover:text-white hover:bg-white/5"
+                                            )}
+                                        >
+                                            {lvl}
+                                        </button>
+                                    ))}
+                                </motion.div>
                             )}
-                        >
-                            Novice
-                        </button>
-                        <button
-                            onClick={() => setUserLevel('journeyman')}
-                            className={cn(
-                                "px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all duration-300",
-                                userLevel === 'journeyman'
-                                    ? "bg-amber-500 text-black shadow-lg shadow-amber-500/20"
-                                    : "text-white/30 hover:text-white hover:bg-white/5"
-                            )}
-                        >
-                            Journeyman
-                        </button>
-                        <button
-                            onClick={() => setUserLevel('master')}
-                            className={cn(
-                                "px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all duration-300",
-                                userLevel === 'master'
-                                    ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20"
-                                    : "text-white/30 hover:text-white hover:bg-white/5"
-                            )}
-                        >
-                            Master
-                        </button>
+                        </AnimatePresence>
                     </div>
 
 
@@ -116,14 +146,7 @@ export default function DashboardHeader({
                                     🧪 Labs
                                 </Button>
                             </Link>
-                            <Select
-                                value={effectiveRole}
-                                onChange={(e) => switchRole(e.target.value)}
-                                className="text-[9px] py-1.5 h-10 min-w-[150px] bg-white/[0.03] border-white/5 rounded-xl font-black uppercase tracking-[0.1em] text-white/40 focus:ring-0 focus:border-white/20"
-                            >
-                                <option value={profile.role}>VIEW: {profile.role}</option>
-                                <option value="member">VIEW: MEMBER</option>
-                            </Select>
+
                         </div>
                     )}
 

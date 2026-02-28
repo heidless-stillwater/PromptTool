@@ -19,6 +19,7 @@ import { DNAStrip } from '@/components/generate/DNAViews';
 import { Suspense } from 'react';
 import { cn } from '@/lib/utils';
 import ImageGroupModal from '@/components/gallery/ImageGroupModal';
+import { GallerySelectionModal } from '@/components/gallery/GallerySelectionModal';
 import { useSettings, type UserLevel } from '@/lib/context/SettingsContext';
 
 // --- TYPES ---
@@ -55,39 +56,69 @@ export interface GeneratorState {
 // --- CONSTANTS ---
 const MODIFIER_CATEGORIES = [
     {
+        id: 'action',
+        label: 'Subject Action',
+        options: ['Playing Music', 'Running', 'Dancing', 'Flying', 'Fighting', 'Meditating', 'Laughing', 'Crying'],
+    },
+    {
         id: 'medium',
         label: 'Medium',
-        options: ['Photography', 'Oil Painting', '3D Render', 'Watercolor', 'Sketch', 'Digital Illustration', 'Polaroid', 'Anime'],
+        options: ['Photography', 'Oil Painting', '3D Render', 'Watercolor', 'Sketch', 'Digital Illustration', 'Polaroid', 'Anime', 'Statue / Sculpture', 'Claymation'],
     },
     {
         id: 'style',
         label: 'Art Style / Vibe',
-        options: ['Cyberpunk', 'Fantasy', 'Minimalist', 'Vaporwave', 'Steampunk', 'Surrealism', 'Studio Ghibli', 'Noir'],
+        options: ['Cyberpunk', 'Fantasy', 'Minimalist', 'Vaporwave', 'Steampunk', 'Surrealism', 'Studio Ghibli', 'Noir', 'Bauhaus', 'Ukiyo-e', 'Pop Art'],
     },
     {
         id: 'lighting',
         label: 'Lighting',
-        options: ['Cinematic', 'Golden Hour', 'Volumetric Fog', 'Studio Lighting', 'Neon', 'Bioluminescent', 'Harsh Shadows'],
+        options: ['Cinematic', 'Golden Hour', 'Volumetric Fog', 'Studio Lighting', 'Neon', 'Bioluminescent', 'Harsh Shadows', 'Soft Glow', 'Rim Lighting'],
+    },
+    {
+        id: 'composition',
+        label: 'Framing / Composition',
+        options: ['Rule of Thirds', 'Bird\'s Eye View', 'Low Angle', 'Symmetrical', 'Double Exposure', 'Golden Ratio', 'Panorama', 'Extreme Close-up'],
+    },
+    {
+        id: 'material',
+        label: 'Texture / Material',
+        options: ['Glassmorphism', 'Iridescent', 'Liquid Metal', 'Weathered / Rusty', 'Glossy Plastic', 'Silk / Fabric', 'Matte Finish', 'Chrome'],
+    },
+    {
+        id: 'era',
+        label: 'Era / Time Period',
+        options: ['Art Deco (1920s)', 'Retro 1980s', 'Victorian', 'Space Age (1960s)', 'Ancient Greece', 'Prehistoric', 'Cyber-Future'],
+    },
+    {
+        id: 'atmosphere',
+        label: 'Atmosphere / Weather',
+        options: ['Heavy Fog', 'Stormy', 'Rainy Streets', 'Sandstorm', 'Aurora Borealis', 'Eerie / Haunted', 'Peaceful Dawn'],
+    },
+    {
+        id: 'render',
+        label: 'Technical Rendering',
+        options: ['Ray Tracing', 'Global Illumination', 'Depth of Field', 'HDR', 'Subsurface Scattering', 'Ambient Occlusion', 'Octane Render'],
     },
     {
         id: 'camera',
         label: 'Camera & Lens',
-        options: ['35mm Lens', 'Macro', 'Drone Shot', 'Fisheye', 'Wide Angle', 'Close-up Portrait', 'Tilt-Shift'],
+        options: ['35mm Lens', 'Macro', 'Drone Shot', 'Fisheye', 'Wide Angle', 'Tilt-Shift', 'GoPro POV', 'Vintage Leica'],
     },
     {
         id: 'color',
         label: 'Color Palette',
-        options: ['High Contrast', 'Muted Tones', 'Pastel', 'Neon Colors', 'Monochromatic', 'Earthy', 'Vibrant'],
+        options: ['High Contrast', 'Muted Tones', 'Pastel', 'Neon Colors', 'Monochromatic', 'Earthy', 'Vibrant', 'Infrared', 'Duotone'],
     },
     {
         id: 'environment',
         label: 'Environment',
-        options: ['Busy Street', 'Underwater', 'Deep Space', 'Overgrown Ruins', 'Cozy Room', 'Abstract Dimension'],
+        options: ['Busy Street', 'Underwater', 'Deep Space', 'Overgrown Ruins', 'Cozy Room', 'Abstract Dimension', 'Cyber City', 'Alien Jungle'],
     },
     {
         id: 'magic',
         label: 'Magic Words',
-        options: ['Masterpiece', 'Trending on ArtStation', '8k Resolution', 'Unreal Engine 5', 'Award Winning', 'Extremely Detailed'],
+        options: ['Masterpiece', 'Trending on ArtStation', '8k Resolution', 'Unreal Engine 5', 'Award Winning', 'Extremely Detailed', 'Hyper-Realistic', 'Photorealistic'],
     }
 ];
 const CHARACTER_LIMIT = 100;
@@ -145,6 +176,7 @@ function GeneratePageContent() {
 
     // Left panel tab
     const [leftTab, setLeftTab] = useState<'exemplars' | 'current' | 'vault'>('current');
+    const [isGalleryModalOpen, setIsGalleryModalOpen] = useState(false);
 
 
 
@@ -161,6 +193,15 @@ function GeneratePageContent() {
     const [activeModifiers, setActiveModifiers] = useState<Modifier[]>([]);
     const [isModifiersOpen, setIsModifiersOpen] = useState(false);
     const [isEngineeringCoreOpen, setIsEngineeringCoreOpen] = useState(false);
+    const [openModifierCategories, setOpenModifierCategories] = useState<string[]>([]);
+
+    const toggleModifierCategory = (categoryId: string) => {
+        setOpenModifierCategories(prev =>
+            prev.includes(categoryId)
+                ? prev.filter(id => id !== categoryId)
+                : [...prev, categoryId]
+        );
+    };
 
     // Generator State
     const [genState, setGenState] = useState<GeneratorState>({
@@ -224,10 +265,13 @@ function GeneratePageContent() {
             const exemplar = exemplars.find(ex => ex.id === exemplarIdParam) ||
                 personalExemplars.find(ex => ex.id === exemplarIdParam);
             if (exemplar) {
-                handleSelectExemplar(exemplar);
-                lastAppliedExemplarId.current = exemplarIdParam;
-                setLeftTab('current');
-                showToast(`Applying masterpiece settings: ${exemplar.title}`, "success");
+                // Only auto-apply if we haven't modified the core subject yet or it's our first look
+                if (!coreSubject || coreSubject === lastAppliedExemplarId.current) {
+                    handleSelectExemplar(exemplar);
+                    lastAppliedExemplarId.current = exemplarIdParam;
+                    setLeftTab('current');
+                    showToast(`Applying masterpiece settings: ${exemplar.title}`, "success");
+                }
             }
         }
 
@@ -578,6 +622,18 @@ function GeneratePageContent() {
         fetchExemplars();
     }, [user, fetchHistory, fetchExemplars, fetchPersonalExemplars]);
 
+    const handleResetWorkspace = () => {
+        setCoreSubject('');
+        setActiveModifiers([]);
+        setCompiledPrompt('');
+        setRemixImage(null);
+        setActiveExemplarId(null);
+        setPromptEditMode('subject');
+        setOpenModifierCategories([]);
+        setIsModifiersOpen(false);
+        showToast("Studio reset. Synthesis buffers cleared.", "info");
+    };
+
     const handleRemix = (image: GeneratedImage) => {
         setCoreSubject(image.settings?.coreSubject || image.prompt);
         setRemixImage(image);
@@ -841,9 +897,15 @@ function GeneratePageContent() {
 
     const handleToggleModifier = (category: string, value: string) => {
         setActiveModifiers(prev => {
-            const exists = prev.find((m: Modifier) => m.value === value);
-            if (exists) return prev.filter((m: Modifier) => m.id !== exists.id);
-            return [...prev, { id: Date.now().toString(), category, value }];
+            const lowVal = value.toLowerCase();
+            const alreadyExists = prev.some(m => m.category === category && m.value.toLowerCase() === lowVal);
+
+            if (alreadyExists) {
+                // Remove all instances of this category + value (case-insensitive)
+                return prev.filter(m => !(m.category === category && m.value.toLowerCase() === lowVal));
+            }
+
+            return [...prev, { id: Math.random().toString(36).substring(7), category, value }];
         });
     };
 
@@ -990,7 +1052,7 @@ function GeneratePageContent() {
                                 </div>
                             </div>
 
-                            <div className="p-8">
+                            <div className="p-6">
                                 {leftTab === 'vault' && (
                                     <div className="space-y-8 animate-in fade-in slide-in-from-left-4 duration-500">
                                         <div className="flex items-center justify-between">
@@ -1308,7 +1370,7 @@ function GeneratePageContent() {
 
                                 {leftTab === 'current' && (
                                     <section className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                        <div className="flex items-center gap-4 mb-10">
+                                        <div className="flex items-center gap-4 mb-6">
                                             <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center text-primary border border-primary/30 shadow-[0_0_20px_rgba(99,102,241,0.2)]">
                                                 <Icons.wand size={24} />
                                             </div>
@@ -1320,6 +1382,19 @@ function GeneratePageContent() {
                                                     {userLevel === 'novice' ? 'Refine your prompt and add modifiers.' : 'Synthesizing architectural DNA for your masterpiece.'}
                                                 </p>
                                             </div>
+                                            <div className="ml-auto flex items-center gap-3">
+                                                {(coreSubject || activeModifiers.length > 0 || remixImage || activeExemplarId) && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={handleResetWorkspace}
+                                                        className="h-10 px-4 bg-red-500/5 border border-red-500/10 hover:bg-red-500/10 text-red-400 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] group gap-2"
+                                                    >
+                                                        <Icons.trash size={12} className="text-red-400/60 group-hover:text-red-400 transition-colors" />
+                                                        Reset
+                                                    </Button>
+                                                )}
+                                            </div>
                                         </div>
 
                                         {(() => {
@@ -1328,7 +1403,7 @@ function GeneratePageContent() {
 
                                             if (!displayImage) {
                                                 return (
-                                                    <div className="flex flex-col items-center justify-center py-24 text-center border border-white/10 rounded-3xl bg-white/5 backdrop-blur-sm relative overflow-hidden group">
+                                                    <div className="flex flex-col items-center justify-center py-16 text-center border border-white/10 rounded-3xl bg-white/5 backdrop-blur-sm relative overflow-hidden group">
                                                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(99,102,241,0.05),transparent_70%)] pointer-events-none" />
                                                         <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mb-6 border border-white/10 group-hover:border-primary/30 transition-all duration-500">
                                                             <Icons.plus size={32} className="text-white/20 group-hover:text-primary transition-colors duration-500" />
@@ -1337,11 +1412,11 @@ function GeneratePageContent() {
                                                         <p className="text-[10px] uppercase font-bold tracking-widest text-white/30 max-w-xs mb-8 leading-relaxed">
                                                             Awaiting architectural input. Select an anchor reference or begin a manual synthesis.
                                                         </p>
-                                                        <Button variant="outline" size="sm" onClick={() => setLeftTab('exemplars')} className="mb-0 rounded-xl text-[10px] font-black uppercase tracking-widest h-10 px-6 border-white/10 hover:border-primary/30 transition-all">
+                                                        <Button variant="outline" size="sm" onClick={() => setIsGalleryModalOpen(true)} className="mb-0 rounded-xl text-[10px] font-black uppercase tracking-widest h-10 px-6 border-white/10 hover:border-primary/30 transition-all">
                                                             Browse Masterpieces
                                                         </Button>
 
-                                                        <div className="w-full max-w-2xl px-6 mt-12">
+                                                        <div className="w-full max-w-2xl px-6 mt-6">
                                                             <div className={`p-8 rounded-2xl transition-all duration-500 backdrop-blur-md border ${promptEditMode === 'full' ? 'border-purple-500/30 bg-purple-500/10 shadow-[0_0_40px_rgba(168,85,247,0.15)]' : 'border-white/10 bg-white/5 shadow-2xl'}`}>
                                                                 <div className="flex items-center justify-between mb-6">
                                                                     <div className="flex items-center gap-2">
@@ -1414,51 +1489,62 @@ function GeneratePageContent() {
                                                         </div>
 
                                                         <div className="w-full max-w-2xl px-6">
-                                                            <Card id="tour-modifiers-empty" className="border-border bg-background pt-0">
+                                                            <Card id="tour-modifiers-empty" className="border-border bg-background p-0 overflow-hidden">
                                                                 <DNAStrip
                                                                     activeModifiers={activeModifiers}
                                                                     coreSubject={coreSubject}
                                                                     onRemoveModifier={handleToggleModifier}
                                                                     userLevel={userLevel}
+                                                                    isOpen={isModifiersOpen}
+                                                                    onToggle={() => setIsModifiersOpen(!isModifiersOpen)}
                                                                 />
 
-                                                                <div
-                                                                    className={`flex items-center justify-between p-4 px-6 cursor-pointer hover:bg-white/5 transition-colors ${isModifiersOpen ? 'border-b border-border/50' : ''}`}
-                                                                    onClick={() => setIsModifiersOpen(!isModifiersOpen)}
-                                                                >
-                                                                    <div className="flex items-center gap-2 text-sm font-bold">
-                                                                        {userLevel === 'novice' ? 'Style Modifiers' : 'The Modifiers Core'}
-                                                                        <span className="text-foreground-muted font-normal uppercase tracking-widest text-[10px] ml-2">
-                                                                            ({activeModifiers.length} Active)
-                                                                        </span>
-                                                                    </div>
-                                                                    {isModifiersOpen ? <Icons.chevronUp className="w-4 h-4 text-foreground-muted" /> : <Icons.chevronDown className="w-4 h-4 text-foreground-muted" />}
-                                                                </div>
-
                                                                 {isModifiersOpen && (
-                                                                    <div className="p-6 space-y-6 bg-background-secondary/30">
-                                                                        {MODIFIER_CATEGORIES.map(cat => (
-                                                                            <div key={cat.id}>
-                                                                                <h3 className="text-[10px] font-bold uppercase tracking-widest text-foreground-muted mb-3 flex justify-between">
-                                                                                    <span>{cat.label}</span>
-                                                                                    {activeModifiers.some(m => m.category === cat.id) && <Icons.check size={12} className="text-primary" />}
-                                                                                </h3>
-                                                                                <div className="flex flex-wrap gap-2">
-                                                                                    {cat.options.map(opt => {
-                                                                                        const isActive = activeModifiers.some(m => m.value === opt);
-                                                                                        return (
-                                                                                            <button
-                                                                                                key={opt}
-                                                                                                onClick={() => handleToggleModifier(cat.id, opt)}
-                                                                                                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${isActive ? "border-primary bg-primary/10 text-primary shadow-sm shadow-primary/20" : "border-border bg-background text-foreground-muted hover:border-primary/30"}`}
-                                                                                            >
-                                                                                                {opt}
-                                                                                            </button>
-                                                                                        );
-                                                                                    })}
+                                                                    <div className="p-6 space-y-6 bg-black/70 backdrop-blur-md">
+                                                                        {MODIFIER_CATEGORIES.map(cat => {
+                                                                            const isCatOpen = openModifierCategories.includes(cat.id);
+                                                                            const activeInCategory = activeModifiers.filter(m => m.category === cat.id);
+
+                                                                            return (
+                                                                                <div key={cat.id} className="border-b border-border/30 last:border-0">
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => toggleModifierCategory(cat.id)}
+                                                                                        className="w-full text-[10px] font-bold uppercase tracking-widest text-foreground-muted py-4 flex justify-between items-center group/cat"
+                                                                                    >
+                                                                                        <div className="flex items-center gap-3">
+                                                                                            <span className={activeInCategory.length > 0 ? "text-primary" : ""}>{cat.label}</span>
+                                                                                            {!isCatOpen && activeInCategory.length > 0 && (
+                                                                                                <span className="text-[9px] lowercase font-medium tracking-normal text-primary/70 italic">
+                                                                                                    &mdash; {activeInCategory.map(m => m.value).join(', ')}
+                                                                                                </span>
+                                                                                            )}
+                                                                                        </div>
+                                                                                        <div className="flex items-center gap-2">
+                                                                                            {activeInCategory.length > 0 && <Icons.check size={12} className="text-primary" />}
+                                                                                            <Icons.chevronDown size={12} className={`transition-transform duration-300 ${isCatOpen ? 'rotate-180' : ''}`} />
+                                                                                        </div>
+                                                                                    </button>
+
+                                                                                    {isCatOpen && (
+                                                                                        <div className="flex flex-wrap gap-2 pb-4 animate-in fade-in slide-in-from-top-1 duration-200">
+                                                                                            {cat.options.map(opt => {
+                                                                                                const isActive = activeModifiers.some(m => m.category === cat.id && m.value.toLowerCase() === opt.toLowerCase());
+                                                                                                return (
+                                                                                                    <button
+                                                                                                        key={opt}
+                                                                                                        onClick={() => handleToggleModifier(cat.id, opt)}
+                                                                                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${isActive ? "border-primary bg-primary/10 text-primary shadow-sm shadow-primary/20" : "border-border bg-background text-foreground-muted hover:border-primary/30"}`}
+                                                                                                    >
+                                                                                                        {opt}
+                                                                                                    </button>
+                                                                                                );
+                                                                                            })}
+                                                                                        </div>
+                                                                                    )}
                                                                                 </div>
-                                                                            </div>
-                                                                        ))}
+                                                                            );
+                                                                        })}
                                                                     </div>
                                                                 )}
                                                             </Card>
@@ -1640,45 +1726,56 @@ function GeneratePageContent() {
                                                                         coreSubject={coreSubject}
                                                                         onRemoveModifier={handleToggleModifier}
                                                                         userLevel={userLevel}
+                                                                        isOpen={isModifiersOpen}
+                                                                        onToggle={() => setIsModifiersOpen(!isModifiersOpen)}
                                                                     />
 
-                                                                    <div
-                                                                        className={`flex items-center justify-between p-6 cursor-pointer hover:bg-white/5 transition-colors ${isModifiersOpen ? 'border-b border-white/10' : ''}`}
-                                                                        onClick={() => setIsModifiersOpen(!isModifiersOpen)}
-                                                                    >
-                                                                        <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.2em] text-white">
-                                                                            {userLevel === 'novice' ? 'Visual Modifiers' : 'Structural Modifiers'}
-                                                                            <span className="text-white/20 font-mono tracking-normal ml-2">
-                                                                                [{activeModifiers.length} ACTIVE]
-                                                                            </span>
-                                                                        </div>
-                                                                        {isModifiersOpen ? <Icons.chevronUp className="w-4 h-4 text-white/40" /> : <Icons.chevronDown className="w-4 h-4 text-white/40" />}
-                                                                    </div>
-
                                                                     {isModifiersOpen && (
-                                                                        <div className="p-8 space-y-8 bg-black/20">
-                                                                            {MODIFIER_CATEGORIES.map(cat => (
-                                                                                <div key={cat.id}>
-                                                                                    <h3 className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-4 flex justify-between">
-                                                                                        <span>{cat.label}</span>
-                                                                                        {activeModifiers.some(m => m.category === cat.id) && <Icons.check size={10} className="text-primary" />}
-                                                                                    </h3>
-                                                                                    <div className="flex flex-wrap gap-2">
-                                                                                        {cat.options.map(opt => {
-                                                                                            const isActive = activeModifiers.some(m => m.value === opt);
-                                                                                            return (
-                                                                                                <button
-                                                                                                    key={opt}
-                                                                                                    onClick={() => handleToggleModifier(cat.id, opt)}
-                                                                                                    className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all duration-300 ${isActive ? "border-primary/50 bg-primary/20 text-primary shadow-lg shadow-primary/10" : "border-white/5 bg-white/5 text-white/40 hover:border-white/20 hover:text-white"}`}
-                                                                                                >
-                                                                                                    {opt}
-                                                                                                </button>
-                                                                                            );
-                                                                                        })}
+                                                                        <div className="p-8 space-y-8 bg-black/60 backdrop-blur-xl">
+                                                                            {MODIFIER_CATEGORIES.map(cat => {
+                                                                                const isCatOpen = openModifierCategories.includes(cat.id);
+                                                                                const activeInCategory = activeModifiers.filter(m => m.category === cat.id);
+
+                                                                                return (
+                                                                                    <div key={cat.id} className="border-b border-white/5 last:border-0">
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => toggleModifierCategory(cat.id)}
+                                                                                            className="w-full text-[10px] font-black uppercase tracking-widest text-white/30 py-6 flex justify-between items-center group/cat hover:text-white transition-colors"
+                                                                                        >
+                                                                                            <div className="flex items-center gap-4">
+                                                                                                <span className={activeInCategory.length > 0 ? "text-primary" : ""}>{cat.label}</span>
+                                                                                                {!isCatOpen && activeInCategory.length > 0 && (
+                                                                                                    <span className="text-[9px] font-mono tracking-normal text-white/60 italic">
+                                                                                                        &mdash; {activeInCategory.map(m => m.value).join(' + ')}
+                                                                                                    </span>
+                                                                                                )}
+                                                                                            </div>
+                                                                                            <div className="flex items-center gap-3">
+                                                                                                {activeInCategory.length > 0 && <Icons.check size={12} className="text-primary" />}
+                                                                                                <Icons.chevronDown size={14} className={`transition-transform duration-300 ${isCatOpen ? 'rotate-180' : ''}`} />
+                                                                                            </div>
+                                                                                        </button>
+
+                                                                                        {isCatOpen && (
+                                                                                            <div className="flex flex-wrap gap-2 pb-8 animate-in fade-in slide-in-from-top-1 duration-200">
+                                                                                                {cat.options.map(opt => {
+                                                                                                    const isActive = activeModifiers.some(m => m.category === cat.id && m.value.toLowerCase() === opt.toLowerCase());
+                                                                                                    return (
+                                                                                                        <button
+                                                                                                            key={opt}
+                                                                                                            onClick={() => handleToggleModifier(cat.id, opt)}
+                                                                                                            className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all duration-300 ${isActive ? "border-primary/50 bg-primary/20 text-primary shadow-lg shadow-primary/10" : "border-white/5 bg-white/5 text-white/40 hover:border-white/20 hover:text-white"}`}
+                                                                                                        >
+                                                                                                            {opt}
+                                                                                                        </button>
+                                                                                                    );
+                                                                                                })}
+                                                                                            </div>
+                                                                                        )}
                                                                                     </div>
-                                                                                </div>
-                                                                            ))}
+                                                                                );
+                                                                            })}
                                                                         </div>
                                                                     )}
                                                                 </div>
@@ -2526,7 +2623,13 @@ function GeneratePageContent() {
                     />
                 )}
             </AnimatePresence>
-        </div >
+
+            <GallerySelectionModal
+                isOpen={isGalleryModalOpen}
+                onClose={() => setIsGalleryModalOpen(false)}
+                onSelect={(img) => handleRemix(img)}
+            />
+        </div>
     );
 }
 

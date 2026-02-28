@@ -8,6 +8,7 @@ import NotificationBell from '@/components/NotificationBell';
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import CommunityGrid from '@/components/community/CommunityGrid';
 import CommunityEntryModal from '@/components/community/CommunityEntryModal';
+import CommunityGroupModal from '@/components/community/CommunityGroupModal';
 import { AnimatePresence } from 'framer-motion';
 import { useCommunity } from './useCommunity';
 import { Card } from '@/components/ui/Card';
@@ -108,6 +109,7 @@ function CommunityContent() {
                     onReact={community.handleReactUpdate}
                     onFilterUser={community.handleFilterUser}
                     onShare={community.handleShare}
+                    onSelectBatch={community.setSelectedGroup}
                     reactingEmoji={community.reactingEmoji}
                     sortMode={community.sortMode}
                     error={community.queryError}
@@ -148,6 +150,20 @@ function CommunityContent() {
                         onUpdatePromptSetID={community.handleUpdatePromptSetID}
                         isAdmin={community.isAdmin}
                         onToggleExemplar={community.handleToggleExemplar}
+                    />
+                )}
+            </AnimatePresence>
+
+            {/* Batch Group Modal */}
+            <AnimatePresence>
+                {community.selectedGroup && (
+                    <CommunityGroupModal
+                        selectedGroup={community.selectedGroup}
+                        onClose={() => community.setSelectedGroup(null)}
+                        onEntrySelect={(entry) => {
+                            community.setSelectedGroup(null);
+                            community.setSelectedEntry(entry.id);
+                        }}
                     />
                 )}
             </AnimatePresence>

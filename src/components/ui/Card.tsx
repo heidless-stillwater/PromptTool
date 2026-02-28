@@ -8,9 +8,9 @@ const Card = React.forwardRef<
     <div
         ref={ref}
         className={cn(
-            variant === 'default' && "p-6 rounded-2xl bg-card border border-border hover:border-primary/50 transition-all duration-300",
-            variant === 'glass' && "bg-background-secondary/80 backdrop-blur-xl border border-white/10 rounded-3xl",
-            variant === 'outline' && "border border-border bg-transparent rounded-2xl",
+            variant === 'default' && "p-6 rounded-xl bg-card border border-border hover:border-primary/50 transition-all duration-300 shadow-[0_4px_20px_rgba(0,0,0,0.5)]",
+            variant === 'glass' && "bg-background-secondary/80 backdrop-blur-xl border border-primary/20 rounded-2xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]",
+            variant === 'outline' && "border border-border bg-transparent rounded-xl",
             className
         )}
         {...props}

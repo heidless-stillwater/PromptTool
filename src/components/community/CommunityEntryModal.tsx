@@ -113,15 +113,22 @@ export default function CommunityEntryModal({
 
     return (
         <motion.div
-            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[1000] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 md:p-12"
             variants={backdropFade}
             initial="initial"
             animate="animate"
             exit="exit"
             onClick={onClose}
         >
+            <button
+                onClick={onClose}
+                className="absolute top-8 right-8 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center text-white z-[1010]"
+            >
+                <Icons.close size={24} />
+            </button>
+
             <motion.div
-                className="bg-background rounded-2xl max-w-5xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-white/10"
+                className="bg-black/50 border border-white/5 rounded-3xl w-full h-full flex flex-col overflow-hidden relative max-w-7xl mx-auto shadow-2xl"
                 variants={modalSlideUp}
                 initial="initial"
                 animate="animate"
@@ -130,7 +137,7 @@ export default function CommunityEntryModal({
             >
                 <div className="flex flex-col lg:flex-row min-h-0 flex-1">
                     {/* Image / Video */}
-                    <div className="flex-1 bg-background-secondary flex items-center justify-center p-4 overflow-hidden min-h-[300px] relative">
+                    <div className="flex-1 bg-[#050505] flex items-center justify-center p-4 overflow-hidden min-h-[400px] relative">
                         {(() => {
                             if (error) {
                                 return (
@@ -167,9 +174,9 @@ export default function CommunityEntryModal({
                     </div>
 
                     {/* Right Panel */}
-                    <div className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-border flex flex-col min-h-0 bg-background/50">
+                    <div className="w-full lg:w-[400px] border-t lg:border-t-0 lg:border-l border-white/5 flex flex-col min-h-0 bg-black/20 backdrop-blur-md">
                         {/* Header */}
-                        <div className="p-4 border-b border-border flex justify-between items-start bg-card/50">
+                        <div className="p-6 border-b border-white/5 flex flex-col gap-4 bg-transparent">
                             <Link
                                 href={`/profile/${entry.originalUserId}`}
                                 className="flex items-center gap-3 hover:opacity-80 transition-opacity group/modal-author"
@@ -202,9 +209,9 @@ export default function CommunityEntryModal({
                                 </div>
                             </Link>
 
-                            <div className="flex items-center gap-2 ml-auto mr-4">
-                                {onFilterUser && (
-                                    <Tooltip content={`Filter feed by ${entry.authorName}`}>
+                            <div className="flex items-center justify-between gap-3 pt-2">
+                                <div className="flex items-center gap-2">
+                                    {onFilterUser && (
                                         <Button
                                             variant="ghost"
                                             size="sm"
@@ -212,117 +219,107 @@ export default function CommunityEntryModal({
                                                 onFilterUser(entry.originalUserId, entry.authorName);
                                                 onClose();
                                             }}
-                                            className="h-8 px-2 text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary hover:bg-primary/5 gap-2"
+                                            className="h-9 px-3 text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary hover:bg-primary/10 border border-primary/10 transition-all gap-2"
                                         >
                                             <Icons.filter size={14} />
-                                            <span className="hidden sm:inline">Filter Feed</span>
+                                            Filter
                                         </Button>
-                                    </Tooltip>
-                                )}
-                            </div>
+                                    )}
+                                </div>
 
-                            <div className="flex items-center gap-2">
                                 {user && user.uid !== entry.originalUserId && (
-                                    <Tooltip content={isFollowing ? 'Unfollow' : 'Follow'} position="bottom">
-                                        <Button
-                                            onClick={onToggleFollow}
-                                            isLoading={followLoading}
-                                            size="sm"
-                                            variant={isFollowing ? 'secondary' : 'primary'}
-                                            className="uppercase text-[10px] tracking-widest px-3 py-1 font-black"
-                                        >
-                                            {isFollowing ? 'Following' : 'Follow'}
-                                        </Button>
-                                    </Tooltip>
+                                    <Button
+                                        onClick={onToggleFollow}
+                                        isLoading={followLoading}
+                                        size="sm"
+                                        variant={isFollowing ? 'secondary' : 'primary'}
+                                        className="h-9 uppercase text-[10px] tracking-widest px-4 font-black shadow-lg shadow-primary/10"
+                                    >
+                                        {isFollowing ? 'Following' : 'Follow Creator'}
+                                    </Button>
                                 )}
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={onClose}
-                                    className="p-1 hover:bg-background-secondary rounded-lg"
-                                >
-                                    <Icons.close size={20} />
-                                </Button>
                             </div>
                         </div>
 
                         {/* Unpublish Warning for Creator/Admin */}
                         {(user && (user.uid === entry.originalUserId || userRole === 'admin' || userRole === 'su')) && onUnpublish && (
-                            <div className="px-4 py-2 bg-error/5 border-b border-error/10 flex items-center justify-between group/unpublish">
-                                <div className="flex items-center gap-2 text-error/70">
-                                    <Icons.alert size={14} />
-                                    <span className="text-[10px] font-black uppercase tracking-widest">Creator Tools</span>
+                            <div className="px-6 py-3 bg-red-500/5 border-b border-red-500/10 flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-red-500/70">
+                                    <Icons.zap size={13} className="text-red-500" />
+                                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Authority Controls</span>
                                 </div>
                                 <Button
                                     variant="ghost"
                                     size="sm"
                                     onClick={onUnpublish}
                                     isLoading={isUnpublishing}
-                                    className="h-7 px-2 text-[9px] font-black uppercase tracking-widest text-error/50 hover:text-error hover:bg-error/10 border border-transparent hover:border-error/20 transition-all"
+                                    className="h-8 px-3 text-[9px] font-black uppercase tracking-widest text-red-500/60 hover:text-red-500 hover:bg-red-500/10 border border-red-500/10 transition-all"
                                 >
-                                    <Icons.delete size={12} className="mr-1" />
-                                    Remove from Hub
+                                    <Icons.delete size={12} className="mr-2" />
+                                    Purge Entry
                                 </Button>
                             </div>
                         )}
 
                         {/* Scrollable content */}
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
-                            {/* Prompt */}
-                            <div className="space-y-1 group/prompt relative">
-                                <div className="flex justify-between items-center">
-                                    <label className="text-[10px] text-foreground-muted uppercase tracking-widest font-black">Prompt</label>
-                                    <button
-                                        onClick={() => {
-                                            navigator.clipboard.writeText(entry.prompt);
-                                            showToast('Prompt copied to clipboard', 'success');
-                                        }}
-                                        className="text-[10px] font-black uppercase tracking-widest text-primary opacity-0 group-hover/prompt:opacity-100 transition-opacity hover:text-primary/80"
-                                    >
-                                        Copy Prompt
-                                    </button>
-                                </div>
-                                <p className="text-sm leading-relaxed text-foreground/90">{entry.prompt}</p>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+                            {/* Prompt Card */}
+                            <div className="p-5 bg-white/[0.03] rounded-2xl border border-white/5 space-y-4 group/prompt relative overflow-hidden">
+                                <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover/prompt:opacity-100 transition-opacity pointer-events-none" />
 
-                                <Tooltip content="Create variation" className="w-full mt-2">
-                                    <Button
-                                        onClick={() => {
-                                            const sid = entry.promptSetID || entry.settings?.promptSetID;
-                                            router.push(`/generate?ref=${entry.id}${sid ? `&sid=${sid}` : ''}`);
-                                        }}
-                                        variant="outline"
-                                        size="sm"
-                                        className="w-full gap-2 font-black uppercase text-[10px] tracking-widest text-primary border-primary/20 hover:border-primary/40 bg-primary/5 hover:bg-primary/10 transition-all h-9"
-                                    >
-                                        <Icons.variation className="w-3.5 h-3.5" />
-                                        <span>Generate Variation</span>
-                                    </Button>
-                                </Tooltip>
+                                <div className="space-y-2 relative z-10">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-[10px] text-primary uppercase tracking-[0.2em] font-black">Shared Prompt</label>
+                                        <button
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(entry.prompt);
+                                                showToast('Prompt copied to clipboard', 'success');
+                                            }}
+                                            className="p-1.5 hover:bg-white/5 rounded-lg text-white/40 hover:text-white transition-colors"
+                                        >
+                                            <Icons.copy size={14} />
+                                        </button>
+                                    </div>
+                                    <p className="text-sm leading-relaxed text-white/90 font-medium">{entry.prompt}</p>
+                                </div>
+
+                                <Button
+                                    onClick={() => {
+                                        const sid = entry.promptSetID || entry.settings?.promptSetID;
+                                        router.push(`/generate?ref=${entry.id}${sid ? `&sid=${sid}` : ''}`);
+                                    }}
+                                    variant="primary"
+                                    size="sm"
+                                    className="w-full gap-2 font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20 h-10 relative z-10"
+                                >
+                                    <Icons.wand className="w-4 h-4" />
+                                    <span>Remix this Image</span>
+                                </Button>
                             </div>
 
-                            {/* Settings */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <label className="text-[10px] text-foreground-muted uppercase tracking-widest font-black">Quality</label>
-                                    <p className="text-sm font-medium capitalize">{entry.settings.quality}</p>
+                            {/* Metadata Grid */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="p-3 bg-white/[0.02] rounded-xl border border-white/5 space-y-1">
+                                    <label className="text-[9px] text-white/40 uppercase tracking-widest font-black">Engine Quality</label>
+                                    <p className="text-xs font-bold text-white/80 capitalize">{entry.settings.quality}</p>
                                 </div>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] text-foreground-muted uppercase tracking-widest font-black">Aspect</label>
-                                    <p className="text-sm font-medium">{entry.settings.aspectRatio}</p>
+                                <div className="p-3 bg-white/[0.02] rounded-xl border border-white/5 space-y-1">
+                                    <label className="text-[9px] text-white/40 uppercase tracking-widest font-black">Spatial Aspect</label>
+                                    <p className="text-xs font-bold text-white/80">{entry.settings.aspectRatio}</p>
                                 </div>
                                 {entry.promptSetID || (user && user.uid === entry.originalUserId && onUpdatePromptSetID) ? (
-                                    <div className="space-y-1 col-span-2 group/batch">
-                                        <label className="text-[10px] text-foreground-muted uppercase tracking-widest font-black flex items-center justify-between">
-                                            Batch ID
+                                    <div className="p-3 bg-white/[0.02] rounded-xl border border-white/5 space-y-2 col-span-2 group/batch">
+                                        <label className="text-[9px] text-white/40 uppercase tracking-widest font-black flex items-center justify-between">
+                                            Batch Signature
                                             {user && user.uid === entry.originalUserId && onUpdatePromptSetID && !isEditingBatch && (
                                                 <button
                                                     onClick={() => {
                                                         setBatchValue(entry.promptSetID || '');
                                                         setIsEditingBatch(true);
                                                     }}
-                                                    className="opacity-0 group-hover/batch:opacity-100 text-primary transition-opacity"
+                                                    className="opacity-0 group-hover/batch:opacity-100 text-primary transition-opacity text-[8px]"
                                                 >
-                                                    Edit
+                                                    Modify
                                                 </button>
                                             )}
                                         </label>
@@ -332,11 +329,10 @@ export default function CommunityEntryModal({
                                                     type="text"
                                                     value={batchValue}
                                                     onChange={(e) => setBatchValue(e.target.value)}
-                                                    className="flex-1 bg-background-secondary border border-border rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-primary"
+                                                    className="flex-1 bg-black/40 border border-white/10 rounded px-2 py-1 text-[10px] font-mono focus:outline-none focus:border-primary text-white"
                                                     autoFocus
                                                 />
-                                                <Button
-                                                    size="sm"
+                                                <button
                                                     onClick={async () => {
                                                         setIsUpdatingPromptSetID(true);
                                                         try {
@@ -346,24 +342,16 @@ export default function CommunityEntryModal({
                                                             setIsUpdatingPromptSetID(false);
                                                         }
                                                     }}
-                                                    isLoading={isUpdatingPromptSetID}
-                                                    className="h-8 text-[9px] font-black uppercase tracking-widest"
+                                                    disabled={isUpdatingPromptSetID}
+                                                    className="text-[10px] font-bold text-primary hover:text-primary-hover disabled:opacity-50"
                                                 >
-                                                    Save
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => setIsEditingBatch(false)}
-                                                    className="h-8 text-[9px] font-black uppercase tracking-widest"
-                                                >
-                                                    Cancel
-                                                </Button>
+                                                    {isUpdatingPromptSetID ? '...' : 'Save'}
+                                                </button>
                                             </div>
                                         ) : (
                                             <div className="flex items-center gap-2">
-                                                <p className="text-[11px] font-mono text-foreground-muted truncate bg-background-secondary rounded px-2 py-0.5 border border-border/50 max-w-[240px]">
-                                                    {entry.promptSetID || 'No Batch ID'}
+                                                <p className="text-[10px] font-mono text-white/50 truncate flex-1">
+                                                    {entry.promptSetID || 'Individual Generation'}
                                                 </p>
                                                 {entry.promptSetID && (
                                                     <button
@@ -371,8 +359,7 @@ export default function CommunityEntryModal({
                                                             navigator.clipboard.writeText(entry.promptSetID!);
                                                             showToast('Batch ID copied', 'success');
                                                         }}
-                                                        className="text-foreground-muted hover:text-primary transition-colors"
-                                                        title="Copy Batch ID"
+                                                        className="text-white/20 hover:text-primary transition-colors"
                                                     >
                                                         <Icons.copy size={12} />
                                                     </button>
@@ -483,17 +470,17 @@ export default function CommunityEntryModal({
                             )}
 
                             {/* Vote + Share Actions */}
-                            <div className="flex flex-col gap-3 pt-4 border-t border-border/50">
+                            <div className="flex flex-col gap-4 pt-6 border-t border-white/5">
                                 <div className="flex items-center gap-3">
-                                    <Tooltip content={hasVoted ? 'Remove vote' : 'Vote'} className="flex-1">
+                                    <Tooltip content={hasVoted ? 'Remove vote' : 'Appreciate this generation'} className="flex-1">
                                         <Button
                                             onClick={() => onVote(entry.id)}
                                             isLoading={isVoting}
                                             variant={hasVoted ? 'primary' : 'outline'}
-                                            className="w-full gap-2 font-bold"
+                                            className="w-full gap-2 font-black uppercase text-[11px] tracking-widest h-12 shadow-lg shadow-primary/5 transition-all active:scale-95"
                                         >
                                             <Icons.heart className={cn("w-5 h-5", hasVoted && "fill-current")} />
-                                            <span>{entry.voteCount} {entry.voteCount === 1 ? 'vote' : 'votes'}</span>
+                                            <span>{entry.voteCount} Appreciations</span>
                                         </Button>
                                     </Tooltip>
                                     {(entry.variationCount || 0) > 0 && (
@@ -538,7 +525,7 @@ export default function CommunityEntryModal({
                             </div>
 
                             {/* Comments Section */}
-                            <div className="pt-4 border-t border-border/50">
+                            <div className="pt-6 border-t border-white/5">
                                 <CommentSection
                                     entryId={entry.id}
                                     comments={comments}
@@ -564,6 +551,6 @@ export default function CommunityEntryModal({
                 isLoading={isReporting}
                 type="warning"
             />
-        </motion.div>
+        </motion.div >
     );
 }

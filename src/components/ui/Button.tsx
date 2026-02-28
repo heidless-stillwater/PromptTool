@@ -11,24 +11,24 @@ export interface ButtonProps
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ({ className, variant = 'primary', size = 'md', isLoading, children, disabled, ...props }, ref) => {
         const variants = {
-            primary: 'bg-brand-gradient text-white shadow-lg shadow-primary/25 hover:translate-y-[-2px] hover:shadow-xl hover:shadow-primary/30',
-            secondary: 'bg-card border border-border text-foreground hover:bg-card-hover hover:border-primary/50',
-            outline: 'border border-border hover:border-primary/50 hover:bg-card-hover text-foreground',
+            primary: 'bg-gradient-to-r from-primary to-accent text-white shadow-[0_0_15px_rgba(6,182,212,0.4)] hover:shadow-[0_0_25px_rgba(217,70,239,0.6)] hover:scale-[1.02] border border-white/10',
+            secondary: 'bg-card border-2 border-border text-foreground hover:bg-card-hover hover:border-primary/50 shadow-[0_4px_10px_rgba(0,0,0,0.3)]',
+            outline: 'border-2 border-border hover:border-primary/50 hover:bg-card-hover text-foreground',
             ghost: 'hover:bg-primary/10 text-primary',
-            danger: 'bg-error/10 text-error border border-error/20 hover:bg-error/20',
+            danger: 'bg-error/10 text-error border-2 border-error/20 hover:bg-error/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.3)]',
         }
 
         const sizes = {
-            sm: 'px-3 py-1.5 text-xs',
-            md: 'px-6 py-3',
-            lg: 'px-8 py-4 text-lg',
+            sm: 'px-3 py-1.5 text-xs tracking-wider uppercase',
+            md: 'px-6 py-3 tracking-wide',
+            lg: 'px-8 py-4 text-lg tracking-widest uppercase',
             icon: 'p-2',
         }
 
         return (
             <button
                 className={cn(
-                    'relative inline-flex items-center justify-center rounded-xl font-semibold transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none',
+                    'relative inline-flex items-center justify-center rounded-lg font-bold transition-all duration-300 active:scale-[0.95] disabled:opacity-50 disabled:pointer-events-none',
                     variants[variant],
                     size !== 'icon' && sizes[size as keyof typeof sizes],
                     size === 'icon' && sizes.icon,

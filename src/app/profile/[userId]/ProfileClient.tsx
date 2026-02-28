@@ -13,8 +13,25 @@ import ProfileHero from '@/components/profile/ProfileHero';
 import ProfileStats from '@/components/profile/ProfileStats';
 import ProfilePortfolio from '@/components/profile/ProfilePortfolio';
 import FollowListModal from '@/components/profile/FollowListModal';
+import DashboardHeader from '@/components/dashboard/DashboardHeader';
+import { useAuth } from '@/lib/auth-context';
 
 export default function ProfileClient() {
+    const auth = useAuth();
+    const {
+        user: authUser,
+        profile: authProfile,
+        credits: authCredits,
+        effectiveRole: authEffectiveRole,
+        switchRole: authSwitchRole,
+        setAudienceMode: authSetAudienceMode,
+        signOut: authSignOut,
+        isAdmin: authIsAdmin,
+        isSu: authIsSu
+    } = auth;
+
+    const availableCredits = (authCredits?.balance || 0) + Math.max(0, (authCredits?.dailyAllowance || 0) - (authCredits?.dailyAllowanceUsed || 0));
+
     const profile = useProfile();
     const {
         author, images, communityEntries, communityEntryMap, loading, authLoading, queryError, stats,
@@ -54,36 +71,17 @@ export default function ProfileClient() {
 
     return (
         <div className="min-h-screen bg-background text-foreground">
-            {/* Header */}
-            <Card variant="glass" className="sticky top-0 z-50 border-x-0 border-t-0 rounded-none border-b border-border p-0">
-                <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <Link href="/dashboard">
-                            <Button variant="secondary" size="icon" className="w-9 h-9">
-                                <Icons.arrowLeft size={18} />
-                            </Button>
-                        </Link>
-                        <Link href="/dashboard" className="text-xl font-black tracking-tighter gradient-text hover:opacity-80 transition-opacity">
-                            STILLWATER<span className="text-foreground"> STUDIO</span>
-                        </Link>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <Link href="/community">
-                            <Button variant="secondary" size="sm" className="h-9 gap-2 font-black uppercase tracking-widest text-[10px]">
-                                <Icons.globe size={14} className="text-primary" />
-                                <span className="hidden sm:inline">Community Hub</span>
-                            </Button>
-                        </Link>
-                        <div className="h-6 w-px bg-border/50 mx-1" />
-                        <Link href="/dashboard">
-                            <Button variant="primary" size="sm" className="h-9 px-4 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20">
-                                Dashboard
-                            </Button>
-                        </Link>
-                    </div>
-                </div>
-            </Card>
+            <DashboardHeader
+                user={authUser}
+                profile={authProfile}
+                credits={authCredits}
+                availableCredits={availableCredits}
+                isAdminOrSu={authIsAdmin || authIsSu}
+                effectiveRole={authEffectiveRole}
+                switchRole={authSwitchRole}
+                setAudienceMode={authSetAudienceMode}
+                signOut={authSignOut}
+            />
 
             <main className="max-w-5xl mx-auto px-4 py-12">
                 <ProfileHero

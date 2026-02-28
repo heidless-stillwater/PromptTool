@@ -27,6 +27,7 @@ export function useCommunity() {
     const [isGroupedByUser, setIsGroupedByUser] = useState(false);
     const [filterUserId, setFilterUserId] = useState<string | null>(null);
     const [filterUserName, setFilterUserName] = useState<string | null>(null);
+    const [selectedGroup, setSelectedGroup] = useState<CommunityEntry[] | null>(null);
 
     // ── Pagination (still manual — TanStack infinite query is a future step) ──
     const [extraEntries, setExtraEntries] = useState<CommunityEntry[]>([]);
@@ -334,5 +335,7 @@ export function useCommunity() {
         handleUnpublishRequest,
         showUnpublishConfirm,
         setShowUnpublishConfirm,
+        selectedGroup,
+        setSelectedGroup,
     };
 }

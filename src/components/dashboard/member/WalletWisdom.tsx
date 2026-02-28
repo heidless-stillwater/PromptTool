@@ -23,8 +23,8 @@ export default function WalletWisdom({ credits }: WalletWisdomProps) {
     return (
         <div className="p-8 border border-white/10 rounded-3xl bg-black/40 backdrop-blur-md overflow-hidden relative group hover:border-white/20 transition-all duration-500">
             {/* Background Decorative Elements */}
-            <div className="absolute -right-12 -top-12 w-48 h-48 bg-primary/10 rounded-full blur-3xl" />
-            <div className="absolute -left-12 -bottom-12 w-48 h-48 bg-accent/10 rounded-full blur-3xl" />
+            <div className="absolute -right-12 -top-12 w-48 h-48 bg-primary/20 rounded-full blur-3xl" />
+            <div className="absolute -left-12 -bottom-12 w-48 h-48 bg-accent/20 rounded-full blur-3xl" />
 
             <div className="flex flex-col md:flex-row items-center gap-12 relative z-10">
                 {/* Visual Level 1: Circular Progress */}
@@ -51,8 +51,8 @@ export default function WalletWisdom({ credits }: WalletWisdomProps) {
                         />
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-5xl font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">{percentage}%</span>
-                        <span className="text-[10px] uppercase font-black text-white/50 tracking-widest mt-1">Energy Level</span>
+                        <span className="text-5xl font-black text-white drop-shadow-[0_0_20px_rgba(6,182,212,0.6)]">{percentage}%</span>
+                        <span className="text-[10px] uppercase font-black text-primary tracking-widest mt-1">Energy Flux</span>
                     </div>
                 </div>
 
@@ -70,22 +70,22 @@ export default function WalletWisdom({ credits }: WalletWisdomProps) {
 
                     {/* Level 3: Action-Oriented Logic */}
                     <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mt-6">
-                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex items-center gap-4 hover:border-white/10 transition-colors">
-                            <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center text-accent shadow-[0_0_15px_rgba(217,70,239,0.2)]">
+                        <div className="p-4 bg-background-secondary rounded-xl border border-primary/20 flex items-center gap-4 hover:border-primary/50 transition-colors shadow-[0_4px_15px_rgba(0,0,0,0.5)]">
+                            <div className="w-10 h-10 rounded-lg bg-accent/20 flex items-center justify-center text-accent shadow-[0_0_15px_rgba(217,70,239,0.4)]">
                                 <Icons.activity size={20} />
                             </div>
                             <div>
-                                <p className="text-[10px] uppercase font-black text-white/40 tracking-widest">Next Refill</p>
+                                <p className="text-[10px] uppercase font-black text-white/50 tracking-widest">Next Refill</p>
                                 <p className="font-bold text-white text-sm">In about 4 hours</p>
                             </div>
                         </div>
 
-                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex items-center gap-4 hover:border-white/10 transition-colors">
-                            <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary shadow-[0_0_15px_rgba(99,102,241,0.2)]">
+                        <div className="p-4 bg-background-secondary rounded-xl border border-primary/20 flex items-center gap-4 hover:border-primary/50 transition-colors shadow-[0_4px_15px_rgba(0,0,0,0.5)]">
+                            <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center text-primary shadow-[0_0_15px_rgba(6,182,212,0.4)]">
                                 <Icons.plus size={20} />
                             </div>
                             <div>
-                                <p className="text-[10px] uppercase font-black text-white/40 tracking-widest">Permanent Cache</p>
+                                <p className="text-[10px] uppercase font-black text-white/50 tracking-widest">Permanent Cache</p>
                                 <p className="font-bold text-white text-sm">{balance} Pro Credits</p>
                             </div>
                         </div>

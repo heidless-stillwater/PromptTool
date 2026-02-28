@@ -33,8 +33,8 @@ export default function MemberDashboard({ dashboardData }: MemberDashboardProps)
 
     return (
         <div className="min-h-screen bg-[#020203] text-white">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.08),transparent_60%)] pointer-events-none" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(168,85,247,0.05),transparent_60%)] pointer-events-none" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(6,182,212,0.15),transparent_60%)] pointer-events-none" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(217,70,239,0.1),transparent_60%)] pointer-events-none" />
 
             <DashboardHeader
                 user={user}
