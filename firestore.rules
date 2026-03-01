@@ -12,20 +12,32 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    // Global admin bypass check
+    function isAdmin() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'su'];
+    }
+
     // Users collection
     match /users/{userId} {
-      allow get, list: if true; // Public Hall of Fame/Portfolios
+      // Profiles are public to authenticated users, but listing is Restricted to Admins
+      allow get: if isAuthenticated();
+      allow list: if isAdmin();
+      
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
       
       // Follow lists are public for reading
       match /followers/{followerId} {
         allow read, list: if isAuthenticated();
-        allow write: if false; // Only via API
+        // Managed via API
+        allow write: if false;
       }
       match /following/{followingId} {
         allow read, list: if isAuthenticated();
-        allow write: if false; // Only via API
+        // Managed via API
+        allow write: if false;
       }
 
       // Notifications are private to the recipient
@@ -34,7 +46,19 @@ service cloud.firestore {
         allow create, delete: if isAdmin(); // System managed
       }
 
-      // legacy catch-all for other personal data
+      // Private image portfolio - Only the owner or admin can see all images
+      match /images/{imageId} {
+        allow read, list: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
+      }
+
+      // Subscriptions and sensitive billing data
+      match /subscriptions/{subId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isAdmin(); // Managed via Stripe webhook/API
+      }
+
+      // Catch-all for other personal data - Default to Private
       match /{allSubcollections=**} {
         allow read, list, write: if isOwner(userId) || isAdmin();
       }
@@ -42,10 +66,10 @@ service cloud.firestore {
 
     // Community Hub - public reading for authenticated users
     match /leagueEntries/{entryId} {
-      // IMPORTANT: Explicitly allowing list for the gallery query
+      // Public gallery access
       allow read, list: if isAuthenticated();
       
-      // Ownership-based mutations or admin moderation
+      // Ownership-based mutations
       allow create: if isAuthenticated() && request.resource.data.originalUserId == request.auth.uid;
       allow update: if isAuthenticated() && (
         (resource.data.originalUserId == request.auth.uid && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['reportCount', 'isModerated'])) || 
@@ -61,9 +85,9 @@ service cloud.firestore {
       // Community comments
       match /comments/{commentId} {
         allow read, list: if isAuthenticated();
-        // Comment deletion only by author or admin
-        allow create: if isAuthenticated();
+        allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
         allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+        allow update: if false; // Comments generally immutable or handled via API
       }
     }
 
@@ -97,13 +121,6 @@ service cloud.firestore {
     match /votes/{voteId} {
       allow get, list: if true; // Public Hall of Fame
       allow write: if false; // Managed via API
-    }
-    
-    // Global admin bypass check
-    function isAdmin() {
-      return isAuthenticated() && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'su'];
     }
   }
 }

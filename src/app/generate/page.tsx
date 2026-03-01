@@ -222,6 +222,8 @@ function GeneratePageContent() {
     const [compiledPrompt, setCompiledPrompt] = useState<string>('');
     const [isCompiling, setIsCompiling] = useState<boolean>(false);
     const [isEnhancing, setIsEnhancing] = useState<boolean>(false);
+    const [remainingEnhances, setRemainingEnhances] = useState<number | null>(null);
+    const [remainingCompiles, setRemainingCompiles] = useState<number | null>(null);
     const [showReviewModal, setShowReviewModal] = useState<boolean>(false);
 
     // History Sidebar State
@@ -299,17 +301,34 @@ function GeneratePageContent() {
                     return;
                 }
 
-                // If not, fetch it from Firestore
+                // 1. Try private images
+                console.log(`[Remix] Attempting to resolve private ref: ${refParam}`);
                 const { doc, getDoc } = await import('firebase/firestore');
                 const { db } = await import('@/lib/firebase');
                 const imgRef = doc(db, 'users', user.uid, 'images', refParam);
-                const snapshot = await getDoc(imgRef);
+                let snapshot = await getDoc(imgRef);
 
                 if (snapshot.exists()) {
+                    console.log(`[Remix] Found in private collection: ${refParam}`);
+                    const img = normalizeImageData(snapshot.data(), snapshot.id);
+                    handleRemix(img);
+                    return;
+                }
+
+                // 2. Try community entries (leagueEntries)
+                console.log(`[Remix] Not found in private. Checking leagueEntries: ${refParam}`);
+                const communityRef = doc(db, 'leagueEntries', refParam);
+                snapshot = await getDoc(communityRef);
+
+                if (snapshot.exists()) {
+                    console.log(`[Remix] Found in community hub: ${refParam}`);
                     const data = snapshot.data();
+                    // Normalize as GeneratedImage
                     const img = normalizeImageData(data, snapshot.id);
                     handleRemix(img);
+                    showToast('Remixing Community Masterpiece', 'success');
                 } else {
+                    console.warn(`[Remix] Image not found in either collection for ref: ${refParam}`);
                     showToast('Image not found.', 'error');
                 }
             } catch (err) {
@@ -347,9 +366,13 @@ function GeneratePageContent() {
         if (promptEditMode === 'subject') {
             setIsCompiling(true);
             try {
+                const token = await user.getIdToken();
                 const res = await fetch('/api/generate/nanobanana', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
                     body: JSON.stringify({
                         subject: coreSubject,
                         modifiers: activeModifiers.map(m => ({ category: m.category, value: m.value })),
@@ -363,7 +386,12 @@ function GeneratePageContent() {
                     })
                 });
                 const data = await res.json();
-                if (data.compiledPrompt) {
+
+                if (typeof data.remaining === 'number') {
+                    setRemainingCompiles(data.remaining);
+                }
+
+                if (data.success && data.compiledPrompt) {
                     setCompiledPrompt(data.compiledPrompt);
                     setPromptEditMode('full');
                     finalPrompt = data.compiledPrompt;
@@ -484,9 +512,13 @@ function GeneratePageContent() {
         if (!coreSubject.trim()) return;
         setIsCompiling(true);
         try {
+            const token = await user?.getIdToken();
             const res = await fetch('/api/generate/nanobanana', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({
                     subject: coreSubject,
                     modifiers: activeModifiers.map(m => ({ category: m.category, value: m.value })),
@@ -500,7 +532,12 @@ function GeneratePageContent() {
                 })
             });
             const data = await res.json();
-            if (data.compiledPrompt) {
+
+            if (typeof data.remaining === 'number') {
+                setRemainingCompiles(data.remaining);
+            }
+
+            if (data.success && data.compiledPrompt) {
                 setCompiledPrompt(data.compiledPrompt);
                 setPromptEditMode('full'); // Automatically show the result in full mode
             } else if (data.error) {
@@ -542,6 +579,12 @@ function GeneratePageContent() {
                 })
             });
             const data = await res.json();
+
+            // Update rate limit state if present
+            if (typeof data.remaining === 'number') {
+                setRemainingEnhances(data.remaining);
+            }
+
             if (data.success && data.enhanced) {
                 if (promptEditMode === 'subject') {
                     setCoreSubject(data.enhanced);
@@ -1677,19 +1720,31 @@ function GeneratePageContent() {
                                                                             )}
                                                                         </div>
                                                                         <div className="flex items-center gap-3">
-                                                                            <Button
-                                                                                size="sm"
-                                                                                variant="ghost"
-                                                                                onClick={handleCompilePrompt}
-                                                                                disabled={isCompiling || !coreSubject.trim()}
-                                                                                className="h-9 text-[10px] font-black uppercase tracking-widest text-primary hover:text-white hover:bg-primary/20 border border-primary/20 rounded-xl px-4"
-                                                                            >
-                                                                                {isCompiling ? (
-                                                                                    <><Icons.spinner className="w-3 h-3 mr-2 animate-spin" /> Weaving</>
-                                                                                ) : (
-                                                                                    <><Icons.wand className="w-3 h-3 mr-2" /> Weave</>
-                                                                                )}
-                                                                            </Button>
+                                                                            <Tooltip content="NEURAL WEAVE: Combines your Subject and Modifiers into a high-fidelity prompt using the NanoBanana AI engine. (10 per minute)" position="bottom">
+                                                                                <Button
+                                                                                    size="sm"
+                                                                                    variant="ghost"
+                                                                                    onClick={handleCompilePrompt}
+                                                                                    disabled={isCompiling || !coreSubject.trim()}
+                                                                                    className="h-9 text-[10px] font-black uppercase tracking-widest text-primary hover:text-white hover:bg-primary/20 border border-primary/20 rounded-xl px-4 relative"
+                                                                                >
+                                                                                    {isCompiling ? (
+                                                                                        <><Icons.spinner className="w-3 h-3 mr-2 animate-spin" /> Weaving</>
+                                                                                    ) : (
+                                                                                        <><Icons.wand className="w-3 h-3 mr-2" /> Weave</>
+                                                                                    )}
+                                                                                    {remainingCompiles !== null && (
+                                                                                        <span className={cn(
+                                                                                            "absolute -top-1 -right-1 z-20 px-1.5 py-0.5 rounded-full text-[8px] font-bold border shadow-sm",
+                                                                                            remainingCompiles > 0
+                                                                                                ? "bg-primary text-black border-primary/20"
+                                                                                                : "bg-red-500 text-white border-red-500/20"
+                                                                                        )}>
+                                                                                            {remainingCompiles}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </Button>
+                                                                            </Tooltip>
                                                                             <div className="flex bg-black/40 p-1 rounded-[14px] border border-white/5 mx-2">
                                                                                 <button
                                                                                     onClick={() => setPromptEditMode('subject')}
@@ -2169,20 +2224,32 @@ function GeneratePageContent() {
                                             {preflightViewMode === 'subject' ? rawPromptPreview.length : displayPrompt.length} chars
                                         </span>
                                     </div>
-                                    <Button
-                                        id="magic-enhance"
-                                        size="sm"
-                                        variant="outline"
-                                        className="text-[10px] h-6 px-2 border-primary/20 text-primary hover:bg-primary/10 transition-colors"
-                                        disabled={!coreSubject.trim() || isCompiling}
-                                        onClick={handleCompilePrompt}
-                                    >
-                                        {isCompiling ? (
-                                            <><Icons.spinner className="w-3 h-3 animate-spin mr-1" /> {userLevel === 'novice' ? 'Processing...' : 'Weaving...'}</>
-                                        ) : (
-                                            <><Icons.wand className="w-3 h-3 mr-1" /> {userLevel === 'novice' ? 'Enhance Prompt' : 'Weave Prompt'}</>
-                                        )}
-                                    </Button>
+                                    <Tooltip content="NEURAL WEAVE: Combines your Subject and Modifiers into a high-fidelity prompt using the NanoBanana AI engine. (10 per minute)" position="bottom">
+                                        <Button
+                                            id="magic-enhance"
+                                            size="sm"
+                                            variant="outline"
+                                            className="text-[10px] h-6 px-2 border-primary/20 text-primary hover:bg-primary/10 transition-colors relative"
+                                            disabled={!coreSubject.trim() || isCompiling}
+                                            onClick={handleCompilePrompt}
+                                        >
+                                            {isCompiling ? (
+                                                <><Icons.spinner className="w-3 h-3 animate-spin mr-1" /> {userLevel === 'novice' ? 'Processing...' : 'Weaving...'}</>
+                                            ) : (
+                                                <><Icons.wand className="w-3 h-3 mr-1" /> {userLevel === 'novice' ? 'Enhance Prompt' : 'Weave Prompt'}</>
+                                            )}
+                                            {remainingCompiles !== null && (
+                                                <span className={cn(
+                                                    "absolute -top-1 -right-1 z-20 px-1.5 py-0.5 rounded-full text-[8px] font-bold border shadow-sm",
+                                                    remainingCompiles > 0
+                                                        ? "bg-primary text-black border-primary/20"
+                                                        : "bg-red-500 text-white border-red-500/20"
+                                                )}>
+                                                    {remainingCompiles}
+                                                </span>
+                                            )}
+                                        </Button>
+                                    </Tooltip>
                                 </div>
 
                                 <div className={`border p-4 rounded-xl text-sm leading-relaxed mb-6 relative transition-all ${preflightViewMode === 'full' ? 'bg-purple-500/5 border-purple-500/10 text-purple-200/90 max-h-[400px] overflow-y-auto' : 'bg-background border-border/50 text-primary-light overflow-hidden'}`}>
@@ -2245,10 +2312,20 @@ function GeneratePageContent() {
                                                             <button
                                                                 onClick={handleEnhancePrompt}
                                                                 disabled={isEnhancing || (!coreSubject.trim() && !compiledPrompt)}
-                                                                className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-lg border border-primary/20 bg-primary/10 text-primary hover:bg-primary/20 transition-all flex items-center gap-2 disabled:opacity-50"
+                                                                className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-lg border border-primary/20 bg-primary/10 text-primary hover:bg-primary/20 transition-all flex items-center gap-2 disabled:opacity-50 relative group/btn"
                                                             >
                                                                 {isEnhancing ? <Icons.spinner className="w-2.5 h-2.5 animate-spin" /> : <Icons.sparkles className="w-2.5 h-2.5" />}
                                                                 Sync Enhancement
+                                                                {remainingEnhances !== null && (
+                                                                    <span className={cn(
+                                                                        "absolute -top-1 -right-1 z-20 px-1.5 py-0.5 rounded-full text-[8px] font-bold border shadow-sm",
+                                                                        remainingEnhances > 0
+                                                                            ? "bg-primary text-black border-primary/20"
+                                                                            : "bg-red-500 text-white border-red-500/20"
+                                                                    )}>
+                                                                        {remainingEnhances}
+                                                                    </span>
+                                                                )}
                                                             </button>
                                                         </Tooltip>
                                                     </div>

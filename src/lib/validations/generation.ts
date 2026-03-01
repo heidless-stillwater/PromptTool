@@ -75,3 +75,23 @@ export const suggestTagsSchema = z.object({
 });
 
 export type SuggestTagsInput = z.infer<typeof suggestTagsSchema>;
+
+/**
+ * Zod schema for Nanobanana prompt compilation.
+ */
+export const nanobananaSchema = z.object({
+    subject: z.string().min(1, "Core subject is required"),
+    modifiers: z.array(z.object({
+        category: z.string(),
+        value: z.string()
+    })).optional(),
+    aspectRatio: z.string().optional(),
+    proSettings: z.object({
+        mediaType: z.enum(['image', 'video']).optional(),
+        quality: z.string().optional(),
+        guidanceScale: z.number().optional(),
+        negativePrompt: z.string().optional()
+    }).optional()
+});
+
+export type NanobananaInput = z.infer<typeof nanobananaSchema>;

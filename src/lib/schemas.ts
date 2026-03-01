@@ -129,6 +129,11 @@ export const envSchema = z.object({
     NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: z.string().min(1),
     NEXT_PUBLIC_FIREBASE_PROJECT_ID: z.string().min(1),
     NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: z.string().min(1),
+
+    // Production Secrets (required in production)
+    STRIPE_SECRET_KEY: z.string().optional(), // Should be required in prod but optional for dev
+    STRIPE_WEBHOOK_SECRET: z.string().optional(),
+    GEMINI_API_KEY: z.string().optional(),
 });
 
 /**
