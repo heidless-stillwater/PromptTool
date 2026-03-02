@@ -19,6 +19,9 @@ import RecentCreations from '@/components/dashboard/RecentCreations';
 import CommunityPulse from '@/components/dashboard/CommunityPulse';
 import Exemplars from '@/components/dashboard/Exemplars';
 import UserPulseStats from '@/components/dashboard/UserPulseStats';
+import ResourceVitality from './ResourceVitality';
+import GlobalResourcePulse from './GlobalResourcePulse';
+import PlanManager from './PlanManager';
 
 interface SuDashboardProps {
     dashboardData: any; // Using existing data from useDashboard hook
@@ -108,6 +111,17 @@ export default function SuDashboard({ dashboardData }: SuDashboardProps) {
                             >
                                 Global
                             </Button>
+                            <Button
+                                variant={viewMode === 'plans' ? 'primary' : 'ghost'}
+                                size="sm"
+                                onClick={() => setViewMode('plans')}
+                                className={cn(
+                                    "rounded-lg text-[10px] h-9 px-4 font-black tracking-widest uppercase transition-all duration-300",
+                                    viewMode === 'plans' ? "bg-amber-500/20 text-amber-500 shadow-sm" : "text-white/40 hover:text-white"
+                                )}
+                            >
+                                Plans
+                            </Button>
                         </div>
                     </div>
                 </div>
@@ -145,6 +159,24 @@ export default function SuDashboard({ dashboardData }: SuDashboardProps) {
                         Analytics
                     </Button>
                 </div>
+
+                <div className="mb-10">
+                    {viewMode === 'global' ? (
+                        <GlobalResourcePulse />
+                    ) : viewMode === 'plans' ? (
+                        <PlanManager />
+                    ) : (
+                        <ResourceVitality
+                            usage={dashboardData.resourceUsageData?.usage || {}}
+                            quotas={dashboardData.resourceUsageData?.quotas || { storageBytes: 0, dbWritesDaily: 0, cpuTimeMsPerMonth: 0, burstAllowanceBytes: 0 }}
+                            burstUsed={dashboardData.resourceUsageData?.burstUsed || false}
+                            burstAuthorized={dashboardData.resourceUsageData?.burstAuthorized || false}
+                            tier={dashboardData.resourceUsageData?.tier || 'free'}
+                            loading={dashboardData.resourceUsageLoading}
+                        />
+                    )}
+                </div>
+
 
                 <div className="p-6 mb-10 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm relative overflow-hidden">
                     <div className="absolute right-0 top-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl pointer-events-none" />

@@ -9,6 +9,10 @@ export const maxDuration = 30;
 export const POST = withApiHandler({
     schema: enhancePromptSchema,
     requireAuth: true,
+    resourceCheck: {
+        resource: 'dbWritesDaily',
+        amount: 1
+    },
     handler: async (req, { body, userId }) => {
         // 1. Rate Limiting (5 requests per minute)
         const { success, remaining } = await rateLimit(userId!, {

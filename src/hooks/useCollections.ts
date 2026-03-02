@@ -40,15 +40,23 @@ export function useCollections() {
     }, [user, queryClient]);
 
     const handleCreate = async (name: string, privacy: 'public' | 'private' = 'private') => {
-        if (!name || !name.trim() || !user) {
-            showToast('Collection name is required', 'error');
-            return;
-        }
-
         if (name.length > 50) {
             showToast('Collection name is too long (max 50 chars)', 'error');
             return;
         }
+
+        // Hard Cap: Check collection limit (from query data)
+        const tier = (user as any)?.subscription || 'free';
+        const { SUBSCRIPTION_PLANS } = await import('@/lib/types');
+        const plan = (SUBSCRIPTION_PLANS as any)[tier] || SUBSCRIPTION_PLANS.free;
+        const maxCollections = plan.resourceQuotas.maxCollections;
+
+        if (maxCollections !== -1 && collections.length >= maxCollections) {
+            showToast(`Collection limit reached (${maxCollections}). Upgrade for more!`, 'error');
+            return;
+        }
+
+        if (!user) return; // Final safety check for TS
 
         setIsCreating(true);
         try {

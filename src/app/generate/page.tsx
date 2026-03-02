@@ -437,7 +437,11 @@ function GeneratePageContent() {
                 }),
             });
 
-            if (!res.ok) throw new Error('Live generation failed');
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                const errorMessage = errorData.error || `Generation failed (${res.status})`;
+                throw new Error(errorMessage);
+            }
 
             const reader = res.body?.getReader();
             const decoder = new TextDecoder();
@@ -460,9 +464,10 @@ function GeneratePageContent() {
                                 const data = JSON.parse(dataStr);
                                 if (data.type === 'error') {
                                     console.error('API Error:', data.error);
-                                    setGenerationMessage(`Error: ${data.error}`);
+                                    const errorMsg = data.error || 'Generation failed';
+                                    setGenerationMessage(`Error: ${errorMsg}`);
+                                    showToast(errorMsg, 'error');
                                     setIsGenerating(false);
-                                    // You might want to add a toast here
                                     return;
                                 }
                                 if (data.type === 'progress') {
@@ -493,6 +498,9 @@ function GeneratePageContent() {
                 console.log('Generation cancelled by user');
             } else {
                 console.error('Generation Error:', error);
+                const msg = error.message || 'Generation failed';
+                setGenerationMessage(`Error: ${msg}`);
+                showToast(msg, 'error');
             }
         } finally {
             setIsGenerating(false);

@@ -10,6 +10,10 @@ export const maxDuration = 60; // Extra time for Gemini
 export const POST = withApiHandler({
     schema: nanobananaSchema,
     requireAuth: true,
+    resourceCheck: {
+        resource: 'dbWritesDaily',
+        amount: 1
+    },
     handler: async (req, { body, userId }) => {
         const { subject, modifiers, aspectRatio, proSettings } = body;
 

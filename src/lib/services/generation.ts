@@ -1,6 +1,7 @@
 import { adminDb, adminStorage } from '../firebase-admin';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
-import { CREDIT_COSTS, ImageQuality, AspectRatio, GeneratedImage, MadLibsSelection, SUBSCRIPTION_PLANS, MediaModality, ADMIN_EMAILS } from '../types';
+import { MediaModality, ImageQuality, AspectRatio, GeneratedImage, MadLibsSelection, SUBSCRIPTION_PLANS, CREDIT_COSTS, ADMIN_EMAILS } from '../types';
+import { checkResourceQuota } from '../resource-guard';
 
 export interface GenerationValidationResult {
     userId: string;
@@ -171,6 +172,13 @@ export class GenerationService {
 
         const file = bucket.file(filename);
         const mediaBuffer = Buffer.from(media.data, 'base64');
+        const byteSize = mediaBuffer.length;
+
+        // Resource Quota Check (Storage)
+        const storageCheck = await checkResourceQuota(userId, 'storageBytes', byteSize);
+        if (!storageCheck.success) {
+            throw new Error(storageCheck.error || 'Storage quota exceeded');
+        }
 
         await file.save(mediaBuffer, {
             metadata: { contentType: media.mimeType },
@@ -203,6 +211,7 @@ export class GenerationService {
             settings,
             imageUrl: (actualModality === 'video' && initialImageUrl) ? initialImageUrl : mediaUrl,
             storagePath: filename,
+            byteSize,
             creditsCost: isVideo ? CREDIT_COSTS.video : CREDIT_COSTS[quality as ImageQuality],
             createdAt: Timestamp.now(),
             downloadCount: 0,

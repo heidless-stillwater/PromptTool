@@ -1,18 +1,39 @@
 'use client';
 
 import { useAuth } from '@/lib/auth-context';
-import { SUBSCRIPTION_PLANS, SubscriptionTier } from '@/lib/types';
+import { SUBSCRIPTION_PLANS, SubscriptionPlan, SubscriptionTier } from '@/lib/types';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
 import { Badge } from '@/components/ui/Badge';
 
 export default function PricingPage() {
-    const { user, profile, loading } = useAuth();
+    const { user, profile, loading: authLoading } = useAuth();
+    const [dynamicPlans, setDynamicPlans] = useState<Record<SubscriptionTier, SubscriptionPlan> | null>(null);
+    const [plansLoading, setPlansLoading] = useState(true);
     const [processingPlan, setProcessingPlan] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchPlans = async () => {
+            try {
+                const res = await fetch('/api/admin/plans');
+                if (res.ok) {
+                    const data = await res.json();
+                    setDynamicPlans(data);
+                }
+            } catch (e) {
+                console.error('Failed to fetch dynamic plans, falling back to constants', e);
+            } finally {
+                setPlansLoading(false);
+            }
+        };
+        fetchPlans();
+    }, []);
+
+    const plans = dynamicPlans || SUBSCRIPTION_PLANS;
 
     const handleUpgrade = async (planId: SubscriptionTier) => {
         if (!user) {
@@ -49,7 +70,7 @@ export default function PricingPage() {
         }
     };
 
-    if (loading) {
+    if (authLoading || plansLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <Icons.spinner className="w-8 h-8 animate-spin text-primary" />
@@ -73,22 +94,22 @@ export default function PricingPage() {
 
             <main className="max-w-7xl mx-auto px-4 py-16">
                 <div className="text-center mb-16">
-                    <h1 className="text-4xl md:text-5xl font-black mb-4">
+                    <h1 className="text-4xl md:text-5xl font-black mb-4 uppercase tracking-tighter">
                         Choose Your <span className="gradient-text">Creative Power</span>
                     </h1>
-                    <p className="text-foreground-muted text-lg max-w-2xl mx-auto">
+                    <p className="text-foreground-muted text-lg max-w-2xl mx-auto font-medium">
                         Unlock high-resolution generation, professional tools, and a massive daily credit allowance.
                     </p>
                 </div>
 
                 {error && (
-                    <div className="max-w-md mx-auto mb-8 p-4 bg-error/10 border border-error/20 rounded-xl text-error text-center text-sm">
+                    <div className="max-w-md mx-auto mb-8 p-4 bg-error/10 border border-error/20 rounded-xl text-error text-center text-sm font-bold uppercase tracking-tight">
                         {error}
                     </div>
                 )}
 
                 <div className="grid md:grid-cols-3 gap-8 items-start">
-                    {Object.values(SUBSCRIPTION_PLANS).map((plan) => {
+                    {(Object.values(plans) as SubscriptionPlan[]).map((plan) => {
                         const isCurrent = profile?.subscription === plan.id;
                         const isPro = plan.id === 'pro';
                         const isFree = plan.id === 'free';
@@ -103,18 +124,18 @@ export default function PricingPage() {
                                     }`}
                             >
                                 {isPro && (
-                                    <Badge variant="accent" className="absolute -top-4 left-1/2 -translate-x-1/2 shadow-lg shadow-accent/20 rounded-full px-4 py-1">
+                                    <Badge variant="accent" className="absolute -top-4 left-1/2 -translate-x-1/2 shadow-lg shadow-accent/20 rounded-full px-4 py-1 text-[10px] font-black uppercase tracking-widest">
                                         Best Value
                                     </Badge>
                                 )}
 
                                 <div className="mb-8">
-                                    <h3 className="text-xl font-bold mb-2">{plan.name}</h3>
+                                    <h3 className="text-xl font-black uppercase tracking-tight mb-2">{plan.name}</h3>
                                     <div className="flex items-baseline gap-1">
                                         <span className="text-4xl font-black">
                                             ${plan.price === 0 ? '0' : (plan.price / 100).toFixed(2)}
                                         </span>
-                                        <span className="text-foreground-muted">/mo</span>
+                                        <span className="text-foreground-muted text-xs font-bold uppercase tracking-widest">/mo</span>
                                     </div>
                                 </div>
 
@@ -122,7 +143,7 @@ export default function PricingPage() {
                                     {plan.features.map((feature, i) => (
                                         <li key={i} className="flex gap-3 text-sm">
                                             <Icons.check className={`shrink-0 w-5 h-5 ${isPro ? 'text-accent' : 'text-primary'}`} />
-                                            <span className="text-foreground-muted group-hover:text-foreground transition-colors">{feature}</span>
+                                            <span className="text-foreground-muted group-hover:text-foreground transition-colors font-medium">{feature}</span>
                                         </li>
                                     ))}
                                 </ul>
@@ -131,7 +152,7 @@ export default function PricingPage() {
                                     onClick={() => !isCurrent && !isFree && handleUpgrade(plan.id)}
                                     disabled={isCurrent || isFree || processingPlan === plan.id}
                                     isLoading={processingPlan === plan.id}
-                                    className={`w-full py-4 h-14 rounded-xl font-bold transition-all duration-300 ${isCurrent
+                                    className={`w-full py-4 h-14 rounded-xl font-black uppercase tracking-widest transition-all duration-300 ${isCurrent
                                         ? 'bg-foreground/5 text-foreground-muted cursor-default border border-border hover:bg-foreground/5'
                                         : isFree
                                             ? 'bg-foreground/5 text-foreground-muted cursor-default hover:bg-foreground/5'
@@ -148,8 +169,8 @@ export default function PricingPage() {
                 </div>
 
                 <div className="mt-20 text-center">
-                    <p className="text-foreground-muted text-sm italic">
-                        All payments are processed securely via Stripe.
+                    <p className="text-foreground-muted text-[10px] font-black uppercase tracking-[0.2em]">
+                        All payments are processed securely via Stripe. <br />
                         Bonus credits are added instantly upon successful checkout.
                     </p>
                 </div>

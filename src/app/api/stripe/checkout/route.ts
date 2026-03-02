@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { adminAuth } from '@/lib/firebase-admin';
-import { SUBSCRIPTION_PLANS, SubscriptionTier } from '@/lib/types';
+import { SubscriptionTier } from '@/lib/types';
+import { getDynamicPlans } from '@/lib/services/plans';
 
 export async function POST(req: NextRequest) {
     try {
@@ -21,12 +22,13 @@ export async function POST(req: NextRequest) {
 
         // 2. Parse Request
         const { planId } = await req.json();
+        const dynamicPlans = await getDynamicPlans();
 
-        if (!planId || !SUBSCRIPTION_PLANS[planId as SubscriptionTier]) {
+        if (!planId || !dynamicPlans[planId as SubscriptionTier]) {
             return NextResponse.json({ error: 'Invalid plan ID' }, { status: 400 });
         }
 
-        const plan = SUBSCRIPTION_PLANS[planId as SubscriptionTier];
+        const plan = dynamicPlans[planId as SubscriptionTier];
         const priceId = plan.stripePriceId;
 
         if (!priceId) {

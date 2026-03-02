@@ -12,11 +12,13 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
 import { cn } from '@/lib/utils';
+import DashboardHeader from '@/components/dashboard/DashboardHeader';
 
 export default function LeaderboardPage() {
-    const { user: currentUser, profile, loading: authLoading } = useAuth();
+    const { user: currentUser, profile, credits, loading: authLoading, signOut, switchRole, effectiveRole, setAudienceMode, isAdmin, isSu } = useAuth();
     const router = useRouter();
     const { showToast } = useToast();
+    const availableCredits = (credits?.balance || 0) + Math.max(0, (credits?.dailyAllowance || 0) - (credits?.dailyAllowanceUsed || 0));
     const [topCreators, setTopCreators] = useState<UserProfile[]>([]);
     const [timeframe, setTimeframe] = useState<'all-time' | 'weekly'>('all-time');
     const [loading, setLoading] = useState(true);
@@ -186,25 +188,17 @@ export default function LeaderboardPage() {
 
     return (
         <div className="min-h-screen pb-20">
-            {/* Header */}
-            <Card variant="glass" className="sticky top-0 z-50 rounded-none border-x-0 border-t-0 border-b border-border">
-                <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <Link href="/community" className="text-xl font-bold gradient-text">
-                            Community Hub
-                        </Link>
-                        <span className="text-border">/</span>
-                        <h1 className="text-sm font-bold uppercase tracking-widest text-foreground-muted">Hall of Fame</h1>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                        <Button variant="secondary" onClick={() => router.push('/community')} size="sm">
-                            <Icons.arrowLeft size={16} className="mr-2" />
-                            Back to Gallery
-                        </Button>
-                    </div>
-                </div>
-            </Card>
+            <DashboardHeader
+                user={currentUser}
+                profile={profile}
+                credits={credits}
+                availableCredits={availableCredits}
+                isAdminOrSu={isAdmin || isSu}
+                effectiveRole={effectiveRole}
+                switchRole={switchRole}
+                setAudienceMode={setAudienceMode}
+                signOut={signOut}
+            />
 
             <main className="max-w-4xl mx-auto px-4 py-12">
                 <div className="text-center mb-16 relative">

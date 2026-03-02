@@ -144,5 +144,7 @@ export const Icons = {
     trash: Trash2,
     minus: Minus,
     terminal: Terminal,
-    lock: Lock
+    lock: Lock,
+    google: Globe,
+    alertCircle: AlertCircle,
 }

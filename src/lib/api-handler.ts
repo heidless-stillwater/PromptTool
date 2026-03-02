@@ -2,12 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { adminAuth } from '@/lib/firebase-admin';
 
+import { checkResourceQuota, ResourceCheckResult } from './resource-guard';
+import { ResourceQuotas } from './types';
+
 // Re-export common types
 export type ApiResponse<T = any> = {
     success: boolean;
     data?: T;
     error?: string;
     message?: string;
+    resourceStatus?: ResourceCheckResult;
 };
 
 type ApiHandlerConfig<TBody = any, TQuery = any> = {
@@ -15,8 +19,47 @@ type ApiHandlerConfig<TBody = any, TQuery = any> = {
     querySchema?: z.ZodSchema<TQuery>;
     requireAuth?: boolean;
     requireAdmin?: boolean;
+    resourceCheck?: {
+        resource: keyof Omit<ResourceQuotas, 'burstAllowanceBytes'>;
+        amount?: number;
+    };
     handler: (req: NextRequest, context: { body: TBody; query: TQuery; userId?: string }) => Promise<NextResponse>;
 };
+
+/**
+ * Standalone Auth Helper for API Routes
+ */
+export async function getAuthContext(req: Request) {
+    const authHeader = req.headers.get('Authorization');
+    let decodedToken;
+
+    if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        try {
+            decodedToken = await adminAuth.verifyIdToken(token);
+        } catch (e) {
+            console.error('[API Auth] Token verification failed:', e);
+        }
+    } else {
+        // Fallback to session cookie (for browser calls)
+        const cookieHeader = req.headers.get('cookie') || '';
+        const sessionCookie = cookieHeader.split('; ').find(row => row.startsWith('session='))?.split('=')[1];
+        if (sessionCookie) {
+            try {
+                decodedToken = await adminAuth.verifySessionCookie(sessionCookie);
+            } catch (e) {
+                console.error('[API Auth] Session verification failed:', e);
+            }
+        }
+    }
+
+    if (!decodedToken) return { user: null, profile: null };
+
+    return {
+        user: { uid: decodedToken.uid },
+        profile: decodedToken as any // Contains role, email, etc.
+    };
+}
 
 /**
  * Standardized API Handler Wrapper
@@ -31,28 +74,17 @@ export function withApiHandler<TBody = any, TQuery = any>(config: ApiHandlerConf
 
             // 1. Authentication Check
             if (config.requireAuth || config.requireAdmin) {
-                const authHeader = req.headers.get('Authorization');
-                let decodedToken;
+                const { user, profile } = await getAuthContext(req);
 
-                if (authHeader?.startsWith('Bearer ')) {
-                    const token = authHeader.substring(7);
-                    decodedToken = await adminAuth.verifyIdToken(token);
-                } else {
-                    const sessionCookie = req.cookies.get('session')?.value;
-                    if (sessionCookie) {
-                        decodedToken = await adminAuth.verifySessionCookie(sessionCookie);
-                    }
-                }
-
-                if (!decodedToken) {
+                if (!user) {
                     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
                 }
 
-                userId = decodedToken.uid;
+                userId = user.uid;
 
                 // 2. Admin Check
                 if (config.requireAdmin) {
-                    if (decodedToken.role !== 'admin' && decodedToken.role !== 'su') {
+                    if (profile?.role !== 'admin' && profile?.role !== 'su') {
                         return NextResponse.json({ success: false, error: 'Forbidden: Admin access required' }, { status: 403 });
                     }
                 }
@@ -95,8 +127,28 @@ export function withApiHandler<TBody = any, TQuery = any>(config: ApiHandlerConf
                 queryData = result.data;
             }
 
-            // 5. Execute Handler
-            return await config.handler(req, { body, query: queryData, userId });
+            // 5. Resource Quota Check
+            let resourceStatus: ResourceCheckResult | undefined;
+            if (config.resourceCheck && userId) {
+                resourceStatus = await checkResourceQuota(
+                    userId,
+                    config.resourceCheck.resource,
+                    config.resourceCheck.amount || 1
+                );
+
+                if (!resourceStatus.success) {
+                    return NextResponse.json({
+                        success: false,
+                        error: resourceStatus.error,
+                        resourceStatus
+                    }, { status: 429 });
+                }
+            }
+
+            // 6. Execute Handler
+            const response = await config.handler(req, { body, query: queryData, userId });
+
+            return response;
 
         } catch (error: any) {
             // Centralized Error Reporting (Wire Sentry here)

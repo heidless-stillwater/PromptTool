@@ -273,6 +273,23 @@ export interface Collection {
 // Subscription & Stripe Types
 // ============================================
 
+export interface ResourceQuotas {
+    storageBytes: number;     // Total storage in bytes
+    dbWritesDaily: number;    // Daily database write operations (-1 for unlimited)
+    cpuTimeMsPerMonth: number; // Monthly CPU/Function compute time in ms
+    maxCollections: number;    // Limit on private collections (-1 for unlimited)
+    maxConcurrentGens: number; // Maximum parallel generation tasks
+    burstAllowanceBytes: number; // One-time "Oxygen Tank" burst in bytes
+}
+
+export const RESOURCE_LABELS: Record<string, string> = {
+    storageBytes: 'Storage Space',
+    dbWritesDaily: 'Database Operations',
+    cpuTimeMsPerMonth: 'AI Compute Time',
+    maxCollections: 'Personal Collections',
+    maxConcurrentGens: 'Parallel Generations',
+};
+
 export interface SubscriptionPlan {
     id: SubscriptionTier;
     name: string;
@@ -284,6 +301,7 @@ export interface SubscriptionPlan {
     allowedQualities: ImageQuality[];
     batchGeneration: boolean;
     stripePriceId?: string;
+    resourceQuotas: ResourceQuotas;
 }
 
 export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
@@ -301,6 +319,14 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
         allowedModes: ['casual'],
         allowedQualities: ['standard'],
         batchGeneration: false,
+        resourceQuotas: {
+            storageBytes: 1 * 1024 * 1024 * 1024, // 1GB
+            dbWritesDaily: 500,
+            cpuTimeMsPerMonth: 30 * 1000, // 30s
+            maxCollections: 3,
+            maxConcurrentGens: 1,
+            burstAllowanceBytes: 100 * 1024 * 1024 // 100MB
+        }
     },
     standard: {
         id: 'standard',
@@ -318,6 +344,14 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
         allowedQualities: ['standard', 'high'],
         batchGeneration: false,
         stripePriceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_STANDARD,
+        resourceQuotas: {
+            storageBytes: 10 * 1024 * 1024 * 1024, // 10GB
+            dbWritesDaily: 5000,
+            cpuTimeMsPerMonth: 300 * 1000, // 300s
+            maxCollections: 10,
+            maxConcurrentGens: 3,
+            burstAllowanceBytes: 500 * 1024 * 1024 // 500MB
+        }
     },
     pro: {
         id: 'pro',
@@ -338,6 +372,14 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
         allowedQualities: ['standard', 'high', 'ultra'],
         batchGeneration: true,
         stripePriceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO,
+        resourceQuotas: {
+            storageBytes: 100 * 1024 * 1024 * 1024, // 100GB
+            dbWritesDaily: -1, // Unlimited
+            cpuTimeMsPerMonth: 3000 * 1000, // 3000s (50 mins)
+            maxCollections: -1, // Unlimited
+            maxConcurrentGens: 10,
+            burstAllowanceBytes: 1024 * 1024 * 1024 // 1GB
+        }
     },
 };
 

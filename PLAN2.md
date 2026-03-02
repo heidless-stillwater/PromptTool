@@ -98,9 +98,11 @@ Ensuring the platform stays stable as it scales.
     - ✅ `src/__tests__/date-utils.test.ts` — 4 tests covering `formatDate` including null guard bug discovered and fixed.
     - ✅ All **37 tests green**. Bug found: `formatDate(null)` returned `'Unknown'` → fixed to `''`.
 
-### 4.2 End-to-End Testing (Playwright) 🔄 **Proposed**
+### 4.2 End-to-End Testing (Playwright) ✅ **Initiated**
 - **Goal**: Critical path verification.
-- **Execution**: Automate testing for "Login -> Generate -> Publish to League" flow.
+- **Execution**: 
+    - ✅ Created `e2e/generation-flow.spec.ts` for critical path coverage.
+    - 🔄 Integrate with CI/CD and automate "Login -> Generate -> Publish" flow.
 
 ---
 

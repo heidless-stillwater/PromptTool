@@ -31,6 +31,8 @@ export const queryKeys = {
         exemplars: ['dashboard', 'exemplars'] as const,
         creditHistory: (userId: string) =>
             ['dashboard', 'creditHistory', userId] as const,
+        usage: (userId: string) =>
+            ['dashboard', 'usage', userId] as const,
     },
     profile: {
         public: (userId: string) => ['profile', 'public', userId] as const,
@@ -256,15 +258,15 @@ export function useCommunityEntry(entryId: string | null) {
 // Dashboard Images Query
 // ============================================
 
-export function useDashboardImages(userId: string | undefined, viewMode: string, isSu: boolean) {
+export function useDashboardImages(userId: string | undefined, viewMode: string, isAdmin: boolean) {
     return useQuery({
         queryKey: queryKeys.dashboard.images(userId || '', viewMode),
         queryFn: async () => {
             if (!userId) return [];
             let q;
             const isPersonal = viewMode === 'personal';
-            const isGlobal = viewMode === 'global' && isSu;
-            const isAdminView = viewMode === 'admin' && isSu;
+            const isGlobal = viewMode === 'global' && isAdmin;
+            const isAdminView = viewMode === 'admin' && isAdmin;
 
             if (isPersonal) {
                 const imagesRef = collection(db, 'users', userId, 'images');
@@ -304,6 +306,29 @@ export function useCreditHistory(userId: string | undefined) {
         },
         enabled: !!userId,
         staleTime: 60 * 1000,
+    });
+}
+
+// ============================================
+// Resource Usage Query
+// ============================================
+
+export function useResourceUsageQuery(userId: string | undefined) {
+    const { user } = useAuth();
+    return useQuery({
+        queryKey: queryKeys.dashboard.usage(userId || ''),
+        queryFn: async () => {
+            if (!user) return null;
+            const token = await user.getIdToken();
+            const res = await fetch('/api/user/usage', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Failed to fetch usage');
+            return res.json();
+        },
+        enabled: !!userId && !!user,
+        staleTime: 30 * 1000,
+        refetchInterval: 60 * 1000, // Refresh every minute
     });
 }
 // ============================================

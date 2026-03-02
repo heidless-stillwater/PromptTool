@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, adminStorage } from '@/lib/firebase-admin';
+import { checkResourceQuota } from '@/lib/resource-guard';
 
 export async function POST(request: NextRequest) {
     try {
@@ -52,6 +53,17 @@ export async function POST(request: NextRequest) {
         // Strip data URL prefix if present
         const base64Data = thumbnailBase64.replace(/^data:image\/\w+;base64,/, '');
         const thumbnailBuffer = Buffer.from(base64Data, 'base64');
+        const byteSize = thumbnailBuffer.length;
+
+        // Resource Quota Check (Storage)
+        const storageCheck = await checkResourceQuota(userId, 'storageBytes', byteSize);
+        if (!storageCheck.success) {
+            return NextResponse.json({
+                success: false,
+                error: storageCheck.error,
+                resourceStatus: storageCheck
+            }, { status: 429 });
+        }
 
         await thumbnailFile.save(thumbnailBuffer, {
             metadata: {

@@ -18,7 +18,7 @@ import CreditActivity from '@/components/dashboard/CreditActivity';
 import RecentCreations from '@/components/dashboard/RecentCreations';
 import CommunityPulse from '@/components/dashboard/CommunityPulse';
 
-import { Suspense } from 'react';
+import { Suspense, useEffect } from 'react';
 import { SkeletonDashboard } from '@/components/ui/SkeletonDashboard';
 
 import SuDashboard from '@/components/dashboard/SuDashboard';

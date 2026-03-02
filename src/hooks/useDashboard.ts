@@ -27,6 +27,7 @@ import {
     useDashboardExemplars,
     useCollectionsQuery,
     useCreditHistory,
+    useResourceUsageQuery,
     queryKeys
 } from './queries/useQueryHooks';
 
@@ -42,7 +43,7 @@ export function useDashboard() {
     const [isTagModalOpen, setIsTagModalOpen] = useState(false);
 
     // Filter & View State
-    const [viewMode, setViewMode] = useState<'personal' | 'admin' | 'global'>('personal');
+    const [viewMode, setViewMode] = useState<'personal' | 'admin' | 'global' | 'plans'>('personal');
     const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
     const [isGrouped, setIsGrouped] = useState(true);
     const [isVerifyingUpgrade, setIsVerifyingUpgrade] = useState(false);
@@ -59,11 +60,12 @@ export function useDashboard() {
 
     // ── TanStack Queries ───────────────────────────────────────
 
-    const { data: recentImages = [], isLoading: loadingImages } = useDashboardImages(user?.uid, viewMode, isSu);
+    const { data: recentImages = [], isLoading: loadingImages } = useDashboardImages(user?.uid, viewMode, isAdmin);
     const { data: recentCommunityEntries = [], isLoading: loadingCommunity } = useDashboardCommunityRecent();
     const { data: exemplars = [], isLoading: loadingExemplars } = useDashboardExemplars();
     const { data: collections = [] } = useCollectionsQuery(user?.uid);
     const { data: creditHistory = [], isLoading: loadingHistory } = useCreditHistory(user?.uid);
+    const { data: resourceUsageData, isLoading: resourceUsageLoading } = useResourceUsageQuery(user?.uid);
 
     const groupImagesByPromptSet = (images: GeneratedImage[]) => {
         const groups: Record<string, GeneratedImage[]> = {};
@@ -146,33 +148,42 @@ export function useDashboard() {
 
         setIsBulkDeleting(true);
         try {
+            const imageIdArray = Array.from(selectedIds);
+            const token = await user.getIdToken();
+
+            // 1. Call robust server-side delete
+            const res = await fetch('/api/user/images/bulk-delete', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ imageIds: imageIdArray })
+            });
+
+            if (!res.ok) throw new Error('Bulk delete API failed');
+
+            // 2. Handle Collection Counts (still in client for now for speed, or could move to API)
             const collectionDecrements: Record<string, number> = {};
-
-            await Promise.all(Array.from(selectedIds).map(async (id) => {
+            imageIdArray.forEach(id => {
                 const img = recentImages.find((i: GeneratedImage) => i.id === id);
-                if (!img) return;
-
-                await deleteDoc(doc(db, 'users', user.uid, 'images', id));
-                if (img.storagePath) {
-                    try { await deleteObject(ref(storage, img.storagePath)); } catch (e) { }
-                }
-
-                if (img.collectionIds) {
+                if (img?.collectionIds) {
                     img.collectionIds.forEach(colId => {
                         collectionDecrements[colId] = (collectionDecrements[colId] || 0) + 1;
                     });
                 }
-            }));
+            });
 
-            // Stats updates
+            // Update collection counts in Firestore
             await Promise.all(Object.entries(collectionDecrements).map(([colId, count]) =>
                 updateDoc(doc(db, 'users', user.uid, 'collections', colId), {
                     imageCount: increment(-count)
                 })
             ));
 
-            // Invalidate queries to refresh UI
-            queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.images(user.uid, viewMode) });
+            // 3. Invalidate queries and reset state
+            queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.images(user.uid, 'personal') });
+            queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.usage(user.uid) });
             queryClient.invalidateQueries({ queryKey: queryKeys.collections.all(user.uid) });
 
             setSelectedIds(new Set());
@@ -291,7 +302,7 @@ export function useDashboard() {
     return {
         // State
         user, profile, authLoading, credits, availableCredits, energyPercentage, recentImages, creditHistory, recentCommunityEntries, exemplars,
-        collections, loadingImages, loadingCommunity, loadingExemplars, loadingHistory, isHistoryExpanded,
+        collections, resourceUsageData, resourceUsageLoading, loadingImages, loadingCommunity, loadingExemplars, loadingHistory, isHistoryExpanded,
         isGrouped, selectionMode, selectedIds, isBulkDeleting, isBulkPublishing,
         isBulkCollecting, isBulkTagging, isCollectionModalOpen, isTagModalOpen, effectiveRole,
         isAdmin, isSu, viewMode,

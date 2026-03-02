@@ -85,13 +85,20 @@ export function useImageActions(image?: GeneratedImage, options: UseImageActions
 
         setIsDeleting(true);
         try {
-            // 1. Delete the image document
-            await deleteDoc(doc(db, 'users', user.uid, 'images', id));
+            // 1. Get auth token
+            const token = await user.getIdToken();
 
-            // 2. We should ideally cleanup collection counts, but that requires knowing which collections it was in.
-            // If the caller handles state updates, they might handle collection counts too.
-            // For now, we'll focus on the image deletion itself.
-            // A more robust backend trigger would be better for count consistency.
+            // 2. Call our robust delete API
+            const res = await fetch('/api/user/images/bulk-delete', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ imageIds: [id] })
+            });
+
+            if (!res.ok) throw new Error('Delete API failed');
 
             if (options.onDelete) {
                 options.onDelete(id);

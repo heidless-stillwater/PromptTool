@@ -31,8 +31,11 @@ interface GenerateRequest {
     coreSubject?: string;
 }
 
+import { checkResourceQuota } from '@/lib/resource-guard';
+
 export async function POST(request: NextRequest) {
     try {
+        // ... (inside the handler after userId is determined)
         // Verify authentication
         const authHeader = request.headers.get('Authorization');
         let userId: string;
@@ -83,6 +86,16 @@ export async function POST(request: NextRequest) {
 
         // 2. Validate Credits
         const validation = await GenerationService.validateCredits(userId, modality, modality === 'video' ? 'video' : quality, count);
+
+        // 3. Resource Quota Check (Hard Cap)
+        const resourceStatus = await checkResourceQuota(userId, 'dbWritesDaily', count || 1);
+        if (!resourceStatus.success) {
+            return NextResponse.json({
+                success: false,
+                error: resourceStatus.error,
+                resourceStatus
+            }, { status: 429 });
+        }
 
         const isUsingAdvanced = seed !== undefined ||
             (negativePrompt !== undefined && negativePrompt.trim() !== '') ||

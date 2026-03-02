@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, adminStorage } from '@/lib/firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
+import { checkResourceQuota } from '@/lib/resource-guard';
 
 export const maxDuration = 30;
 
@@ -50,6 +51,17 @@ export async function POST(request: NextRequest) {
         const filename = `users/${userId}/images/${Date.now()}-edited-${Math.random().toString(36).substring(7)}.png`;
         const file = bucket.file(filename);
         const imageBuffer = Buffer.from(imageData, 'base64');
+        const byteSize = imageBuffer.length;
+
+        // Resource Quota Check (Storage)
+        const storageCheck = await checkResourceQuota(userId, 'storageBytes', byteSize);
+        if (!storageCheck.success) {
+            return NextResponse.json({
+                success: false,
+                error: storageCheck.error,
+                resourceStatus: storageCheck
+            }, { status: 429 });
+        }
 
         await file.save(imageBuffer, {
             metadata: {

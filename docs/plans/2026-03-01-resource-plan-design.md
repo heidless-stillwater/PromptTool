@@ -35,8 +35,8 @@ A middleware-level `ResourceGuard` will intercept API calls.
 Real-time Redis data is synced back to Firestore every 10 minutes (Vercel Cron) for persistent auditing and historical analysis.
 
 ### 4.2 Dashboard Widgets
-- **User View**: "Resource Vitality" progress bars with color warnings (Red at 90%).
-- **Admin View**: "Global Resource Pulse" for system-wide capacity planning.
+- **User View**: "Resource Vitality" progress bars with color warnings (Red at 90%). Includes manual "Arm Oxygen Tank" activation button when >80% storage capacity. ✅ **Implemented**
+- **Admin View**: "Global Resource Pulse" for system-wide capacity planning. ✅ **Implemented**
 
 ## 5. Resilience: The "Oxygen Tank"
 Users are granted a monthly, one-time manual "Burst Credit" (e.g., +100MB Storage) to bypass a hard cap in emergencies, reducing immediate churn during critical workflows.

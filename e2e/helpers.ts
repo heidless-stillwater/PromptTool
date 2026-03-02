@@ -1,7 +1,7 @@
 /**
  * Playwright helper utilities and shared constants.
  */
-import { Page } from '@playwright/test';
+import { Page, expect } from '@playwright/test';
 
 export const BASE_URL = 'http://localhost:3000';
 
@@ -14,7 +14,8 @@ export const TEST_PASSWORD = process.env.TEST_PASSWORD || '';
  * Checks that no loading spinner is visible.
  */
 export async function waitForHydration(page: Page) {
-    await page.waitForLoadState('networkidle');
+    // Wait for main body to be present and visible
+    await page.waitForSelector('body', { state: 'visible', timeout: 5000 });
 }
 
 /**
@@ -22,12 +23,35 @@ export async function waitForHydration(page: Page) {
  * Requires TEST_EMAIL and TEST_PASSWORD env vars.
  */
 export async function loginWithEmail(page: Page) {
+    if (!TEST_EMAIL || !TEST_PASSWORD) {
+        console.error('ERROR: TEST_EMAIL or TEST_PASSWORD not set in environment.');
+    }
+    console.log(`Starting login for ${TEST_EMAIL}...`);
     await page.goto('/login');
-    await page.getByLabel(/email/i).fill(TEST_EMAIL);
-    await page.getByLabel(/password/i).fill(TEST_PASSWORD);
-    await page.getByRole('button', { name: /sign in|log in/i }).click();
+
+    console.log('Waiting for login form to manifest...');
+    // The button is the "gate" that means the form is rendered
+    const authBtn = page.getByRole('button', { name: /authenticate/i });
+
+    // Increased timeout for slow dev servers/cold starts
+    try {
+        await expect(authBtn).toBeVisible({ timeout: 25000 });
+        console.log('Login form manifests. Filling credentials...');
+    } catch (e) {
+        console.error('Timed out waiting for login form. Current URL:', page.url());
+        throw e;
+    }
+
+    await page.locator('#email').fill(TEST_EMAIL);
+    await page.locator('#password').fill(TEST_PASSWORD);
+
+    console.log('Clicking Authenticate...');
+    await authBtn.click();
+
     // Wait for redirect away from login
-    await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
+    console.log('Waiting for post-login redirect...');
+    await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 20000 });
+    console.log('Login successful, redirected to:', page.url());
 }
 
 /**

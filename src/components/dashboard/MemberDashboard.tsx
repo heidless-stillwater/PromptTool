@@ -11,6 +11,10 @@ import Link from 'next/link';
 import CasualModeView from '@/components/dashboard/member/CasualModeView';
 import ProModeView from '@/components/dashboard/member/ProModeView';
 import Tooltip from '@/components/Tooltip';
+import DashboardHero from './DashboardHero';
+import DashboardStats from './DashboardStats';
+import ResourceVitality from './ResourceVitality';
+import CreditActivity from './CreditActivity';
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import { useSettings } from '@/lib/context/SettingsContext';
 
@@ -146,6 +150,18 @@ export default function MemberDashboard({ dashboardData }: MemberDashboardProps)
 
                 {/* Getting Started banner for new users */}
                 <GettingStartedBanner profile={profile} userLevel={userLevel} />
+
+                <div className="mb-10">
+                    <ResourceVitality
+                        usage={dashboardData.resourceUsageData?.usage || {}}
+                        quotas={dashboardData.resourceUsageData?.quotas || { storageBytes: 0, dbWritesDaily: 0, cpuTimeMsPerMonth: 0, burstAllowanceBytes: 0 }}
+                        burstUsed={dashboardData.resourceUsageData?.burstUsed || false}
+                        burstAuthorized={dashboardData.resourceUsageData?.burstAuthorized || false}
+                        tier={dashboardData.resourceUsageData?.tier || 'free'}
+                        loading={dashboardData.resourceUsageLoading}
+                    />
+                </div>
+
 
                 <Suspense fallback={<SkeletonDashboard />}>
                     <div className="animate-in fade-in slide-in-from-bottom-6 duration-1000">

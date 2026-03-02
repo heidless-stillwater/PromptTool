@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { adminDb } from '@/lib/firebase-admin';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
-import { SUBSCRIPTION_PLANS, SubscriptionTier } from '@/lib/types';
+import { SubscriptionTier } from '@/lib/types';
+import { getDynamicPlans } from '@/lib/services/plans';
 
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -25,6 +26,8 @@ export async function POST(req: NextRequest) {
 
     // Handle the event
     try {
+        const dynamicPlans = await getDynamicPlans();
+
         switch (event.type) {
             case 'checkout.session.completed':
                 const session = event.data.object as any;
@@ -38,7 +41,11 @@ export async function POST(req: NextRequest) {
 
                 console.log(`[Stripe Webhook] Processing successful checkout for user: ${userId}, plan: ${planId}`);
 
-                const plan = SUBSCRIPTION_PLANS[planId];
+                const plan = dynamicPlans[planId];
+                if (!plan) {
+                    console.error('[Stripe Webhook] Plan not found in dynamic config:', planId);
+                    break;
+                }
 
                 // 1. Update User Profile
                 await adminDb.collection('users').doc(userId).update({
@@ -83,8 +90,10 @@ export async function POST(req: NextRequest) {
 
                     // Reset daily allowance to free tier
                     const subCreditsRef = adminDb.collection('users').doc(subUserId).collection('data').doc('credits');
+                    const freePlan = dynamicPlans.free;
+
                     await subCreditsRef.update({
-                        dailyAllowance: SUBSCRIPTION_PLANS.free.dailyAllowance,
+                        dailyAllowance: freePlan.dailyAllowance,
                     });
                 }
                 break;
@@ -101,7 +110,6 @@ export async function POST(req: NextRequest) {
     }
 }
 
-// Ensure the raw body is preserved for Stripe signature verification
 // Ensure the raw body is preserved for Stripe signature verification
 // In App Router, we consume the body as text/buffer manually, so we don't need bodyParser: false config.
 export const dynamic = 'force-dynamic';

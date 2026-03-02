@@ -19,6 +19,7 @@ interface AuthContextType {
     loading: boolean;
     error: string | null;
     signInWithGoogle: () => Promise<void>;
+    signInWithEmail: (email: string, pass: string) => Promise<void>;
     signOut: () => Promise<void>;
     refreshProfile: () => Promise<void>;
     refreshCredits: () => Promise<void>;
@@ -213,6 +214,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    // Sign in with Email (Primarily for Automated Tests/E2E)
+    const signInWithEmail = async (email: string, pass: string) => {
+        try {
+            const { signInWithEmailAndPassword } = await import('firebase/auth');
+            setError(null);
+            await signInWithEmailAndPassword(auth, email, pass);
+        } catch (err: any) {
+            setError(err.message);
+            console.error('Sign in error:', err);
+            throw err;
+        }
+    };
+
     // Sign out
     const signOut = async () => {
         try {
@@ -324,6 +338,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 loading,
                 error,
                 signInWithGoogle,
+                signInWithEmail,
                 signOut,
                 refreshProfile,
                 refreshCredits,

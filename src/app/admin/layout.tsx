@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { Icons } from '@/components/ui/Icons';
+import DashboardHeader from '@/components/dashboard/DashboardHeader';
 
 const ADMIN_NAV_ITEMS = [
     { name: 'Overview', href: '/admin', icon: '📊' },
@@ -15,9 +16,15 @@ const ADMIN_NAV_ITEMS = [
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-    const { user, profile, loading, isAdmin } = useAuth();
+    const {
+        user, profile, loading, isAdmin, credits,
+        effectiveRole, switchRole, setAudienceMode, signOut
+    } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
+
+    const availableCredits = (credits?.balance || 0) +
+        Math.max(0, (credits?.dailyAllowance || 0) - (credits?.dailyAllowanceUsed || 0));
 
     useEffect(() => {
         if (!loading && (!user || !isAdmin)) {
@@ -77,30 +84,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </aside>
 
             {/* Main Content Area */}
-            <main className="flex-1 min-w-0 bg-background flex flex-col">
-                <header className="h-16 border-b border-border bg-background-secondary/80 backdrop-blur-xl sticky top-0 z-10 flex items-center justify-between px-8">
+            <main className="flex-1 min-w-0 bg-black flex flex-col relative">
+                <DashboardHeader
+                    user={user}
+                    profile={profile}
+                    credits={credits}
+                    availableCredits={availableCredits}
+                    isAdminOrSu={isAdmin}
+                    effectiveRole={effectiveRole}
+                    switchRole={switchRole}
+                    setAudienceMode={setAudienceMode}
+                    signOut={signOut}
+                />
+
+                <div className="h-12 border-b border-white/5 bg-background-secondary/30 backdrop-blur-xl sticky top-[72px] z-10 flex items-center justify-between px-8">
                     <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-foreground-muted uppercase tracking-widest">Admin</span>
-                        <span className="text-border">/</span>
-                        <h1 className="text-sm font-black uppercase tracking-widest">
+                        <span className="text-[10px] font-black text-foreground-muted uppercase tracking-widest">Admin</span>
+                        <span className="text-white/10 text-xs">/</span>
+                        <h1 className="text-[10px] font-black uppercase tracking-widest text-primary">
                             {ADMIN_NAV_ITEMS.find(i => i.href === pathname)?.name || 'Dashboard'}
                         </h1>
                     </div>
-
-                    <div className="flex items-center gap-4">
-                        <div className="text-right hidden sm:block">
-                            <p className="text-xs font-black">{profile?.displayName}</p>
-                            <p className="text-[9px] uppercase text-accent font-black tracking-widest">{profile?.role} SESSION</p>
-                        </div>
-                        {profile?.photoURL && (
-                            <img
-                                src={profile.photoURL}
-                                alt="Admin"
-                                className="w-8 h-8 rounded-full border-2 border-primary/20 bg-background-secondary object-cover"
-                            />
-                        )}
-                    </div>
-                </header>
+                </div>
 
                 <div className="flex-1 overflow-y-auto">
                     <div className="max-w-6xl mx-auto p-8">
