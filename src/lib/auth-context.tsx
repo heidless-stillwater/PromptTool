@@ -39,6 +39,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    // E2E Testing Override
+    const [overrideState, setOverrideState] = useState<number>(0);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        // Polling for manual console overrides during development/walkthroughs
+        const interval = setInterval(() => {
+            if ((window as any).__PR_CREDITS_OVERRIDE__) {
+                setOverrideState(prev => prev + 1);
+            }
+        }, 1000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const effectiveCredits = React.useMemo(() => {
+        if (typeof window !== 'undefined' && (window as any).__PR_CREDITS_OVERRIDE__) {
+            console.log('[Auth] Applying manual credit override:', (window as any).__PR_CREDITS_OVERRIDE__);
+            return (window as any).__PR_CREDITS_OVERRIDE__ as UserCredits;
+        }
+        return credits;
+    }, [credits, overrideState]);
+
     // Determine effective role (considering role-switching)
     const effectiveRole: UserRole = profile?.actingAs || profile?.role || 'member';
     const isAdmin = profile?.role === 'admin' || profile?.role === 'su';
@@ -159,20 +182,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             dailyAllowanceUsed: 0,
             lastDailyReset: now,
             expiresAt: null,
-            totalPurchased: 0, // Incentive credits aren't "purchased"
+            totalPurchased: 0,
             totalUsed: 0,
+            maxOverdraft: 0,
+            isOxygenAuthorized: false,
+            isOxygenDeployed: false,
+            autoRefillEnabled: false,
+            refillThreshold: 5,
+            lastPurchaseAt: null,
         };
 
         await setDoc(creditsRef, newCredits);
 
         // Record the incentive transaction if balance > 0
         if (initialBalance > 0) {
-            const txRef = doc(db, 'users', userId, 'data', 'credits', 'transactions', 'welcome_bonus');
+            const txRef = doc(db, 'users', userId, 'creditHistory', 'welcome_bonus');
             await setDoc(txRef, {
                 type: 'daily_allowance', // Closest type for now
                 amount: initialBalance,
                 description: 'Stillwater Welcome Pack',
                 createdAt: now,
+                id: 'welcome_bonus'
             });
         }
 
@@ -334,7 +364,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             value={{
                 user,
                 profile,
-                credits,
+                credits: effectiveCredits,
                 loading,
                 error,
                 signInWithGoogle,

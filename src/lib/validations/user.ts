@@ -30,6 +30,11 @@ export const profileUpdateSchema = z.object({
     }).optional(),
     bannerUrl: z.string().url("Invalid banner URL").optional(),
     photoURL: z.string().url("Invalid photo URL").optional(),
+    creditSettings: z.object({
+        isOxygenAuthorized: z.boolean().optional(),
+        autoRefillEnabled: z.boolean().optional(),
+        refillThreshold: z.number().optional(),
+    }).optional(),
 });
 
 export type ProfileUpdateInput = z.infer<typeof profileUpdateSchema>;

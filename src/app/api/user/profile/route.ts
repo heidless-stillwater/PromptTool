@@ -56,6 +56,16 @@ export async function POST(request: NextRequest) {
         if (validatedData.socialLinks !== undefined) updateData.socialLinks = validatedData.socialLinks;
         if (validatedData.bannerUrl !== undefined) updateData.bannerUrl = validatedData.bannerUrl;
         if (validatedData.photoURL !== undefined) updateData.photoURL = validatedData.photoURL;
+        if (validatedData.creditSettings !== undefined) {
+            // Flatten credit settings into the user doc for simplicity in this project's structure
+            // or we can update specific fields.
+            if (validatedData.creditSettings.isOxygenAuthorized !== undefined)
+                updateData.isOxygenAuthorized = validatedData.creditSettings.isOxygenAuthorized;
+            if (validatedData.creditSettings.autoRefillEnabled !== undefined)
+                updateData.autoRefillEnabled = validatedData.creditSettings.autoRefillEnabled;
+            if (validatedData.creditSettings.refillThreshold !== undefined)
+                updateData.refillThreshold = validatedData.creditSettings.refillThreshold;
+        }
 
         await adminDb.collection('users').doc(userId).update(updateData);
 

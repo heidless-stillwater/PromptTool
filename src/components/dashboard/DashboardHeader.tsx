@@ -10,6 +10,8 @@ import { Icons } from '@/components/ui/Icons';
 import { Badge } from '@/components/ui/Badge';
 import { useSettings } from '@/lib/context/SettingsContext';
 import { cn } from '@/lib/utils';
+import CreditLedgerModal from '@/components/billing/CreditLedgerModal';
+
 
 interface DashboardHeaderProps {
     user: any;
@@ -37,6 +39,8 @@ export default function DashboardHeader({
 }: DashboardHeaderProps) {
     const { helpModeEnabled, toggleHelpMode, userLevel, setUserLevel } = useSettings();
     const [isLevelExpanded, setIsLevelExpanded] = useState(false);
+    const [isLedgerOpen, setIsLedgerOpen] = useState(false);
+
 
     const levelColors = {
         novice: 'bg-primary text-white shadow-primary/20',
@@ -44,8 +48,8 @@ export default function DashboardHeader({
         master: 'bg-purple-600 text-white shadow-purple-600/20'
     };
     return (
-        <div className="sticky top-0 z-50 bg-[#050508]/60 backdrop-blur-xl border-b border-white/5 shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
-            <div className="max-w-[1920px] mx-auto px-8 py-5 flex items-center justify-between">
+        <div className="sticky top-0 z-50 w-full bg-[#050508]/60 backdrop-blur-xl border-b border-white/5 shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
+            <div className="w-full max-w-none px-4 md:px-6 py-5 flex items-center justify-between">
                 <Link href="/dashboard" className="group flex items-center gap-4">
                     <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20 group-hover:bg-primary/20 transition-all duration-500 shadow-[0_0_20px_rgba(99,102,241,0.2)]">
                         <Icons.zap size={20} className="text-primary fill-primary" />
@@ -56,8 +60,8 @@ export default function DashboardHeader({
                     </div>
                 </Link>
 
-                <div className="flex items-center gap-10">
-                    <div className="hidden lg:flex items-center gap-8 mr-4">
+                <div className="flex items-center gap-3 lg:gap-10">
+                    <div className="hidden xl:flex items-center gap-8 mr-4">
                         <Link href="/gallery" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 hover:text-white transition-all">
                             Vault
                         </Link>
@@ -67,7 +71,7 @@ export default function DashboardHeader({
                     </div>
 
                     {/* Proficiency Selector (Novice/Journeyman/Master) */}
-                    <div className="hidden md:flex items-center p-1 bg-white/[0.03] border border-white/5 rounded-2xl backdrop-blur-md relative overflow-hidden h-10">
+                    <div className="hidden lg:flex items-center p-1 bg-white/[0.03] border border-white/5 rounded-2xl backdrop-blur-md relative overflow-hidden h-10">
                         <AnimatePresence mode="wait">
                             {!isLevelExpanded ? (
                                 <motion.button
@@ -99,9 +103,10 @@ export default function DashboardHeader({
                                 >
                                     <button
                                         onClick={() => setIsLevelExpanded(false)}
-                                        className="p-1.5 hover:bg-white/5 rounded-lg text-white/20 hover:text-white transition-all mr-1"
+                                        className="p-1.5 hover:bg-red-500/10 rounded-lg text-white/20 hover:text-red-500 transition-all mr-1 group/close"
+                                        title="Cancel selection"
                                     >
-                                        <Icons.arrowLeft size={12} />
+                                        <Icons.close size={14} className="group-hover/close:rotate-90 transition-transform" />
                                     </button>
                                     {(['novice', 'journeyman', 'master'] as const).map((lvl) => (
                                         <button
@@ -129,18 +134,47 @@ export default function DashboardHeader({
                     <div className="flex items-center gap-4">
                         <NotificationBell />
 
-                        <Link href="/pricing">
-                            <div className="flex items-center gap-3 bg-white/[0.03] border border-white/5 px-4 py-2 rounded-xl hover:border-primary/40 transition-all duration-500 cursor-pointer group hover:bg-white/[0.05]">
-                                <Icons.plus className="group-hover:rotate-90 transition-transform text-primary" size={12} />
-                                <span className="font-black text-[10px] tracking-[0.1em] uppercase text-white/80">{availableCredits} ENERGY</span>
-                                <div className="h-4 w-px bg-white/10 mx-1" />
-                                <span className="text-[9px] text-primary font-black uppercase tracking-widest">Refill</span>
-                            </div>
-                        </Link>
+                        <div className="flex items-center gap-1 bg-white/[0.03] border border-white/5 p-1 rounded-xl">
+                            <button
+                                onClick={() => setIsLedgerOpen(true)}
+                                id="tour-energy-button"
+                                className={cn(
+                                    "flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all active:scale-95 hover:bg-white/5",
+                                    availableCredits < 0 ? "text-red-400" : "text-white/80"
+                                )}
+                            >
+                                {availableCredits < 0 ? (
+                                    <Icons.activity className="text-red-500 animate-pulse" size={12} />
+                                ) : (
+                                    <Icons.activity className="text-primary/60 group-hover:text-primary transition-colors" size={12} />
+                                )}
+                                <div className="flex flex-col items-start leading-none">
+                                    <span className="font-black text-[9px] tracking-[0.1em] uppercase">
+                                        {availableCredits} {availableCredits < 0 ? 'EMERGENCY' : 'ENERGY'}
+                                    </span>
+                                    <span className="text-[7px] font-bold text-white/20 uppercase tracking-[0.2em] mt-0.5">Neural Ledger</span>
+                                </div>
+                            </button>
+
+                            <div className="h-4 w-px bg-white/10 mx-1" />
+
+                            <Link
+                                href="/pricing"
+                                id="tour-refill-link"
+                                className={cn(
+                                    "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all hover:bg-primary/10 active:scale-95 flex items-center h-full",
+                                    availableCredits < 0 ? "text-red-500 animate-bounce" : "text-primary"
+                                )}
+                            >
+                                {availableCredits < 0 ? 'RECOVERY' : 'Refill'}
+                            </Link>
+                        </div>
                     </div>
 
+
+
                     {isAdminOrSu && (
-                        <div className="flex items-center gap-4 pl-6 border-l border-white/10">
+                        <div className="hidden xl:flex items-center gap-4 pl-6 border-l border-white/10">
                             <Link href="/prototypes">
                                 <Button variant="ghost" size="sm" className="h-10 px-4 bg-purple-500/5 border border-purple-500/10 hover:bg-purple-500/10 text-purple-400 rounded-xl text-[9px] font-black uppercase tracking-[0.2em]">
                                     🧪 Labs
@@ -151,17 +185,17 @@ export default function DashboardHeader({
                     )}
 
                     {user && profile && (
-                        <div className="flex items-center gap-4 pl-6 border-l border-white/10">
+                        <div className="flex items-center gap-2 lg:gap-4 lg:pl-6 lg:border-l border-white/10">
                             <Link href={`/profile/${user.uid}`} className="flex items-center gap-4 hover:opacity-80 transition-opacity p-0.5">
                                 <div className="relative">
                                     {profile.photoURL && profile.photoURL !== 'null' ? (
                                         <img
                                             src={profile.photoURL}
                                             alt=""
-                                            className="w-10 h-10 rounded-xl border border-white/10 shadow-lg object-cover ring-2 ring-transparent group-hover:ring-primary/40 transition-all"
+                                            className="w-8 h-8 lg:w-10 lg:h-10 rounded-xl border border-white/10 shadow-lg object-cover ring-2 ring-transparent group-hover:ring-primary/40 transition-all"
                                         />
                                     ) : (
-                                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-sm font-black text-primary border border-primary/20 shadow-inner">
+                                        <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-xs lg:text-sm font-black text-primary border border-primary/20 shadow-inner">
                                             {(profile.displayName || profile.username || 'A').charAt(0).toUpperCase()}
                                         </div>
                                     )}
@@ -190,7 +224,7 @@ export default function DashboardHeader({
                                     size="icon"
                                     onClick={toggleHelpMode}
                                     className={cn(
-                                        "w-10 h-10 rounded-xl transition-all duration-300 border",
+                                        "w-10 h-10 rounded-xl transition-all duration-300 border hidden lg:flex",
                                         helpModeEnabled
                                             ? "bg-primary/10 border-primary/40 text-primary shadow-[0_0_15px_rgba(99,102,241,0.3)]"
                                             : "bg-white/[0.03] border-white/5 text-white/30 hover:text-white"
@@ -198,7 +232,7 @@ export default function DashboardHeader({
                                 >
                                     <Icons.info size={18} />
                                 </Button>
-                                <Link href="/settings">
+                                <Link href="/settings" className="hidden sm:block">
                                     <Button variant="ghost" size="icon" className="w-10 h-10 bg-white/[0.03] border border-white/5 hover:bg-white/[0.08] rounded-xl text-white/30 hover:text-white transition-all">
                                         <Icons.settings size={18} />
                                     </Button>
@@ -211,6 +245,8 @@ export default function DashboardHeader({
                     )}
                 </div>
             </div>
+            <CreditLedgerModal isOpen={isLedgerOpen} onClose={() => setIsLedgerOpen(false)} />
         </div>
     );
 }
+

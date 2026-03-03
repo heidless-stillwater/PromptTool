@@ -54,7 +54,7 @@ export default function MemberDashboard({ dashboardData }: MemberDashboardProps)
 
             {/* Mode Switcher - Sticky below the header */}
             <div className="sticky top-[73px] z-40 w-full bg-background/60 backdrop-blur-xl border-b border-white/5 shadow-2xl">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-4 flex flex-wrap md:flex-nowrap items-center justify-between gap-6">
+                <div className="w-full max-w-none px-4 sm:px-6 md:px-8 py-4 flex flex-wrap md:flex-nowrap items-center justify-between gap-6">
                     <div className="flex items-center gap-6 overflow-x-auto scrollbar-hide">
                         <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30 hidden lg:inline">Experience</span>
                         <div className="flex bg-background-secondary rounded-xl p-1 border border-border/50 shadow-inner backdrop-blur-md">
@@ -133,7 +133,7 @@ export default function MemberDashboard({ dashboardData }: MemberDashboardProps)
                 </div>
             </div>
 
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-12 relative z-10">
+            <main className="w-full max-w-none px-4 sm:px-6 md:px-8 py-12 relative z-10">
                 {/* Level-based welcome */}
                 <div className="mb-12">
                     <h1 className="text-4xl font-black uppercase tracking-tight text-white mb-2">
@@ -155,8 +155,8 @@ export default function MemberDashboard({ dashboardData }: MemberDashboardProps)
                     <ResourceVitality
                         usage={dashboardData.resourceUsageData?.usage || {}}
                         quotas={dashboardData.resourceUsageData?.quotas || { storageBytes: 0, dbWritesDaily: 0, cpuTimeMsPerMonth: 0, burstAllowanceBytes: 0 }}
-                        burstUsed={dashboardData.resourceUsageData?.burstUsed || false}
-                        burstAuthorized={dashboardData.resourceUsageData?.burstAuthorized || false}
+                        burstUsed={credits?.isOxygenDeployed || false}
+                        burstAuthorized={credits?.isOxygenAuthorized || false}
                         tier={dashboardData.resourceUsageData?.tier || 'free'}
                         loading={dashboardData.resourceUsageLoading}
                     />

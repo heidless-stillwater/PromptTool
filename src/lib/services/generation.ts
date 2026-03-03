@@ -11,6 +11,9 @@ export interface GenerationValidationResult {
         dailyAllowance: number;
         dailyAllowanceUsed: number;
         lastDailyReset: Timestamp;
+        isOxygenAuthorized?: boolean;
+        isOxygenDeployed?: boolean;
+        maxOverdraft?: number;
     };
     costs: {
         single: number;
@@ -18,6 +21,7 @@ export interface GenerationValidationResult {
     };
     isNewDay: boolean;
     remainingDaily: number;
+    simulation?: any;
 }
 
 export interface MediaSaveOptions {
@@ -86,13 +90,20 @@ export class GenerationService {
     /**
      * Checks if user has enough credits and calculates costs.
      */
-    static async validateCredits(userId: string, modality: MediaModality, quality: ImageQuality | 'video', count: number): Promise<GenerationValidationResult> {
+    static async validateCredits(userId: string, modality: MediaModality, quality: ImageQuality | 'video', count: number, simulation?: any): Promise<GenerationValidationResult> {
         const creditsRef = adminDb.collection('users').doc(userId).collection('data').doc('credits');
         const creditsDoc = await creditsRef.get();
 
         if (!creditsDoc.exists) throw new Error('Credits not found');
 
-        const credits = creditsDoc.data() as any;
+        let credits = creditsDoc.data() as any;
+
+        // Apply Simulation Overrides (Admin only in production, but allowed here for dev)
+        if (simulation) {
+            console.log(`[Credits] Applying Simulation Overrides for ${userId}:`, simulation);
+            credits = { ...credits, ...simulation };
+        }
+
         const singleCost = modality === 'video' ? CREDIT_COSTS.video : CREDIT_COSTS[quality as ImageQuality];
         const totalCost = singleCost * count;
 
@@ -102,19 +113,31 @@ export class GenerationService {
 
         const currentDailyUsed = isNewDay ? 0 : credits.dailyAllowanceUsed;
         const remainingDaily = Math.max(0, credits.dailyAllowance - currentDailyUsed);
-        const totalAvailable = credits.balance + remainingDaily;
+        let totalAvailable = credits.balance + remainingDaily;
+
+        // Oxygen Tank (Burst) Logic
+        const isOxygenAuthorized = credits.isOxygenAuthorized === true;
+        const isOxygenDeployed = credits.isOxygenDeployed === true;
+        const maxOverdraft = credits.maxOverdraft || 3;
 
         if (totalAvailable < totalCost) {
-            throw new Error(`Insufficient credits.Need ${totalCost}, have ${totalAvailable} `);
+            // Check if Oxygen burst can cover it
+            if (isOxygenAuthorized && !isOxygenDeployed && (totalAvailable + maxOverdraft >= totalCost)) {
+                // Allow the validation to pass, but mark it for the deduction phase
+                (credits as any).isOxygenActive = true;
+            } else {
+                throw new Error(`Insufficient credits. Need ${totalCost}, have ${totalAvailable}`);
+            }
         }
 
         return {
             userId,
-            subscription: '', // Not strictly needed for credit logic itself
+            subscription: '',
             credits: credits as any,
             costs: { single: singleCost, total: totalCost },
             isNewDay,
-            remainingDaily
+            remainingDaily,
+            simulation
         };
     }
 
@@ -122,26 +145,34 @@ export class GenerationService {
      * Deducts credits and logs history.
      */
     static async deductCredits(val: GenerationValidationResult, actualCount: number, options: any) {
-        const { userId, isNewDay, remainingDaily, costs } = val;
+        const { userId, isNewDay, remainingDaily, costs, credits } = val;
         const actualTotalCost = costs.single * actualCount;
 
         const dailyDeduction = Math.min(actualTotalCost, remainingDaily);
         const balanceDeduction = actualTotalCost - dailyDeduction;
+        const isOxygenActive = (credits as any).isOxygenActive === true;
 
+        console.log(`[Credits] Deducting for ${userId}: Cost ${actualTotalCost}, Daily Deduction ${dailyDeduction}, Balance Deduction ${balanceDeduction}, Oxygen Burst ${isOxygenActive}`);
+
+        const batch = adminDb.batch();
         const creditsRef = adminDb.collection('users').doc(userId).collection('data').doc('credits');
 
-        await creditsRef.update({
+        batch.update(creditsRef, {
             balance: (FieldValue as any).increment(-balanceDeduction),
             dailyAllowanceUsed: isNewDay ? dailyDeduction : (FieldValue as any).increment(dailyDeduction),
             lastDailyReset: isNewDay ? Timestamp.now() : val.credits.lastDailyReset,
             totalUsed: (FieldValue as any).increment(actualTotalCost),
+            // Mark tank as deployed if burst was used
+            isOxygenDeployed: isOxygenActive ? true : (credits.isOxygenDeployed || false)
         });
 
         // Add credit transaction
-        await adminDb.collection('users').doc(userId).collection('creditHistory').add({
+        // Ensure path is consistent with client-side polling: users/{uid}/creditHistory
+        const historyRef = adminDb.collection('users').doc(userId).collection('creditHistory').doc();
+        const txData = {
             type: 'usage',
             amount: -actualTotalCost,
-            description: `${options.modality === 'video' ? 'Video' : 'Image'} Generation(${actualCount} items, ${options.modality === 'video' ? 'video' : options.quality} quality)`,
+            description: `${options.modality === 'video' ? 'Video' : 'Image'} Generation (${actualCount} items, ${options.modality === 'video' ? 'video' : options.quality} quality)`,
             metadata: {
                 modality: options.modality,
                 quality: options.modality === 'video' ? 'video' : options.quality,
@@ -150,13 +181,28 @@ export class GenerationService {
                 count: actualCount,
                 isAdvanced: options.isAdvanced,
                 prompt: options.prompt,
-                imageUrl: options.firstImageUrl
+                imageUrl: options.firstImageUrl,
+                isOxygenBurst: isOxygenActive
             },
             createdAt: Timestamp.now(),
-        });
+            id: historyRef.id
+        };
+
+        batch.set(historyRef, txData);
+        console.log(`[Credits] Logging transaction to ledger: ${historyRef.path}`);
+
+        await batch.commit();
+        console.log(`[Credits] Batch committed successfully for ${userId}`);
 
         const updatedCredits = (await creditsRef.get()).data()!;
-        return updatedCredits.balance + Math.max(0, updatedCredits.dailyAllowance - updatedCredits.dailyAllowanceUsed);
+        const realBalance = updatedCredits.balance + Math.max(0, updatedCredits.dailyAllowance - updatedCredits.dailyAllowanceUsed);
+
+        if (val.simulation) {
+            // Return simulated balance drop
+            return (val.simulation.balance || 0) - actualTotalCost;
+        }
+
+        return realBalance;
     }
 
     /**

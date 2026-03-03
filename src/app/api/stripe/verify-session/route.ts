@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
 
         // 2. Parse Request
         const { sessionId } = await req.json();
+        console.log(`[Stripe Verify] Received verification request:`, { userId, sessionId });
         if (!sessionId) {
             return NextResponse.json({ error: 'Session ID is required' }, { status: 400 });
         }
@@ -47,56 +48,68 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        // 6. Check if already processed (Idempotency)
-        const userDoc = await adminDb.collection('users').doc(userId).get();
-        const userData = userDoc.data();
-        const planId = session.metadata?.planId as SubscriptionTier;
+        const sessionType = session.metadata?.type;
 
-        if (userData?.subscription === planId) {
+        // 6. Handle One-Time Credit Purchase
+        if (sessionType === 'credit_purchase') {
+            const creditsAmount = parseInt(session.metadata?.credits || '0');
+            const packId = session.metadata?.packId;
+
+            if (!creditsAmount) {
+                return NextResponse.json({ error: 'Invalid session metadata' }, { status: 400 });
+            }
+
+            // Check for existing transaction with this session ID
+            const historyQuery = await adminDb.collection('users').doc(userId)
+                .collection('creditHistory')
+                .where('metadata.stripeSessionId', '==', session.id)
+                .limit(1)
+                .get();
+
+            if (!historyQuery.empty) {
+                return NextResponse.json({ success: true, alreadyProcessed: true });
+            }
+
+            console.log(`[Stripe Verify] Granting ${creditsAmount} credits to ${userId} (Pack: ${packId})`);
+
+            const { AdminCreditsService } = await import('@/lib/services/admin-credits');
+            const creditsService = new AdminCreditsService(userId);
+
+            await creditsService.addCredits(
+                creditsAmount,
+                'purchase',
+                `Credit Pack Purchase (Manual Verify): ${packId}`,
+                { stripeSessionId: session.id, packId }
+            );
+
             return NextResponse.json({
                 success: true,
-                alreadyProcessed: true,
-                message: 'Subscription already active'
+                message: `Successfully added ${creditsAmount} credits!`,
+                credits: creditsAmount
             });
         }
 
-        // 7. Update User Profile & Credits (Same logic as webhook)
-        console.log(`[Stripe Verify] Processing upgrade for ${userId} to ${planId}`);
+        // 7. Handle Subscription (Legacy/Transition)
+        const planId = session.metadata?.planId as SubscriptionTier;
+        if (!planId) return NextResponse.json({ error: 'Unrecognized session type' }, { status: 400 });
+
         const plan = SUBSCRIPTION_PLANS[planId];
+        if (!plan) return NextResponse.json({ error: 'Plan not found' }, { status: 404 });
 
-        const batch = adminDb.batch();
-
-        // Update Profile
-        batch.update(adminDb.collection('users').doc(userId), {
+        // Update Profile & Credits
+        await adminDb.collection('users').doc(userId).update({
             subscription: planId,
             updatedAt: Timestamp.now(),
         });
 
-        // Grant Bonus Credits
-        const creditsRef = adminDb.collection('users').doc(userId).collection('data').doc('credits');
-        const bonusAmount = plan.creditsPerMonth;
-
-        batch.update(creditsRef, {
-            balance: FieldValue.increment(bonusAmount),
-            totalPurchased: FieldValue.increment(bonusAmount),
-            dailyAllowance: plan.dailyAllowance,
-        });
-
-        // Record Transaction
-        const historyRef = adminDb.collection('users').doc(userId).collection('creditHistory').doc();
-        batch.set(historyRef, {
-            type: 'subscription',
-            amount: bonusAmount,
-            description: `Subscription Upgrade (Manual Verify): ${plan.name}`,
-            metadata: {
-                stripeSessionId: session.id,
-                planId: planId,
-                verifiedAt: Timestamp.now(),
-            },
-            createdAt: Timestamp.now(),
-        });
-
-        await batch.commit();
+        const { AdminCreditsService } = await import('@/lib/services/admin-credits');
+        const creditsService = new AdminCreditsService(userId);
+        await creditsService.addCredits(
+            plan.creditsPerMonth,
+            'subscription',
+            `Subscription Upgrade (Manual Verify): ${plan.name}`,
+            { stripeSessionId: session.id, planId }
+        );
 
         return NextResponse.json({
             success: true,
@@ -106,6 +119,9 @@ export async function POST(req: NextRequest) {
 
     } catch (err: any) {
         console.error('[Stripe Verify] Error:', err);
-        return NextResponse.json({ error: 'Failed to verify session' }, { status: 500 });
+        return NextResponse.json({
+            error: 'Failed to verify session',
+            details: err.message || 'Unknown error'
+        }, { status: 500 });
     }
 }

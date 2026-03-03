@@ -32,6 +32,12 @@ export const generationSchema = z.object({
     promptSetID: z.string().optional(),
     collectionIds: z.array(z.string()).optional(),
     modality: z.enum(['image', 'video']).default('image'),
+    simulation: z.object({
+        balance: z.number().optional(),
+        isOxygenAuthorized: z.boolean().optional(),
+        isOxygenDeployed: z.boolean().optional(),
+        maxOverdraft: z.number().optional(),
+    }).optional(),
 });
 
 export type GenerationInput = z.infer<typeof generationSchema>;

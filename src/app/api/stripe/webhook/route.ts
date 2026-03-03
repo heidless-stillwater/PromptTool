@@ -32,53 +32,69 @@ export async function POST(req: NextRequest) {
             case 'checkout.session.completed':
                 const session = event.data.object as any;
                 const userId = session.client_reference_id;
+                const sessionType = session.metadata?.type;
+
+                if (!userId) {
+                    console.error('[Stripe Webhook] Missing userId in session', { userId });
+                    break;
+                }
+
+                // 1. Handle One-Time Credit Purchase (Prepaid Model)
+                if (sessionType === 'credit_purchase') {
+                    const creditsAmount = parseInt(session.metadata?.credits || '0');
+                    const packId = session.metadata?.packId;
+
+                    if (!creditsAmount) {
+                        console.error('[Stripe Webhook] Missing credits amount in metadata');
+                        break;
+                    }
+
+                    console.log(`[Stripe Webhook] Granting ${creditsAmount} credits to user: ${userId}`);
+
+                    const { AdminCreditsService } = await import('@/lib/services/admin-credits');
+                    const creditsService = new AdminCreditsService(userId);
+
+                    await creditsService.addCredits(
+                        creditsAmount,
+                        'purchase',
+                        `Credit Pack Purchase: ${packId}`,
+                        { stripeSessionId: session.id, packId }
+                    );
+
+                    break;
+                }
+
+                // 2. Handle Subscription (Legacy/Transition)
                 const planId = session.metadata?.planId as SubscriptionTier;
+                if (planId) {
+                    console.log(`[Stripe Webhook] Processing successful subscription for user: ${userId}, plan: ${planId}`);
 
-                if (!userId || !planId) {
-                    console.error('[Stripe Webhook] Missing userId or planId in session', { userId, planId });
-                    break;
+                    const plan = dynamicPlans[planId];
+                    if (!plan) {
+                        console.error('[Stripe Webhook] Plan not found in dynamic config:', planId);
+                        break;
+                    }
+
+                    // Update User Profile
+                    await adminDb.collection('users').doc(userId).update({
+                        subscription: planId,
+                        updatedAt: Timestamp.now(),
+                    });
+
+                    // Grant Bonus Credits via CreditsService (for proper ledger/recovery)
+                    const { AdminCreditsService } = await import('@/lib/services/admin-credits');
+                    const creditsService = new AdminCreditsService(userId);
+                    await creditsService.addCredits(
+                        plan.creditsPerMonth,
+                        'subscription',
+                        `Subscription Upgrade: ${plan.name}`,
+                        { stripeSessionId: session.id, planId }
+                    );
                 }
-
-                console.log(`[Stripe Webhook] Processing successful checkout for user: ${userId}, plan: ${planId}`);
-
-                const plan = dynamicPlans[planId];
-                if (!plan) {
-                    console.error('[Stripe Webhook] Plan not found in dynamic config:', planId);
-                    break;
-                }
-
-                // 1. Update User Profile
-                await adminDb.collection('users').doc(userId).update({
-                    subscription: planId,
-                    updatedAt: Timestamp.now(),
-                });
-
-                // 2. Grant Bonus Credits
-                const creditsRef = adminDb.collection('users').doc(userId).collection('data').doc('credits');
-                const bonusAmount = plan.creditsPerMonth;
-
-                await creditsRef.update({
-                    balance: FieldValue.increment(bonusAmount),
-                    totalPurchased: FieldValue.increment(bonusAmount),
-                    dailyAllowance: plan.dailyAllowance, // Update daily limit too
-                });
-
-                // 3. Record Transaction
-                await adminDb.collection('users').doc(userId).collection('creditHistory').add({
-                    type: 'subscription',
-                    amount: bonusAmount,
-                    description: `Subscription Upgrade: ${plan.name}`,
-                    metadata: {
-                        stripeSessionId: session.id,
-                        planId: planId,
-                    },
-                    createdAt: Timestamp.now(),
-                });
-
                 break;
 
             case 'customer.subscription.deleted':
-                // Handle cancellation (revert to free tier)
+                // Handle legacy cancellation
                 const subscription = event.data.object as any;
                 const subUserId = subscription.metadata?.userId;
 
@@ -86,14 +102,6 @@ export async function POST(req: NextRequest) {
                     await adminDb.collection('users').doc(subUserId).update({
                         subscription: 'free',
                         updatedAt: Timestamp.now(),
-                    });
-
-                    // Reset daily allowance to free tier
-                    const subCreditsRef = adminDb.collection('users').doc(subUserId).collection('data').doc('credits');
-                    const freePlan = dynamicPlans.free;
-
-                    await subCreditsRef.update({
-                        dailyAllowance: freePlan.dailyAllowance,
                     });
                 }
                 break;

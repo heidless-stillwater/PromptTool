@@ -95,9 +95,13 @@ export function useDashboard() {
                         body: JSON.stringify({ sessionId })
                     });
                     const data = await res.json();
+                    console.log('[Dashboard] Verification response:', data);
                     if (data.success) {
-                        showToast(data.alreadyProcessed ? 'Welcome back!' : 'Upgrade successful!', 'success');
+                        showToast(data.alreadyProcessed ? 'Welcome back!' : 'Refill successful!', 'success');
                         router.replace('/dashboard');
+                    } else {
+                        console.error('[Dashboard] Verification failed:', data.error, data.details);
+                        showToast(data.details || data.error || 'Failed to verify refill.', 'error');
                     }
                 } catch (err) {
                     console.error('Session verification error:', err);
@@ -296,12 +300,15 @@ export function useDashboard() {
         }
     };
 
-    const availableCredits = (credits?.balance || 0) + Math.max(0, (credits?.dailyAllowance || 0) - (credits?.dailyAllowanceUsed || 0));
-    const energyPercentage = credits?.dailyAllowance ? Math.round((Math.max(0, credits.dailyAllowance - credits.dailyAllowanceUsed) / credits.dailyAllowance) * 100) : 0;
+    const purchasedBalance = credits?.balance || 0;
+    const dailyRemaining = Math.max(0, (credits?.dailyAllowance || 0) - (credits?.dailyAllowanceUsed || 0));
+    const availableCredits = purchasedBalance + dailyRemaining;
+    const isOxygenDeployed = credits?.isOxygenDeployed || false;
+    const isBalanceNegative = purchasedBalance < 0;
 
     return {
         // State
-        user, profile, authLoading, credits, availableCredits, energyPercentage, recentImages, creditHistory, recentCommunityEntries, exemplars,
+        user, profile, authLoading, credits, availableCredits, isOxygenDeployed, isBalanceNegative, recentImages, creditHistory, recentCommunityEntries, exemplars,
         collections, resourceUsageData, resourceUsageLoading, loadingImages, loadingCommunity, loadingExemplars, loadingHistory, isHistoryExpanded,
         isGrouped, selectionMode, selectedIds, isBulkDeleting, isBulkPublishing,
         isBulkCollecting, isBulkTagging, isCollectionModalOpen, isTagModalOpen, effectiveRole,

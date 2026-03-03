@@ -106,25 +106,42 @@ export interface SystemConfig {
 // Credit System Types
 // ============================================
 
-export type TransactionType = 'purchase' | 'usage' | 'daily_allowance' | 'refund' | 'subscription';
+export type TransactionType = 'purchase' | 'usage' | 'daily_allowance' | 'refund' | 'subscription' | 'overdraft_recovery';
 
 export interface CreditTransaction {
     id: string;
     type: TransactionType;
     amount: number; // positive for additions, negative for deductions
     description: string;
-    metadata?: Record<string, any>;
+    metadata?: {
+        stripeSessionId?: string;
+        recoveryAmount?: number; // How much of this purchase paid off the negative balance
+        actualAdded?: number;    // The net credits available to the user
+        [key: string]: any;
+    };
     createdAt: FirestoreTimestamp;
 }
 
 export interface UserCredits {
-    balance: number;
-    dailyAllowance: number;
-    dailyAllowanceUsed: number;
+    balance: number;            // Can be negative (down to -maxOverdraft)
+    dailyAllowance: number;     // @deprecated for new prepaid model
+    dailyAllowanceUsed: number; // @deprecated for new prepaid model
     lastDailyReset: FirestoreTimestamp;
-    expiresAt: FirestoreTimestamp | null; // null = never expires
+    expiresAt: FirestoreTimestamp | null;
     totalPurchased: number;
     totalUsed: number;
+
+    // Prepaid / Overdraft Integration
+    maxOverdraft: number;       // Default from config (e.g., 3)
+    isOxygenDeployed: boolean;  // Whether the burst has been used since last refill
+    isOxygenAuthorized: boolean;// Whether user has "armed" the tank
+
+    // Pay-As-You-Go (Auto-Refill) Config
+    autoRefillEnabled: boolean;
+    refillThreshold: number;    // Balance at which to trigger modal
+    refillPackId?: string;      // Preferred pack for refill
+
+    lastPurchaseAt: FirestoreTimestamp | null;
 }
 
 // Credit costs by quality tier
@@ -302,6 +319,32 @@ export interface SubscriptionPlan {
     batchGeneration: boolean;
     stripePriceId?: string;
     resourceQuotas: ResourceQuotas;
+}
+
+// ============================================
+// Prepaid Credit System Config (Admin/SU)
+// ============================================
+
+export interface CreditPack {
+    id: string;
+    name: string;      // e.g., "Starter Pack"
+    credits: number;   // e.g., 100
+    priceCents: number;// e.g., 1000 ($10.00)
+    stripePriceId: string;
+    isMostPopular?: boolean;
+}
+
+export interface CreditSystemConfig {
+    packs: CreditPack[];
+    defaultOverdraftLimit: number;   // e.g., 3
+    overdraftGraceThreshold: number; // Max debt allowed before locking (e.g., -10)
+    refillOptions: number[];         // User-selectable thresholds (e.g., [10, 20, 50])
+
+    // Phase 5 Additions
+    autoRefillGlobalEnabled: boolean;
+    minRefillAmount: number;         // Minimum "Refill up to" amount
+    highlightOverdraftInvoices: boolean;
+    systemMaxOverdraft: number;      // Maximum burst allowed system-wide regardless of user setting
 }
 
 export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {

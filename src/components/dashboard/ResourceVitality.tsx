@@ -172,14 +172,16 @@ const ResourceVitality: React.FC<ResourceVitalityProps> = ({ usage, quotas, burs
                     )}
 
                     {burstUsed ? (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 font-bold uppercase tracking-widest">
-                            Oxygen Tank Depleted
+                        <span className="text-[10px] px-3 py-1 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 font-black uppercase tracking-widest flex items-center gap-2 shadow-[0_0_15px_rgba(59,130,246,0.2)]">
+                            <Icons.activity size={10} className="animate-pulse" />
+                            Oxygen Tank Deployed
                         </span>
                     ) : burstAuthorized ? (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold uppercase tracking-widest animate-pulse">
+                        <span className="text-[10px] px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-black uppercase tracking-widest flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                             Oxygen Tank Armed
                         </span>
-                    ) : !isActivating && ((usage?.storageBytes || 0) / (quotas?.storageBytes || 1)) > 0.8 ? (
+                    ) : (usage?.storageBytes || 0) / (quotas?.storageBytes || 1) > 0.8 ? (
                         <Button
                             variant="ghost"
                             size="sm"
@@ -188,7 +190,7 @@ const ResourceVitality: React.FC<ResourceVitalityProps> = ({ usage, quotas, burs
                                 setIsActivating(true);
                                 try {
                                     const token = await user.getIdToken();
-                                    const res = await fetch('/api/user/activate-burst', {
+                                    const res = await fetch('/api/user/activate-credits-oxygen', {
                                         method: 'POST',
                                         headers: { 'Authorization': `Bearer ${token}` }
                                     });
@@ -206,8 +208,6 @@ const ResourceVitality: React.FC<ResourceVitalityProps> = ({ usage, quotas, burs
                             <Icons.zap size={10} />
                             Arm Oxygen Tank
                         </Button>
-                    ) : isActivating ? (
-                        <Icons.spinner size={12} className="animate-spin text-blue-400" />
                     ) : null}
                 </div>
             </div>

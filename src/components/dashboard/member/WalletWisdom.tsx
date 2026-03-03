@@ -10,13 +10,19 @@ interface WalletWisdomProps {
 }
 
 export default function WalletWisdom({ credits }: WalletWisdomProps) {
-    const balance = credits?.balance || 0;
-    const allowance = credits?.dailyAllowance || 0;
-    const used = credits?.dailyAllowanceUsed || 0;
-    const remaining = Math.max(0, allowance - used);
+    const purchasedBalance = credits?.balance || 0;
+    const dailyAllowance = credits?.dailyAllowance || 0;
+    const dailyUsed = credits?.dailyAllowanceUsed || 0;
+    const dailyRemaining = Math.max(0, dailyAllowance - dailyUsed);
 
-    // Calculate percentage for circular progress
-    const percentage = allowance > 0 ? Math.round((remaining / allowance) * 100) : 0;
+    // Total available = Purchased + Daily Bonus
+    const totalAvailable = purchasedBalance + dailyRemaining;
+
+    // percentage logic: if user has > 0 purchased, they are "Full" (>100%) or we show relative to a pack size
+    // For now, let's make it a "Tank" that shows balance relative to their last/typical refill (e.g. 100)
+    const baseCapacity = 100;
+    const percentage = Math.min(100, Math.round((totalAvailable / baseCapacity) * 100));
+
     const dashArray = 2 * Math.PI * 45; // 45 is radius
     const dashOffset = dashArray - (dashArray * percentage) / 100;
 
@@ -51,8 +57,8 @@ export default function WalletWisdom({ credits }: WalletWisdomProps) {
                         />
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-5xl font-black text-white drop-shadow-[0_0_20px_rgba(6,182,212,0.6)]">{percentage}%</span>
-                        <span className="text-[10px] uppercase font-black text-primary tracking-widest mt-1">Energy Flux</span>
+                        <span className="text-5xl font-black text-white drop-shadow-[0_0_20px_rgba(6,182,212,0.6)]">{totalAvailable}</span>
+                        <span className="text-[10px] uppercase font-black text-primary tracking-widest mt-1">Total Power</span>
                     </div>
                 </div>
 
@@ -64,7 +70,7 @@ export default function WalletWisdom({ credits }: WalletWisdomProps) {
                             <Icons.sparkles className="text-yellow-500 animate-[pulse_3s_ease-in-out_infinite]" size={24} />
                         </h2>
                         <p className="text-lg text-white/50 leading-relaxed font-bold mt-4">
-                            You have enough energy for <span className="text-primary font-black px-2 py-1 bg-primary/20 rounded-xl uppercase tracking-widest text-[10px] mx-1">{remaining} more</span> standard images today.
+                            You have <span className="text-primary font-black px-2 py-1 bg-primary/20 rounded-xl uppercase tracking-widest text-[10px] mx-1">{totalAvailable} Credits</span> ready for your next masterpiece.
                         </p>
                     </div>
 
@@ -75,8 +81,8 @@ export default function WalletWisdom({ credits }: WalletWisdomProps) {
                                 <Icons.activity size={20} />
                             </div>
                             <div>
-                                <p className="text-[10px] uppercase font-black text-white/50 tracking-widest">Next Refill</p>
-                                <p className="font-bold text-white text-sm">In about 4 hours</p>
+                                <p className="text-[10px] uppercase font-black text-white/50 tracking-widest">Daily Bonus</p>
+                                <p className="font-bold text-white text-sm">{dailyRemaining} Standard</p>
                             </div>
                         </div>
 
@@ -86,7 +92,7 @@ export default function WalletWisdom({ credits }: WalletWisdomProps) {
                             </div>
                             <div>
                                 <p className="text-[10px] uppercase font-black text-white/50 tracking-widest">Permanent Cache</p>
-                                <p className="font-bold text-white text-sm">{balance} Pro Credits</p>
+                                <p className="font-bold text-white text-sm">{purchasedBalance} Pro Credits</p>
                             </div>
                         </div>
                     </div>

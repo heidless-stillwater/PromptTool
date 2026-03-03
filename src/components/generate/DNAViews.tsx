@@ -11,7 +11,10 @@ interface DNAViewProps {
     userLevel?: string;
     isOpen?: boolean;
     onToggle?: () => void;
+    synthesisRequired?: boolean;
+    isDnaModified?: boolean;
 }
+
 
 import Tooltip from '@/components/Tooltip';
 
@@ -25,8 +28,12 @@ export const DNAStrip: React.FC<DNAViewProps> = ({
     onRemoveModifier,
     userLevel,
     isOpen,
-    onToggle
+    onToggle,
+    synthesisRequired,
+    isDnaModified
 }) => {
+
+
     return (
         <div
             onClick={onToggle}
@@ -39,7 +46,18 @@ export const DNAStrip: React.FC<DNAViewProps> = ({
                         <span className="text-[9px] font-black uppercase tracking-widest text-primary-light">
                             {userLevel === 'novice' ? 'Active Modifiers' : 'DNA Helix'}
                         </span>
+                        {isDnaModified ? (
+                            <span className="px-1.5 py-0.5 rounded-sm bg-purple-500/20 text-purple-400 text-[7px] font-black uppercase border border-purple-500/20 animate-pulse shrink-0">
+                                Synthesis Required
+                            </span>
+                        ) : synthesisRequired && (
+                            <span className="px-1.5 py-0.5 rounded-sm bg-white/10 text-white/50 text-[7px] font-black uppercase border border-white/10 shrink-0">
+                                Synthesis Pending
+                            </span>
+                        )}
                         {isOpen !== undefined && (
+
+
                             <Icons.chevronDown
                                 size={10}
                                 className={`text-white/70 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}

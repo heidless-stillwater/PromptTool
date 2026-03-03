@@ -1,145 +1,100 @@
 {
-    "indexes": [
+  "indexes": [
+    {
+      "collectionGroup": "analytics_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
         {
-            "collectionGroup": "images",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "userId",
-                    "order": "ASCENDING"
-                },
-                {
-                    "fieldPath": "createdAt",
-                    "order": "DESCENDING"
-                }
-            ]
+          "fieldPath": "projectId",
+          "order": "ASCENDING"
         },
         {
-            "collectionGroup": "creditHistory",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "type",
-                    "order": "ASCENDING"
-                },
-                {
-                    "fieldPath": "createdAt",
-                    "order": "DESCENDING"
-                }
-            ]
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
         },
         {
-            "collectionGroup": "leagueEntries",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "voteCount",
-                    "order": "DESCENDING"
-                },
-                {
-                    "fieldPath": "publishedAt",
-                    "order": "DESCENDING"
-                }
-            ]
-        },
-        {
-            "collectionGroup": "leagueEntries",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "originalUserId",
-                    "order": "ASCENDING"
-                },
-                {
-                    "fieldPath": "publishedAt",
-                    "order": "DESCENDING"
-                }
-            ]
-        },
-        {
-            "collectionGroup": "leagueEntries",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "variationCount",
-                    "order": "DESCENDING"
-                },
-                {
-                    "fieldPath": "publishedAt",
-                    "order": "DESCENDING"
-                }
-            ]
-        },
-        {
-            "collectionGroup": "leagueEntries",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "commentCount",
-                    "order": "DESCENDING"
-                },
-                {
-                    "fieldPath": "publishedAt",
-                    "order": "DESCENDING"
-                }
-            ]
-        },
-        {
-            "collectionGroup": "leagueEntries",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "authorFollowerCount",
-                    "order": "DESCENDING"
-                },
-                {
-                    "fieldPath": "publishedAt",
-                    "order": "DESCENDING"
-                }
-            ]
-        },
-        {
-            "collectionGroup": "leagueEntries",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "shareCount",
-                    "order": "DESCENDING"
-                },
-                {
-                    "fieldPath": "publishedAt",
-                    "order": "DESCENDING"
-                }
-            ]
-        },
-        {
-            "collectionGroup": "images",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "collectionIds",
-                    "arrayConfig": "CONTAINS"
-                },
-                {
-                    "fieldPath": "createdAt",
-                    "order": "DESCENDING"
-                }
-            ]
-        },
-        {
-            "collectionGroup": "images",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "collectionId",
-                    "order": "ASCENDING"
-                },
-                {
-                    "fieldPath": "createdAt",
-                    "order": "DESCENDING"
-                }
-            ]
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
         }
-    ],
-    "fieldOverrides": []
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "projects",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "promptSets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "scripts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "projectId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "version",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "topics",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    }
+  ],
+  "fieldOverrides": []
 }

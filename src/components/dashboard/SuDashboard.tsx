@@ -64,7 +64,7 @@ export default function SuDashboard({ dashboardData }: SuDashboardProps) {
                 signOut={signOut}
             />
 
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-12 relative z-10">
+            <main className="w-full max-w-none px-4 sm:px-6 md:px-8 py-12 relative z-10">
                 {/* Unified SU Header */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-4 mb-10">
                     <div>

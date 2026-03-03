@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -21,6 +21,10 @@ import { cn } from '@/lib/utils';
 import ImageGroupModal from '@/components/gallery/ImageGroupModal';
 import { GallerySelectionModal } from '@/components/gallery/GallerySelectionModal';
 import { useSettings, type UserLevel } from '@/lib/context/SettingsContext';
+import { CREDIT_COSTS } from '@/lib/types';
+import RefillModal from '@/components/billing/RefillModal';
+import ConfirmationModal from '@/components/ConfirmationModal';
+
 
 // --- TYPES ---
 export type PresentationMode = 'grid-sm' | 'grid-md' | 'grid-lg' | 'list';
@@ -123,6 +127,58 @@ const MODIFIER_CATEGORIES = [
 ];
 const CHARACTER_LIMIT = 100;
 
+/**
+ * Normalizes legacy modifiers or misaligned strings to match the current UI categories and options.
+ * This fixes the "ghost modifier" issue where a style might be active but not highlighted in the UI.
+ */
+function normalizeModifier(category: string, value: string): { category: string, value: string } {
+    const lowVal = value.toLowerCase().trim();
+    const lowCat = category.toLowerCase().trim();
+
+    // 1. Style & Medium mapping (Legacy to Current)
+    if (lowVal.includes('studio ghibli')) return { category: 'style', value: 'Studio Ghibli' };
+    if (lowVal === 'anime/manga style' || lowVal === 'anime') return { category: 'medium', value: 'Anime' };
+    if (lowVal === 'oil painting') return { category: 'medium', value: 'Oil Painting' };
+    if (lowVal === 'watercolor') return { category: 'medium', value: 'Watercolor' };
+    if (lowVal === 'digital art') return { category: 'medium', value: 'Digital Illustration' };
+    if (lowVal === 'digital illustration') return { category: 'medium', value: 'Digital Illustration' };
+    if (lowVal === 'pop art') return { category: 'style', value: 'Pop Art' };
+    if (lowVal === 'photorealistic') return { category: 'magic', value: 'Photorealistic' };
+    if (lowVal === 'surrealist' || lowVal === 'surrealism') return { category: 'style', value: 'Surrealism' };
+    if (lowVal === 'cyberpunk') return { category: 'style', value: 'Cyberpunk' };
+    if (lowVal === 'steampunk') return { category: 'style', value: 'Steampunk' };
+    if (lowVal === 'minimalist') return { category: 'style', value: 'Minimalist' };
+    if (lowVal === 'fantasy') return { category: 'style', value: 'Fantasy' };
+    if (lowVal === 'noir') return { category: 'style', value: 'Noir' };
+    if (lowVal === 'vaporwave') return { category: 'style', value: 'Vaporwave' };
+
+    // 2. Mood category mapping (Mood is no longer a top-level category in UI)
+    if (lowCat === 'mood') {
+        if (lowVal.includes('calm') || lowVal.includes('peaceful')) return { category: 'atmosphere', value: 'Peaceful Dawn' };
+        if (lowVal.includes('dark') || lowVal.includes('mysterious') || lowVal.includes('eerie')) return { category: 'atmosphere', value: 'Eerie / Haunted' };
+        if (lowVal.includes('vibrant') || lowVal.includes('energetic')) return { category: 'color', value: 'Vibrant' };
+        if (lowVal.includes('dramatic') || lowVal.includes('intense') || lowVal.includes('cinematic')) return { category: 'lighting', value: 'Cinematic' };
+        if (lowVal.includes('nostalgic') || lowVal.includes('warm')) return { category: 'lighting', value: 'Golden Hour' };
+        if (lowVal.includes('stormy')) return { category: 'atmosphere', value: 'Stormy' };
+        // Fallback: put it in atmosphere if unknown mood
+        return { category: 'atmosphere', value: value.charAt(0).toUpperCase() + value.slice(1) };
+    }
+
+    // 3. Setting category mapping (Setting is no longer a top-level category in UI)
+    if (lowCat === 'setting') {
+        if (lowVal.includes('golden hour')) return { category: 'lighting', value: 'Golden Hour' };
+        if (lowVal.includes('starry night')) return { category: 'environment', value: 'Deep Space' };
+        if (lowVal.includes('foggy') || lowVal.includes('misty')) return { category: 'atmosphere', value: 'Heavy Fog' };
+        if (lowVal.includes('thunderstorm') || lowVal.includes('rain')) return { category: 'atmosphere', value: 'Stormy' };
+        if (lowVal.includes('aurora') || lowVal.includes('northern lights')) return { category: 'atmosphere', value: 'Aurora Borealis' };
+        // Fallback: put it in environment
+        return { category: 'environment', value: value.charAt(0).toUpperCase() + value.slice(1) };
+    }
+
+    return { category, value };
+}
+
+
 const MOCK_EXEMPLARS: Exemplar[] = [
     {
         id: 'ex-001',
@@ -169,6 +225,7 @@ function GeneratePageContent() {
     const router = useRouter();
     const { showToast } = useToast();
     const lastAppliedExemplarId = useRef<string | null>(null);
+    const lastResolvedRef = useRef<string | null>(null);
 
     // Top Level State
     const { userLevel, setUserLevel } = useSettings();
@@ -225,6 +282,8 @@ function GeneratePageContent() {
     const [remainingEnhances, setRemainingEnhances] = useState<number | null>(null);
     const [remainingCompiles, setRemainingCompiles] = useState<number | null>(null);
     const [showReviewModal, setShowReviewModal] = useState<boolean>(false);
+    const [showRefillModal, setShowRefillModal] = useState<boolean>(false);
+    const [requiredCredits, setRequiredCredits] = useState<number>(0);
 
     // History Sidebar State
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -284,11 +343,26 @@ function GeneratePageContent() {
     }, [searchParams, exemplars, personalExemplars, showToast, userLevel]);
 
     const [isResolvingRef, setIsResolvingRef] = useState(false);
+    const [pendingSubstitution, setPendingSubstitution] = useState<GeneratedImage | Exemplar | null>(null);
+    const [showSubstitutionConfirm, setShowSubstitutionConfirm] = useState(false);
+
+    // DNA Integrity: Detect changes since last AI weave
+    const currentDnaSignature = useMemo(() => {
+        const sortedMods = [...activeModifiers].sort((a, b) => a.category.localeCompare(b.category) || a.value.localeCompare(b.value));
+        const settingsPart = `${genState.aspectRatio}|${genState.mediaType}|${genState.quality}|${genState.guidanceScale}|${genState.negativePrompt}`;
+        return `${coreSubject.trim().toLowerCase()}|${sortedMods.map(m => `${m.category}:${m.value}`).join(';')}|${settingsPart}`;
+    }, [coreSubject, activeModifiers, genState]);
+
+    const [lastWovenSignature, setLastWovenSignature] = useState<string>('');
+    const isDnaModified = lastWovenSignature !== '' && currentDnaSignature !== lastWovenSignature;
+    const synthesisRequired = !compiledPrompt || isDnaModified;
+
+
 
     // Resolve ref param for remixing
     useEffect(() => {
         const refParam = searchParams.get('ref');
-        if (!refParam || !user || isResolvingRef || remixImage?.id === refParam) return;
+        if (!refParam || !user || isResolvingRef || lastResolvedRef.current === refParam) return;
 
         const resolveRef = async () => {
             setIsResolvingRef(true);
@@ -296,40 +370,39 @@ function GeneratePageContent() {
                 // First check if it's already in history
                 const existing = historyImages.find(img => img.id === refParam);
                 if (existing) {
-                    // Slight delay to avoid state transition issues if handleRemix isn't ready
-                    setTimeout(() => handleRemix(existing), 100);
+                    setTimeout(() => {
+                        // Mark as resolved before calling to prevent loop
+                        lastResolvedRef.current = refParam;
+                        handleRemix(existing);
+                    }, 100);
                     return;
                 }
 
                 // 1. Try private images
-                console.log(`[Remix] Attempting to resolve private ref: ${refParam}`);
                 const { doc, getDoc } = await import('firebase/firestore');
                 const { db } = await import('@/lib/firebase');
                 const imgRef = doc(db, 'users', user.uid, 'images', refParam);
                 let snapshot = await getDoc(imgRef);
 
                 if (snapshot.exists()) {
-                    console.log(`[Remix] Found in private collection: ${refParam}`);
+                    lastResolvedRef.current = refParam;
                     const img = normalizeImageData(snapshot.data(), snapshot.id);
                     handleRemix(img);
                     return;
                 }
 
-                // 2. Try community entries (leagueEntries)
-                console.log(`[Remix] Not found in private. Checking leagueEntries: ${refParam}`);
+                // 2. Try community entries
                 const communityRef = doc(db, 'leagueEntries', refParam);
                 snapshot = await getDoc(communityRef);
 
                 if (snapshot.exists()) {
-                    console.log(`[Remix] Found in community hub: ${refParam}`);
+                    lastResolvedRef.current = refParam;
                     const data = snapshot.data();
-                    // Normalize as GeneratedImage
                     const img = normalizeImageData(data, snapshot.id);
                     handleRemix(img);
                     showToast('Remixing Community Masterpiece', 'success');
                 } else {
-                    console.warn(`[Remix] Image not found in either collection for ref: ${refParam}`);
-                    showToast('Image not found.', 'error');
+                    console.warn(`[Remix] Image not found for ref: ${refParam}`);
                 }
             } catch (err) {
                 console.error('Failed to resolve image ref:', err);
@@ -339,8 +412,7 @@ function GeneratePageContent() {
         };
 
         resolveRef();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchParams, user, historyImages, remixImage?.id, showToast]);
+    }, [searchParams, user, isResolvingRef, historyImages, showToast]);
 
     // Clear compiled prompt if core inputs change, BUT ONLY if we aren't in manual full edit mode
     useEffect(() => {
@@ -360,11 +432,32 @@ function GeneratePageContent() {
     const handleGenerate = async () => {
         if (!displayPrompt || !user) return;
 
+        // 1. Pre-check Credits
+        const costKey = genState.mediaType === 'video' ? 'video' : genState.quality;
+        const perItemCost = CREDIT_COSTS[costKey as keyof typeof CREDIT_COSTS] || 1;
+        const totalCost = perItemCost * genState.batchSize;
+
+        // Use availableCredits (balance + allowance) for the check
+        const availableCredits = (credits?.balance || 0) + (credits?.dailyAllowance || 0) - (credits?.dailyAllowanceUsed || 0);
+        const canAffordWithBalance = availableCredits >= totalCost;
+        const maxOverdraft = credits?.maxOverdraft || 0;
+        const isOxygenAuthorized = credits?.isOxygenAuthorized || false;
+        const canAffordWithOxygen = isOxygenAuthorized && (availableCredits + maxOverdraft) >= totalCost;
+
+        if (!canAffordWithBalance && !canAffordWithOxygen) {
+            console.log(`[Credits] Refill required. Cost: ${totalCost}, Available: ${availableCredits}, Oxygen Auth: ${isOxygenAuthorized}`);
+            setRequiredCredits(totalCost);
+            setShowRefillModal(true);
+            showToast(`Insufficient Energy. ${totalCost} unit(s) required.`, "info");
+            return;
+        }
+
         let finalPrompt = displayPrompt;
 
-        // Automate 'weave' if in subject mode
-        if (promptEditMode === 'subject') {
+        // DNA Integrity: Prefix generation with a weave if inputs have changed since last synthesis
+        if (synthesisRequired && coreSubject.trim()) {
             setIsCompiling(true);
+            setGenerationMessage('Synthesizing DNA Helix...');
             try {
                 const token = await user.getIdToken();
                 const res = await fetch('/api/generate/nanobanana', {
@@ -393,6 +486,7 @@ function GeneratePageContent() {
 
                 if (data.success && data.compiledPrompt) {
                     setCompiledPrompt(data.compiledPrompt);
+                    setLastWovenSignature(currentDnaSignature);
                     setPromptEditMode('full');
                     finalPrompt = data.compiledPrompt;
                 } else if (data.error) {
@@ -400,13 +494,14 @@ function GeneratePageContent() {
                 }
             } catch (e) {
                 console.error('Auto-weave failed:', e);
-                showToast('Failed to weave prompt automagically. Using raw input.', 'info');
+                showToast('Synthesis failed. Using raw DNA constituents.', 'info');
             } finally {
                 setIsCompiling(false);
             }
         }
 
         setIsGenerating(true);
+
         setGeneratedImages(null);
         setGenerationProgress(0);
         setGenerationMessage('Initializing generation pipeline...');
@@ -434,6 +529,12 @@ function GeneratePageContent() {
                     negativePrompt: userLevel === 'master' ? genState.negativePrompt : undefined,
                     modifiers: activeModifiers.map(m => ({ category: m.category, value: m.value })),
                     coreSubject: coreSubject,
+                    // Pass simulation data if override is active
+                    simulation: (window as any).__PR_CREDITS_OVERRIDE__ ? {
+                        balance: (window as any).__PR_CREDITS_OVERRIDE__.balance,
+                        isOxygenAuthorized: (window as any).__PR_CREDITS_OVERRIDE__.isOxygenAuthorized,
+                        isOxygenDeployed: (window as any).__PR_CREDITS_OVERRIDE__.isOxygenDeployed
+                    } : undefined
                 }),
             });
 
@@ -459,7 +560,7 @@ function GeneratePageContent() {
                     for (const line of lines) {
                         if (line.startsWith('data: ')) {
                             const dataStr = line.substring(6);
-                            if (dataStr.trim() === '[DONE]') continue;
+                            if (dataStr.trim() === '[DONE]' || !dataStr.trim()) continue;
                             try {
                                 const data = JSON.parse(dataStr);
                                 if (data.type === 'error') {
@@ -489,9 +590,28 @@ function GeneratePageContent() {
                     }
                 }
             }
+
             if (outputs.length > 0) {
                 setGeneratedImages(outputs);
-                fetchHistory(); // Refresh history after generation
+                fetchHistory(); // Refresh image history after generation
+
+                // 🚀 Sync Simulation Override: If we have an override, decrement it so UI drops to -1
+                if (typeof window !== 'undefined' && (window as any).__PR_CREDITS_OVERRIDE__) {
+                    const currentSim = (window as any).__PR_CREDITS_OVERRIDE__;
+                    const costKey = genState.mediaType === 'video' ? 'video' : genState.quality;
+                    const perItemCost = CREDIT_COSTS[costKey as keyof typeof CREDIT_COSTS] || 1;
+                    const totalCost = perItemCost * genState.batchSize;
+
+                    (window as any).__PR_CREDITS_OVERRIDE__ = {
+                        ...currentSim,
+                        balance: currentSim.balance - totalCost,
+                        isOxygenDeployed: true
+                    };
+                    console.log('[Auth] Updated simulation balance to:', (window as any).__PR_CREDITS_OVERRIDE__.balance);
+                }
+
+                // Invalidate credit history to show latest transaction in Ledger
+                queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.creditHistory(user.uid) });
             }
         } catch (error: any) {
             if (error.name === 'AbortError') {
@@ -547,8 +667,10 @@ function GeneratePageContent() {
 
             if (data.success && data.compiledPrompt) {
                 setCompiledPrompt(data.compiledPrompt);
+                setLastWovenSignature(currentDnaSignature);
                 setPromptEditMode('full'); // Automatically show the result in full mode
             } else if (data.error) {
+
                 setCompiledPrompt(`Error: ${data.error}`);
             } else {
                 setCompiledPrompt('Error weaving prompt.');
@@ -570,9 +692,10 @@ function GeneratePageContent() {
 
         setIsEnhancing(true);
         try {
-            const mood = activeModifiers.find(m => m.category === 'mood')?.value;
-            const style = activeModifiers.find(m => m.category === 'style')?.value;
+            const mood = activeModifiers.find(m => m.category === 'mood' || m.category === 'atmosphere' || m.category === 'lighting')?.value;
+            const style = activeModifiers.find(m => m.category === 'style' || m.category === 'medium')?.value;
             const token = await user?.getIdToken();
+
 
             const res = await fetch('/api/generate/enhance', {
                 method: 'POST',
@@ -598,8 +721,10 @@ function GeneratePageContent() {
                     setCoreSubject(data.enhanced);
                 } else {
                     setCompiledPrompt(data.enhanced);
+                    setLastWovenSignature(currentDnaSignature);
                 }
                 showToast('Prompt enhanced magically!', 'success');
+
             } else if (data.error) {
                 showToast(`Error: ${data.error}`, 'error');
             } else {
@@ -650,17 +775,34 @@ function GeneratePageContent() {
                 // Map settings to modifiers if possible
                 let mods: Modifier[] = [];
                 if (data.settings?.modifiers) {
-                    mods = data.settings.modifiers.map((m: any) => ({
-                        id: Math.random().toString(36).substring(7),
-                        category: m.category,
-                        value: m.value
-                    }));
+                    mods = data.settings.modifiers.map((m: any) => {
+                        const norm = normalizeModifier(m.category, m.value);
+                        return {
+                            id: Math.random().toString(36).substring(7),
+                            category: norm.category,
+                            value: norm.value
+                        };
+                    });
                 } else if (data.settings?.madlibsData) {
                     const m = data.settings.madlibsData;
-                    if (m.style) mods.push({ id: `s-${doc.id}`, category: 'style', value: m.style });
-                    if (m.action) mods.push({ id: `a-${doc.id}`, category: 'action', value: m.action });
-                    if (m.mood) mods.push({ id: `m-${doc.id}`, category: 'mood', value: m.mood });
+                    if (m.style) {
+                        const norm = normalizeModifier('style', m.style);
+                        mods.push({ id: `s-${doc.id}`, category: norm.category, value: norm.value });
+                    }
+                    if (m.action) {
+                        const norm = normalizeModifier('action', m.action);
+                        mods.push({ id: `a-${doc.id}`, category: norm.category, value: norm.value });
+                    }
+                    if (m.mood) {
+                        const norm = normalizeModifier('mood', m.mood);
+                        mods.push({ id: `m-${doc.id}`, category: norm.category, value: norm.value });
+                    }
+                    if (m.setting) {
+                        const norm = normalizeModifier('setting', m.setting);
+                        mods.push({ id: `e-${doc.id}`, category: norm.category, value: norm.value });
+                    }
                 }
+
 
                 return {
                     id: doc.id,
@@ -714,7 +856,9 @@ function GeneratePageContent() {
         setCoreSubject('');
         setActiveModifiers([]);
         setCompiledPrompt('');
+        setLastWovenSignature('');
         setRemixImage(null);
+
         setActiveExemplarId(null);
         setPromptEditMode('subject');
         setOpenModifierCategories([]);
@@ -722,36 +866,122 @@ function GeneratePageContent() {
         showToast("Studio reset. Synthesis buffers cleared.", "info");
     };
 
-    const handleRemix = (image: GeneratedImage) => {
-        setCoreSubject(image.settings?.coreSubject || image.prompt);
-        setRemixImage(image);
-        setActiveExemplarId(null);
-        setLeftTab('current');
+    const applySubstitution = (target: GeneratedImage | Exemplar) => {
+        setGeneratedImages(null);
+        setCompiledPrompt('');
+        setPromptEditMode('subject');
 
-        const sid = image.promptSetID || image.settings?.promptSetID;
-        if (sid) {
-            setGenState(prev => ({ ...prev, promptSetId: sid }));
-        }
+        if ('subjectBase' in target) {
+            // Exemplar Path
+            setRemixImage(null);
+            setActiveExemplarId(target.id);
+            setCoreSubject(target.subjectBase);
+            setActiveModifiers([...target.modifiers]);
+            setCompiledPrompt(''); // Exemplars start fresh as they are templates
 
-        // Restore modifiers from settings.modifiers (new system) or madlibsData (old system)
-        if (image.settings?.modifiers) {
-            setActiveModifiers(image.settings.modifiers.map(m => ({
-                id: Math.random().toString(36).substring(7),
-                category: m.category,
-                value: m.value
-            })));
-        } else if (image.settings?.madlibsData) {
-            const m = image.settings.madlibsData;
-            const newModifiers: Modifier[] = [];
-            if (m.style) newModifiers.push({ id: Math.random().toString(), category: 'style', value: m.style });
-            if (m.action) newModifiers.push({ id: Math.random().toString(), category: 'action', value: m.action });
-            if (m.mood) newModifiers.push({ id: Math.random().toString(), category: 'mood', value: m.mood });
-            setActiveModifiers(newModifiers);
+            // Signature of the loaded template
+            const sortedMods = [...target.modifiers].sort((a, b) => a.category.localeCompare(b.category) || a.value.localeCompare(b.value));
+            const settingsPart = `${genState.aspectRatio}|${genState.mediaType}|${genState.quality}|${genState.guidanceScale}|${genState.negativePrompt}`;
+            const sig = `${target.subjectBase.trim().toLowerCase()}|${sortedMods.map(m => `${m.category}:${m.value}`).join(';')}|${settingsPart}`;
+            setLastWovenSignature(sig);
         } else {
-            setActiveModifiers([]);
+            // Remix Path (GeneratedImage)
+            const image = target as GeneratedImage;
+            setCoreSubject(image.settings?.coreSubject || image.prompt);
+            setRemixImage(image);
+            setActiveExemplarId(null);
+
+            const sid = image.promptSetID || image.settings?.promptSetID;
+            if (sid) {
+                setGenState(prev => ({ ...prev, promptSetId: sid }));
+            }
+
+            // Restore modifiers
+            if (image.settings?.modifiers) {
+                setActiveModifiers(image.settings.modifiers.map(m => {
+                    const norm = normalizeModifier(m.category, m.value);
+                    return {
+                        id: Math.random().toString(36).substring(7),
+                        category: norm.category,
+                        value: norm.value
+                    };
+                }));
+            } else if (image.settings?.madlibsData) {
+                const m = image.settings.madlibsData;
+                const newModifiers: Modifier[] = [];
+                if (m.style) {
+                    const norm = normalizeModifier('style', m.style);
+                    newModifiers.push({ id: Math.random().toString(), category: norm.category, value: norm.value });
+                }
+                if (m.action) {
+                    const norm = normalizeModifier('action', m.action);
+                    newModifiers.push({ id: Math.random().toString(), category: norm.category, value: norm.value });
+                }
+                if (m.mood) {
+                    const norm = normalizeModifier('mood', m.mood);
+                    newModifiers.push({ id: Math.random().toString(), category: norm.category, value: norm.value });
+                }
+                if (m.setting) {
+                    const norm = normalizeModifier('setting', m.setting);
+                    newModifiers.push({ id: Math.random().toString(), category: norm.category, value: norm.value });
+                }
+                setActiveModifiers(newModifiers);
+            } else {
+                setActiveModifiers([]);
+            }
+
+            // Sync genState for precise signature matching
+            const s = image.settings;
+            if (s) {
+                setGenState(prev => ({
+                    ...prev,
+                    aspectRatio: s.aspectRatio || prev.aspectRatio,
+                    mediaType: (s.modality as MediaType) || prev.mediaType,
+                    quality: (s.quality as any) || prev.quality,
+                    guidanceScale: s.guidanceScale ?? prev.guidanceScale,
+                    negativePrompt: s.negativePrompt || prev.negativePrompt,
+                    seed: s.seed
+                }));
+            }
+
+            // Restore prompt and sync baseline signature
+            setCompiledPrompt(image.prompt || '');
+            const subSubject = image.settings?.coreSubject || image.prompt;
+            const subMods = image.settings?.modifiers || [];
+            const sortedMods = [...subMods].sort((a, b) => a.category.localeCompare(b.category) || a.value.localeCompare(b.value));
+            const settingsPart = `${image.settings?.aspectRatio || genState.aspectRatio}|${image.settings?.modality || genState.mediaType}|${image.settings?.quality || genState.quality}|${image.settings?.guidanceScale || genState.guidanceScale}|${image.settings?.negativePrompt || genState.negativePrompt}`;
+            const sig = `${subSubject.trim().toLowerCase()}|${sortedMods.map(m => `${m.category}:${m.value}`).join(';')}|${settingsPart}`;
+            setLastWovenSignature(sig);
         }
+
+        setLeftTab('current');
         setIsHistoryOpen(false);
+        setPendingSubstitution(null);
+        setShowSubstitutionConfirm(false);
     };
+
+
+
+    const handleSubstitutionRequest = (target: GeneratedImage | Exemplar) => {
+        const currentId = remixImage?.id || activeExemplarId;
+        if (target.id === currentId) {
+            setLeftTab('current');
+            return;
+        }
+
+        const isLoaded = remixImage !== null || activeExemplarId !== null;
+        const hasGenerated = generatedImages !== null && generatedImages.length > 0;
+
+        if (isLoaded && !hasGenerated) {
+            setPendingSubstitution(target);
+            setShowSubstitutionConfirm(true);
+        } else {
+            applySubstitution(target);
+        }
+    };
+
+    const handleRemix = (image: GeneratedImage) => handleSubstitutionRequest(image);
+
 
     const handleSaveTemplate = async () => {
         if (!user || !coreSubject.trim()) return;
@@ -968,13 +1198,8 @@ function GeneratePageContent() {
         }
     };
 
-    const handleSelectExemplar = (ex: Exemplar) => {
-        setRemixImage(null);
-        setActiveExemplarId(ex.id);
-        setCoreSubject(ex.subjectBase);
-        setActiveModifiers([...ex.modifiers]);
-        setLeftTab('current');
-    };
+    const handleSelectExemplar = (ex: Exemplar) => handleSubstitutionRequest(ex);
+
 
     const handleClearExemplar = () => {
         setRemixImage(null);
@@ -1036,8 +1261,14 @@ function GeneratePageContent() {
                                 initial={{ scale: 0.95, y: 20 }}
                                 animate={{ scale: 1, y: 0 }}
                                 exit={{ scale: 0.95, y: 20 }}
-                                className="bg-background-secondary border border-border shadow-2xl rounded-3xl p-8 max-w-4xl w-full"
+                                className="bg-background-secondary border border-border shadow-2xl rounded-[2.5rem] p-10 max-w-4xl w-full relative"
                             >
+                                <button
+                                    onClick={() => setShowOnboarding(false)}
+                                    className="absolute top-6 right-6 w-10 h-10 rounded-full border border-border text-foreground-muted hover:text-foreground hover:bg-border/10 flex items-center justify-center transition-all group/close"
+                                >
+                                    <Icons.close size={20} className="group-hover/close:rotate-90 transition-transform" />
+                                </button>
                                 <div className="text-center mb-10">
                                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 text-primary mb-4 text-3xl">
                                         🪄
@@ -1121,14 +1352,15 @@ function GeneratePageContent() {
                             <div className="border-b border-white/5 sticky top-[65px] bg-black/80 backdrop-blur-xl z-[45] px-6 py-4">
                                 <div className="flex bg-black/40 rounded-[14px] p-1 border border-white/5 shadow-inner backdrop-blur-md w-fit mx-auto">
                                     {[
-                                        { id: 'current', label: '1. Designer', icon: Icons.wand },
-                                        { id: 'exemplars', label: '2. Templates', icon: Icons.image },
-                                        { id: 'vault', label: '3. Neural Vault', icon: Icons.history }
+                                        { id: 'current', label: '1. Designer', icon: Icons.wand, tourId: 'tour-tab-current' },
+                                        { id: 'templates', label: '2. Templates', icon: Icons.image, tourId: 'tour-tab-templates' },
+                                        { id: 'vault', label: '3. Neural Vault', icon: Icons.history, tourId: 'tour-tab-vault' }
                                     ].map((tab) => (
                                         <button
                                             key={tab.id}
-                                            onClick={() => setLeftTab(tab.id as any)}
-                                            className={`flex items-center gap-2 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${leftTab === tab.id
+                                            id={tab.tourId}
+                                            onClick={() => setLeftTab(tab.id === 'templates' ? 'exemplars' : tab.id as any)}
+                                            className={`flex items-center gap-2 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${leftTab === (tab.id === 'templates' ? 'exemplars' : tab.id)
                                                 ? "bg-primary/20 text-primary shadow-sm"
                                                 : "text-white/40 hover:text-white"
                                                 }`}
@@ -1544,7 +1776,7 @@ function GeneratePageContent() {
 
                                                                 {promptEditMode === 'subject' ? (
                                                                     <input
-                                                                        id="prompt-input-empty"
+                                                                        id="prompt-subject-input"
                                                                         type="text"
                                                                         value={coreSubject}
                                                                         onChange={(e) => setCoreSubject(e.target.value)}
@@ -1553,7 +1785,7 @@ function GeneratePageContent() {
                                                                     />
                                                                 ) : (
                                                                     <textarea
-                                                                        id="prompt-input-empty"
+                                                                        id="prompt-full-textarea"
                                                                         ref={(el) => {
                                                                             if (el) {
                                                                                 el.style.height = 'auto';
@@ -1585,6 +1817,7 @@ function GeneratePageContent() {
                                                                     userLevel={userLevel}
                                                                     isOpen={isModifiersOpen}
                                                                     onToggle={() => setIsModifiersOpen(!isModifiersOpen)}
+                                                                    synthesisRequired={synthesisRequired} isDnaModified={isDnaModified}
                                                                 />
 
                                                                 {isModifiersOpen && (
@@ -1828,6 +2061,7 @@ function GeneratePageContent() {
                                                                         userLevel={userLevel}
                                                                         isOpen={isModifiersOpen}
                                                                         onToggle={() => setIsModifiersOpen(!isModifiersOpen)}
+                                                                        synthesisRequired={synthesisRequired} isDnaModified={isDnaModified}
                                                                     />
 
                                                                     {isModifiersOpen && (
@@ -1993,13 +2227,26 @@ function GeneratePageContent() {
                                             onClick={() => setIsEngineeringCoreOpen(!isEngineeringCoreOpen)}
                                             className="w-full flex items-center gap-3 mb-4 group cursor-pointer"
                                         >
-                                            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-400 leading-none group-hover:text-purple-300 transition-colors">Engineering Core</h3>
+                                            <div className="flex items-center gap-3">
+                                                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-400 leading-none group-hover:text-purple-300 transition-colors">Engineering Core</h3>
+                                                {isDnaModified ? (
+                                                    <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 text-[7px] font-black uppercase border border-purple-500/20 animate-pulse">
+                                                        Stale DNA Detected
+                                                    </span>
+                                                ) : synthesisRequired && (
+                                                    <span className="px-1.5 py-0.5 rounded bg-white/5 text-white/40 text-[7px] font-black uppercase border border-white/5">
+                                                        Pending DNA Sync
+                                                    </span>
+                                                )}
+                                            </div>
+
                                             <div className="h-px flex-1 bg-purple-500/20 group-hover:bg-purple-500/40 transition-colors" />
                                             <Icons.chevronDown
                                                 size={14}
                                                 className={`text-purple-500/40 group-hover:text-purple-400 transition-all duration-300 ${isEngineeringCoreOpen ? 'rotate-180' : ''}`}
                                             />
                                         </button>
+
 
                                         {isEngineeringCoreOpen ? (
                                             <div className="animate-in fade-in slide-in-from-top-4 duration-500">
@@ -2276,7 +2523,7 @@ function GeneratePageContent() {
 
                                 <div className="w-full mb-8">
                                     <Button
-                                        id="manifest-button"
+                                        id="tour-generate-button"
                                         className={`w-full h-16 rounded-[20px] font-black uppercase tracking-[0.3em] overflow-hidden relative group transition-all duration-500 shadow-[0_0_40px_rgba(99,102,241,0.1)] hover:shadow-[0_0_60px_rgba(99,102,241,0.25)] border-0 ${isGenerating
                                             ? 'bg-red-500/10 text-red-500 border border-red-500/20'
                                             : 'bg-primary text-white hover:scale-[1.01] active:scale-[0.98]'
@@ -2297,7 +2544,7 @@ function GeneratePageContent() {
 
                                 {/* Review Modal */}
                                 {showReviewModal && (
-                                    <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-2xl flex items-center justify-center p-6" onClick={() => setShowReviewModal(false)}>
+                                    <div data-testid="review-modal" className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-2xl flex items-center justify-center p-6" onClick={() => setShowReviewModal(false)}>
                                         <div className="w-full max-w-2xl bg-[#050508] border border-white/10 rounded-[32px] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] animate-in fade-in zoom-in duration-300" onClick={(e) => e.stopPropagation()}>
                                             <div className="p-8 border-b border-white/5 flex items-center justify-between bg-white/5">
                                                 <div>
@@ -2751,7 +2998,28 @@ function GeneratePageContent() {
                 onClose={() => setIsGalleryModalOpen(false)}
                 onSelect={(img) => handleRemix(img)}
             />
+
+            <RefillModal
+                isOpen={showRefillModal}
+                onClose={() => setShowRefillModal(false)}
+                requiredAmount={requiredCredits}
+            />
+
+            <ConfirmationModal
+                isOpen={showSubstitutionConfirm}
+                title="Overwrite Workspace?"
+                message="You have a target already loaded but haven't generated any units from it yet. Substituting will clear your current Designer configuration. Proceed?"
+                confirmLabel="Overwrite"
+                cancelLabel="Keep Current"
+                onConfirm={() => pendingSubstitution && applySubstitution(pendingSubstitution)}
+                onCancel={() => {
+                    setShowSubstitutionConfirm(false);
+                    setPendingSubstitution(null);
+                    setLeftTab('current');
+                }}
+            />
         </div>
+
     );
 }
 

@@ -10,6 +10,7 @@ import DashboardHeader from '@/components/dashboard/DashboardHeader';
 const ADMIN_NAV_ITEMS = [
     { name: 'Overview', href: '/admin', icon: '📊' },
     { name: 'Users', href: '/admin/users', icon: '👥' },
+    { name: 'Credits', href: '/admin/credits', icon: '💳' },
     { name: 'Moderation', href: '/admin/moderation', icon: '🛡️' },
     { name: 'Monitoring', href: '/admin/monitoring', icon: '🛠️' },
     { name: 'Settings', href: '/admin/settings', icon: '⚙️' },
@@ -23,8 +24,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const router = useRouter();
     const pathname = usePathname();
 
-    const availableCredits = (credits?.balance || 0) +
-        Math.max(0, (credits?.dailyAllowance || 0) - (credits?.dailyAllowanceUsed || 0));
+    const availableCredits = credits?.balance || 0;
 
     useEffect(() => {
         if (!loading && (!user || !isAdmin)) {
@@ -41,78 +41,80 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
 
     return (
-        <div className="min-h-screen flex bg-background selection:bg-primary/20">
-            {/* Admin Sidebar */}
-            <aside className="w-64 border-r border-border bg-background-secondary sticky top-0 h-screen flex flex-col z-20">
-                <div className="p-8 border-b border-border">
-                    <Link href="/dashboard" className="text-xl font-black gradient-text block tracking-tighter hover:opacity-80 transition-opacity">
-                        AI STUDIO
-                    </Link>
-                    <div className="flex items-center gap-2 mt-1">
-                        <span className="w-1.5 h-1.5 bg-accent rounded-full animate-pulse" />
-                        <span className="text-[10px] uppercase tracking-widest font-black text-foreground-muted">Admin Console</span>
+        <div className="min-h-screen w-full flex flex-col bg-background selection:bg-primary/20">
+            <DashboardHeader
+                user={user}
+                profile={profile}
+                credits={credits}
+                availableCredits={availableCredits}
+                isAdminOrSu={isAdmin}
+                effectiveRole={effectiveRole}
+                switchRole={switchRole}
+                setAudienceMode={setAudienceMode}
+                signOut={signOut}
+            />
+
+            <div className="flex flex-1 overflow-hidden">
+                {/* Admin Sidebar */}
+                <aside className="w-64 border-r border-border bg-background-secondary sticky top-0 h-full flex flex-col z-20">
+                    <div className="p-8 border-b border-border">
+                        <Link href="/dashboard" className="text-xl font-black gradient-text block tracking-tighter hover:opacity-80 transition-opacity">
+                            AI STUDIO
+                        </Link>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="w-1.5 h-1.5 bg-accent rounded-full animate-pulse" />
+                            <span className="text-[10px] uppercase tracking-widest font-black text-foreground-muted">Admin Console</span>
+                        </div>
                     </div>
-                </div>
 
-                <nav className="flex-1 p-4 space-y-1.5 mt-4">
-                    {ADMIN_NAV_ITEMS.map((item) => {
-                        const isActive = pathname === item.href;
-                        return (
-                            <Link
-                                key={item.href}
-                                href={item.href}
-                                className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all group ${isActive
-                                    ? 'bg-primary text-white shadow-lg shadow-primary/25 scale-[1.02]'
-                                    : 'text-foreground-muted hover:text-foreground hover:bg-background-secondary'
-                                    }`}
-                            >
-                                <span className={`text-xl transition-transform group-hover:scale-110 ${isActive ? 'scale-110' : ''}`}>
-                                    {item.icon}
-                                </span>
-                                <span className="font-bold text-sm tracking-tight">{item.name}</span>
-                            </Link>
-                        );
-                    })}
-                </nav>
+                    <nav className="flex-1 p-4 space-y-1.5 mt-4">
+                        {ADMIN_NAV_ITEMS.map((item) => {
+                            const isActive = pathname === item.href;
+                            return (
+                                <Link
+                                    key={item.href}
+                                    href={item.href}
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all group ${isActive
+                                        ? 'bg-primary text-white shadow-lg shadow-primary/25 scale-[1.02]'
+                                        : 'text-foreground-muted hover:text-foreground hover:bg-background-secondary'
+                                        }`}
+                                >
+                                    <span className={`text-xl transition-transform group-hover:scale-110 ${isActive ? 'scale-110' : ''}`}>
+                                        {item.icon}
+                                    </span>
+                                    <span className="font-bold text-sm tracking-tight">{item.name}</span>
+                                </Link>
+                            );
+                        })}
+                    </nav>
 
-                <div className="p-4 border-t border-border">
-                    <Link href="/dashboard" className="flex items-center gap-2 text-xs font-bold text-foreground-muted hover:text-primary p-3 rounded-xl hover:bg-primary/5 transition-all group">
-                        <span className="group-hover:-translate-x-1 transition-transform">←</span>
-                        <span>Back to Dashboard</span>
-                    </Link>
-                </div>
-            </aside>
-
-            {/* Main Content Area */}
-            <main className="flex-1 min-w-0 bg-black flex flex-col relative">
-                <DashboardHeader
-                    user={user}
-                    profile={profile}
-                    credits={credits}
-                    availableCredits={availableCredits}
-                    isAdminOrSu={isAdmin}
-                    effectiveRole={effectiveRole}
-                    switchRole={switchRole}
-                    setAudienceMode={setAudienceMode}
-                    signOut={signOut}
-                />
-
-                <div className="h-12 border-b border-white/5 bg-background-secondary/30 backdrop-blur-xl sticky top-[72px] z-10 flex items-center justify-between px-8">
-                    <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black text-foreground-muted uppercase tracking-widest">Admin</span>
-                        <span className="text-white/10 text-xs">/</span>
-                        <h1 className="text-[10px] font-black uppercase tracking-widest text-primary">
-                            {ADMIN_NAV_ITEMS.find(i => i.href === pathname)?.name || 'Dashboard'}
-                        </h1>
+                    <div className="p-4 border-t border-border">
+                        <Link href="/dashboard" className="flex items-center gap-2 text-xs font-bold text-foreground-muted hover:text-primary p-3 rounded-xl hover:bg-primary/5 transition-all group">
+                            <span className="group-hover:-translate-x-1 transition-transform">←</span>
+                            <span>Back to Dashboard</span>
+                        </Link>
                     </div>
-                </div>
+                </aside>
 
-                <div className="flex-1 overflow-y-auto">
-                    <div className="max-w-6xl mx-auto p-8">
-                        {children}
+                {/* Main Content Area */}
+                <main className="flex-1 min-w-0 bg-black flex flex-col relative overflow-hidden">
+                    <div className="h-12 border-b border-white/5 bg-background-secondary/30 backdrop-blur-xl sticky top-0 z-10 flex items-center justify-between px-4 md:px-6">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black text-foreground-muted uppercase tracking-widest">Admin</span>
+                            <span className="text-white/10 text-xs">/</span>
+                            <h1 className="text-[10px] font-black uppercase tracking-widest text-primary">
+                                {ADMIN_NAV_ITEMS.find(i => i.href === pathname)?.name || 'Dashboard'}
+                            </h1>
+                        </div>
                     </div>
-                </div>
-            </main>
+
+                    <div className="flex-1 overflow-y-auto">
+                        <div className="p-8">
+                            {children}
+                        </div>
+                    </div>
+                </main>
+            </div>
         </div>
     );
 }

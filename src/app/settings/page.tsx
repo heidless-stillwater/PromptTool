@@ -9,6 +9,7 @@ import { Icons } from '@/components/ui/Icons';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
+import { Badge } from '@/components/ui/Badge';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { cn } from '@/lib/utils';
@@ -29,7 +30,7 @@ export default function SettingsPage() {
         loading
     } = auth;
 
-    const availableCredits = (credits?.balance || 0) + Math.max(0, (credits?.dailyAllowance || 0) - (credits?.dailyAllowanceUsed || 0));
+    const availableCredits = credits?.balance || 0;
 
     const router = useRouter();
     const { showToast } = useToast();
@@ -50,6 +51,11 @@ export default function SettingsPage() {
     const [bannerFile, setBannerFile] = useState<File | null>(null);
     const [bannerPreview, setBannerPreview] = useState<string | null>(null);
 
+    // Credit Settings
+    const [isOxygenAuthorized, setIsOxygenAuthorized] = useState(false);
+    const [autoRefillEnabled, setAutoRefillEnabled] = useState(false);
+    const [refillThreshold, setRefillThreshold] = useState(10);
+
     useEffect(() => {
         if (!loading && !user) {
             router.push('/');
@@ -67,6 +73,12 @@ export default function SettingsPage() {
                 instagram: profile.socialLinks?.instagram || '',
                 website: profile.socialLinks?.website || ''
             });
+
+            if (credits) {
+                setIsOxygenAuthorized(credits.isOxygenAuthorized || false);
+                setAutoRefillEnabled(credits.autoRefillEnabled || false);
+                setRefillThreshold(credits.refillThreshold || 10);
+            }
         }
     }, [user, profile, loading, router]);
 
@@ -138,7 +150,13 @@ export default function SettingsPage() {
                     bio,
                     socialLinks,
                     photoURL: currentPhotoURL,
-                    bannerUrl: currentBannerUrl
+                    bannerUrl: currentBannerUrl,
+                    // Pass credit settings as well
+                    creditSettings: {
+                        isOxygenAuthorized,
+                        autoRefillEnabled,
+                        refillThreshold
+                    }
                 })
             });
 
@@ -392,11 +410,108 @@ export default function SettingsPage() {
                                 <Input
                                     type="url"
                                     label="Personal Portfolio Website"
-                                    value={socialLinks.website}
-                                    onChange={(e) => setSocialLinks(prev => ({ ...prev, website: e.target.value }))}
                                     placeholder="https://yourportfolio.com"
                                     icon={<Icons.globe size={16} />}
                                 />
+                            </div>
+                        </div>
+                    </Card>
+
+                    {/* Energy Protocols */}
+                    <Card className="p-10 border-primary/20 bg-primary/5 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 blur-[100px] -mr-32 -mt-32 rounded-full pointer-events-none" />
+
+                        <div className="flex items-center justify-between mb-10">
+                            <div className="flex items-center gap-3">
+                                <Icons.zap className="text-primary fill-primary animate-pulse" size={20} />
+                                <h2 className="text-sm font-black uppercase tracking-widest text-foreground">Energy Protocols</h2>
+                            </div>
+                            <div className="px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-[9px] font-black tracking-widest text-primary uppercase">
+                                PROXIMA BETA ACCESS
+                            </div>
+                        </div>
+
+                        <div className="space-y-10">
+                            {/* Oxygen Tank */}
+                            <div className="flex flex-col md:flex-row gap-8 items-start md:items-center justify-between p-6 rounded-3xl bg-black/40 border border-white/5">
+                                <div className="space-y-2 flex-1">
+                                    <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                                        Oxygen Tank Authorization
+                                        {isOxygenAuthorized && <Badge variant="accent" className="h-4 text-[8px] px-1.5">ARMED</Badge>}
+                                    </h3>
+                                    <p className="text-[10px] font-bold text-foreground-muted leading-relaxed max-w-lg">
+                                        Allows emergency generation even when at zero balance (up to **{credits?.maxOverdraft || 3}** credits). Overdraft is automatically cleared during your next recharge.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsOxygenAuthorized(!isOxygenAuthorized)}
+                                    className={cn(
+                                        "relative inline-flex h-8 w-16 items-center rounded-full transition-colors duration-300",
+                                        isOxygenAuthorized ? "bg-primary" : "bg-white/10"
+                                    )}
+                                >
+                                    <span className={cn(
+                                        "inline-block h-6 w-6 transform rounded-full bg-white transition-transform duration-300",
+                                        isOxygenAuthorized ? "translate-x-9" : "translate-x-1"
+                                    )} />
+                                </button>
+                            </div>
+
+                            {/* Auto-Refill */}
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-1">
+                                        <h3 className="text-[11px] font-black uppercase tracking-widest text-white/80">Refill Visualization Logic</h3>
+                                        <p className="text-[9px] font-bold text-foreground-muted uppercase tracking-widest">SMART PROMPT TRIGGER</p>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-foreground-muted">Auto-Refill Prompt</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAutoRefillEnabled(!autoRefillEnabled)}
+                                            className={cn(
+                                                "relative inline-flex h-6 w-12 items-center rounded-full transition-colors duration-200",
+                                                autoRefillEnabled ? "bg-accent" : "bg-white/5 border border-white/10"
+                                            )}
+                                        >
+                                            <span className={cn(
+                                                "inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200",
+                                                autoRefillEnabled ? "translate-x-7" : "translate-x-1"
+                                            )} />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {autoRefillEnabled && (
+                                    <div className="p-8 rounded-3xl bg-accent/5 border border-accent/20 animate-in fade-in slide-in-from-top-4 duration-500">
+                                        <div className="flex flex-col md:flex-row gap-10 items-center">
+                                            <div className="flex-1 space-y-4 w-full">
+                                                <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
+                                                    <span className="text-accent">Refill Threshold</span>
+                                                    <span className="text-white">{refillThreshold} Energy</span>
+                                                </div>
+                                                <input
+                                                    type="range"
+                                                    min="0"
+                                                    max="50"
+                                                    step="5"
+                                                    value={refillThreshold}
+                                                    onChange={(e) => setRefillThreshold(parseInt(e.target.value))}
+                                                    className="w-full accent-accent h-1 bg-white/5 rounded-full appearance-none cursor-pointer"
+                                                />
+                                                <p className="text-[8px] font-bold text-accent/60 uppercase tracking-widest text-center">
+                                                    Trigger Modal when sub-system reaches {refillThreshold} units
+                                                </p>
+                                            </div>
+                                            <div className="hidden md:block w-px h-12 bg-white/10" />
+                                            <div className="p-4 rounded-2xl bg-black/40 border border-white/5 text-center px-8">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Protocol Action</p>
+                                                <p className="text-xs font-black text-white italic">"Deploy Refill Modal"</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </Card>

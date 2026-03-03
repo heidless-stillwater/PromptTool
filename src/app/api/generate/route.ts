@@ -78,14 +78,14 @@ export async function POST(request: NextRequest) {
             prompt, quality, aspectRatio, promptType, madlibsData,
             count, seed, negativePrompt, guidanceScale,
             referenceImage, referenceImageUrl, referenceMimeType, sourceImageId, promptSetID,
-            collectionIds, modality, modifiers, coreSubject
+            collectionIds, modality, modifiers, coreSubject, simulation
         } = validatedData;
 
         // 1. Validate Tier Constraints
         await GenerationService.validateTier(userId, validatedData);
 
         // 2. Validate Credits
-        const validation = await GenerationService.validateCredits(userId, modality, modality === 'video' ? 'video' : quality, count);
+        const validation = await GenerationService.validateCredits(userId, modality, modality === 'video' ? 'video' : quality as any, count, simulation);
 
         // 3. Resource Quota Check (Hard Cap)
         const resourceStatus = await checkResourceQuota(userId, 'dbWritesDaily', count || 1);

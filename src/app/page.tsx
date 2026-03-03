@@ -50,8 +50,8 @@ export default function HomePage() {
     return (
         <main className="min-h-screen bg-[#0a0a0f] text-foreground selection:bg-primary/30">
             {/* Nav */}
-            <nav className="fixed top-0 left-0 right-0 z-50 px-6 py-6 transition-all duration-300">
-                <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <nav className="fixed top-0 left-0 right-0 z-50 px-4 md:px-6 py-6 transition-all duration-300">
+                <div className="w-full max-w-none flex items-center justify-between">
                     <div className="flex items-center gap-2 group cursor-pointer">
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-stillwater-teal flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-110 transition-transform">
                             <Icons.sparkles className="text-white w-6 h-6" />

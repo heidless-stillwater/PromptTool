@@ -27,7 +27,36 @@ export async function loginWithEmail(page: Page) {
         console.error('ERROR: TEST_EMAIL or TEST_PASSWORD not set in environment.');
     }
     console.log(`Starting login for ${TEST_EMAIL}...`);
-    await page.goto('/login');
+
+    // Pre-warm: hit root URL first to trigger Next.js compilation
+    // This prevents the /login navigation from aborting on cold starts
+    try {
+        await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+        console.log('Server warm-up complete.');
+    } catch (e) {
+        console.log('Server warm-up navigation did not fully load, retrying...');
+        await page.waitForTimeout(3000);
+    }
+
+    // Navigate to login — retry once on failure (cold-start resilience)
+    let loginLoaded = false;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+            console.log(`Navigating to /login (attempt ${attempt})...`);
+            await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
+            loginLoaded = true;
+            break;
+        } catch (e) {
+            console.log(`Navigation attempt ${attempt} failed: ${(e as Error).message}`);
+            if (attempt < 2) {
+                console.log('Waiting 3s before retry...');
+                await page.waitForTimeout(3000);
+            }
+        }
+    }
+    if (!loginLoaded) {
+        throw new Error('Failed to navigate to /login after 2 attempts');
+    }
 
     console.log('Waiting for login form to manifest...');
     // The button is the "gate" that means the form is rendered
