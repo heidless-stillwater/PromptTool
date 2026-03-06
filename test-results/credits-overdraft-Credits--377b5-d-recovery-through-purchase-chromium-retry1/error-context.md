@@ -1,0 +1,185 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e4]:
+      - link "Studio Generator Intelligence Engine" [ref=e5] [cursor=pointer]:
+        - /url: /dashboard/
+        - img [ref=e7]
+        - generic [ref=e9]:
+          - generic [ref=e10]: Studio Generator
+          - generic [ref=e11]: Intelligence Engine
+      - generic [ref=e12]:
+        - generic [ref=e13]:
+          - link "Vault" [ref=e14] [cursor=pointer]:
+            - /url: /gallery/
+          - link "Commons" [ref=e15] [cursor=pointer]:
+            - /url: /community/
+        - button "Active Level master" [ref=e17] [cursor=pointer]:
+          - generic [ref=e18]:
+            - generic [ref=e19]: Active Level
+            - generic [ref=e22]: master
+          - img [ref=e23]
+        - generic [ref=e25]:
+          - button "🔔" [ref=e28] [cursor=pointer]:
+            - generic [ref=e29]: 🔔
+          - generic [ref=e30]:
+            - button "0 ENERGY Neural Ledger" [ref=e31] [cursor=pointer]:
+              - img [ref=e32]
+              - generic [ref=e34]:
+                - generic [ref=e35]: 0 ENERGY
+                - generic [ref=e36]: Neural Ledger
+            - link "Refill" [ref=e38] [cursor=pointer]:
+              - /url: /pricing/
+        - link "🧪 Labs" [ref=e40] [cursor=pointer]:
+          - /url: /prototypes/
+          - button "🧪 Labs" [ref=e41]
+        - generic [ref=e42]:
+          - link "E E2E Tester su" [ref=e43] [cursor=pointer]:
+            - /url: /profile/BbJFPQBI0iNN4tnjq9yHH6vrFgI3/
+            - generic [ref=e45]: E
+            - generic [ref=e47]:
+              - paragraph [ref=e48]: E2E Tester
+              - paragraph [ref=e49]: su
+          - generic [ref=e50]:
+            - button "History" [ref=e51] [cursor=pointer]:
+              - img [ref=e52]
+              - generic [ref=e56]: History
+            - button [ref=e57] [cursor=pointer]:
+              - img [ref=e58]
+            - link [ref=e60] [cursor=pointer]:
+              - /url: /settings/
+              - button [ref=e61]:
+                - img [ref=e62]
+            - button [ref=e65] [cursor=pointer]:
+              - img [ref=e66]
+    - generic [ref=e69]:
+      - generic [ref=e70]:
+        - generic [ref=e71]:
+          - generic [ref=e72]:
+            - generic [ref=e73]: 🪄
+            - heading "Studio Generator" [level=1] [ref=e74]
+            - generic [ref=e75]: PRO V2
+          - generic [ref=e76]:
+            - button "History" [ref=e77] [cursor=pointer]:
+              - img [ref=e78]
+              - text: History
+            - 'button "Mode: master" [ref=e82] [cursor=pointer]':
+              - text: "Mode: master"
+              - img [ref=e83]
+        - generic [ref=e87]:
+          - button "1. Designer" [ref=e88] [cursor=pointer]:
+            - img [ref=e89]
+            - text: 1. Designer
+          - button "2. Templates" [ref=e92] [cursor=pointer]:
+            - img [ref=e93]
+            - text: 2. Templates
+          - button "3. Neural Vault" [ref=e97] [cursor=pointer]:
+            - img [ref=e98]
+            - text: 3. Neural Vault
+        - generic [ref=e103]:
+          - generic [ref=e104]:
+            - img [ref=e106]
+            - generic [ref=e109]:
+              - heading "Studio Configuration" [level=2] [ref=e110]
+              - paragraph [ref=e111]: Synthesizing architectural DNA for your masterpiece.
+          - generic [ref=e112]:
+            - img [ref=e114]
+            - heading "Workspace Initialized" [level=3] [ref=e115]
+            - paragraph [ref=e116]: Awaiting architectural input. Select an anchor reference or begin a manual synthesis.
+            - button "Browse Masterpieces" [ref=e117] [cursor=pointer]
+            - generic [ref=e119]:
+              - generic [ref=e120]:
+                - generic [ref=e122]: Core Synthesis
+                - generic [ref=e124]:
+                  - button "Partial" [ref=e125] [cursor=pointer]
+                  - button "Full" [ref=e126] [cursor=pointer]
+              - textbox "Define your mental image..." [ref=e127]
+            - generic [ref=e130] [cursor=pointer]:
+              - generic [ref=e131]:
+                - generic [ref=e133]:
+                  - generic [ref=e136]: DNA Helix
+                  - generic [ref=e137]: Synthesis Pending
+                - generic [ref=e139]:
+                  - generic [ref=e140]: "SUBJECT:"
+                  - generic [ref=e141]: "\"None\""
+                - generic [ref=e143]: No modifiers active
+              - generic [ref=e145]: "[0 Components] (Expand)"
+      - generic [ref=e147]:
+        - generic [ref=e148]:
+          - img [ref=e150]
+          - button "Engineering Core Pending DNA Sync" [ref=e153] [cursor=pointer]:
+            - generic [ref=e154]:
+              - heading "Engineering Core" [level=3] [ref=e155]
+              - generic [ref=e156]: Pending DNA Sync
+            - img [ref=e158]
+          - generic [ref=e160]:
+            - generic [ref=e161]:
+              - generic [ref=e162]: Modality
+              - generic [ref=e163]: image
+            - generic [ref=e164]:
+              - generic [ref=e165]: Ratio
+              - generic [ref=e166]: 1:1
+            - generic [ref=e167]:
+              - generic [ref=e168]: Quality
+              - generic [ref=e169]: standard
+            - generic [ref=e170]:
+              - generic [ref=e171]: Batch
+              - generic [ref=e172]: 1 Units
+        - generic [ref=e173]:
+          - generic [ref=e174]:
+            - heading "Compiled Pre-Flight" [level=2] [ref=e175]
+            - button [disabled] [ref=e177]:
+              - img [ref=e178]
+            - generic [ref=e182]:
+              - button "Subject" [ref=e183] [cursor=pointer]
+              - button "Full" [ref=e184] [cursor=pointer]
+            - generic [ref=e185]: 0 chars
+          - generic [ref=e186]:
+            - button "Weave Prompt" [disabled]:
+              - img
+              - text: Weave Prompt
+        - generic [ref=e187]: Select an exemplar or start typing...
+        - generic [ref=e188]:
+          - button "Generate Units (1)" [disabled]:
+            - generic:
+              - img
+              - text: Generate Units (1)
+        - generic [ref=e189]:
+          - img [ref=e191]
+          - paragraph [ref=e195]: Awaiting Neural Synthesis
+    - generic:
+      - generic:
+        - generic:
+          - generic:
+            - heading "Neural History" [level=2]
+            - paragraph: Chronological Cache
+          - button:
+            - img
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - button "Load Snapshot"
+              - generic:
+                - generic:
+                  - generic: high
+                  - generic: 3/2/2026
+                - paragraph: "\"A high quality image depicting a high cost test.\""
+            - generic:
+              - generic:
+                - generic:
+                  - button "Load Snapshot"
+              - generic:
+                - generic:
+                  - generic: high
+                  - generic: 3/2/2026
+                - paragraph: "\"A complex high cost test in progress, capturing every intricate detail with extreme precision.\""
+  - generic [ref=e196]:
+    - img [ref=e198]
+    - button "Open Tanstack query devtools" [ref=e246] [cursor=pointer]:
+      - img [ref=e247]
+  - alert [ref=e295]
+```

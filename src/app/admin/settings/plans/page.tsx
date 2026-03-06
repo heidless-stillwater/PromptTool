@@ -142,15 +142,7 @@ export default function PlansManagementPage() {
                             <div className="space-y-4">
                                 <h4 className="text-[10px] font-black uppercase tracking-widest text-white/30 border-b border-white/5 pb-2">Allowances</h4>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-1">
-                                        <label className="text-[9px] font-black uppercase text-white/50">Daily Energy</label>
-                                        <Input
-                                            type="number"
-                                            value={plan.dailyAllowance}
-                                            onChange={(e) => updatePlanField(tier, 'dailyAllowance', parseInt(e.target.value))}
-                                            className="bg-white/5 border-white/5 h-9 text-xs font-bold text-white uppercase"
-                                        />
-                                    </div>
+
                                     <div className="space-y-1">
                                         <label className="text-[9px] font-black uppercase text-white/50">Monthly Bonus</label>
                                         <Input

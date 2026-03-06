@@ -12,11 +12,11 @@ export default function UserPulseStats({ dashboardData }: UserPulseStatsProps) {
     const { credits, recentImages, profile } = dashboardData;
 
     const availableCredits = credits
-        ? credits.balance + Math.max(0, credits.dailyAllowance - credits.dailyAllowanceUsed)
+        ? credits.balance
         : 0;
 
     const dailyRemaining = credits
-        ? Math.max(0, credits.dailyAllowance - credits.dailyAllowanceUsed)
+        ? 0
         : 0;
 
     return (

@@ -18,7 +18,7 @@ export default function LeaderboardPage() {
     const { user: currentUser, profile, credits, loading: authLoading, signOut, switchRole, effectiveRole, setAudienceMode, isAdmin, isSu } = useAuth();
     const router = useRouter();
     const { showToast } = useToast();
-    const availableCredits = (credits?.balance || 0) + Math.max(0, (credits?.dailyAllowance || 0) - (credits?.dailyAllowanceUsed || 0));
+    const availableCredits = credits?.balance || 0;
     const [topCreators, setTopCreators] = useState<UserProfile[]>([]);
     const [timeframe, setTimeframe] = useState<'all-time' | 'weekly'>('all-time');
     const [loading, setLoading] = useState(true);

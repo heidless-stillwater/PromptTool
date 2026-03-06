@@ -20,9 +20,11 @@ interface GenerateRequest {
     seed?: number;
     negativePrompt?: string;
     guidanceScale?: number;
-    referenceImage?: string;      // Base64 image for Img2Img variations
-    referenceImageUrl?: string;   // URL for thumbnail initialization
-    referenceMimeType?: string;   // MIME type of reference image
+    referenceImage?: string;      // Base64 image for Img2Img variations (Legacy)
+    referenceImageUrl?: string;   // URL for thumbnail initialization (Legacy)
+    referenceMimeType?: string;   // MIME type of reference image (Legacy)
+    referenceImages?: { data: string, mimeType?: string, usage: 'style' | 'content' }[];
+    modelType?: 'standard' | 'pro';
     sourceImageId?: string;       // Original image ID for variation tracking
     promptSetID?: string;         // Unique ID for the batch/generation set
     collectionIds?: string[];     // Collections to add generated images to
@@ -76,16 +78,16 @@ export async function POST(request: NextRequest) {
         const validatedData = result.data;
         const {
             prompt, quality, aspectRatio, promptType, madlibsData,
-            count, seed, negativePrompt, guidanceScale,
-            referenceImage, referenceImageUrl, referenceMimeType, sourceImageId, promptSetID,
-            collectionIds, modality, modifiers, coreSubject, simulation
+            count, seed, negativePrompt, guidanceScale, modelType,
+            referenceImage, referenceImageUrl, referenceMimeType, referenceImages, sourceImageId, promptSetID,
+            collectionIds, modality, modifiers, coreSubject, simulation, variables, skipWeave
         } = validatedData;
 
         // 1. Validate Tier Constraints
         await GenerationService.validateTier(userId, validatedData);
 
         // 2. Validate Credits
-        const validation = await GenerationService.validateCredits(userId, modality, modality === 'video' ? 'video' : quality as any, count, simulation);
+        const validation = await GenerationService.validateCredits(userId, modality as any, modality === 'video' ? 'video' : quality as any, count, modelType as any, simulation);
 
         // 3. Resource Quota Check (Hard Cap)
         const resourceStatus = await checkResourceQuota(userId, 'dbWritesDaily', count || 1);
@@ -107,7 +109,12 @@ export async function POST(request: NextRequest) {
         const writer = transformStream.writable.getWriter();
 
         const sendEvent = async (data: any) => {
-            await writer.write(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+            try {
+                await writer.write(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+            } catch (e) {
+                // Ignore errors if the stream is closed (e.g. user refreshed or navigated away)
+                console.log('[Generate API] Client disconnected, stopping stream.');
+            }
         };
 
         (async () => {
@@ -118,7 +125,8 @@ export async function POST(request: NextRequest) {
                 let generationPrompt = prompt;
 
                 // 2. Prior to generating: Run "weave" operation if coreSubject and modifiers are present
-                if (coreSubject && modifiers && modifiers.length > 0) {
+                // BUT ONLY if skipWeave wasn't toggled (e.g. Masterpiece mode already final)
+                if (!skipWeave && coreSubject && modifiers && modifiers.length > 0) {
                     try {
                         console.log(`[Generate API] Weaving Nanobanana prompt for subject: "${coreSubject}"`);
                         await sendEvent({
@@ -137,7 +145,8 @@ export async function POST(request: NextRequest) {
                                 quality: quality as any,
                                 guidanceScale: guidanceScale ?? undefined,
                                 negativePrompt: negativePrompt ?? undefined
-                            }
+                            },
+                            variables
                         );
                         console.log('[Generate API] Weave successful:', generationPrompt.substring(0, 100) + '...');
                     } catch (weaveError) {
@@ -145,6 +154,27 @@ export async function POST(request: NextRequest) {
                         // Fallback to original prompt if weave fails
                     }
                 }
+
+                // 3. Final DNA Resolution: Ensure all [VAR] markers are resolved or neutralized before generator execution
+                // Capture the pre-resolution version (with markers) for re-opening later
+                const coreSynthesisPrompt = generationPrompt;
+
+                console.log(`[Generate API] Resolving DNA markers for prompt. Current Variables:`, JSON.stringify(variables));
+                generationPrompt = generationPrompt.replace(/\[([A-Z0-9_]+)(?::([^\]]+))?\]/gi, (match, name, defaultVal) => {
+                    const key = name.toUpperCase();
+                    const val = variables?.[key];
+
+                    if (val !== undefined && val !== null && val !== '') {
+                        console.log(`[Generate API] Resolved [${key}] -> "${val}"`);
+                        return val;
+                    }
+
+                    // If the variable is completely absent from the payload, it might be a static default
+                    // BUT for amnesia, we assume that if it's NOT in variables, it's purged.
+                    console.log(`[Generate API] Neutralizing marker [${key}] (no value provided)`);
+                    return '';
+                });
+                console.log(`[Generate API] Final Neutralized Prompt: "${generationPrompt}"`);
 
                 let result;
 
@@ -158,17 +188,37 @@ export async function POST(request: NextRequest) {
                         }
                     });
                 } else {
+                    // Normalize reference images: handle legacy single field or new array
+                    const refImages = referenceImages && referenceImages.length > 0
+                        ? referenceImages.map((img: any) => img.imageUrl || img.url)
+                        : referenceImageUrl
+                            ? [referenceImageUrl]
+                            : [];
+
                     result = await nanoBananaService.generateImage({
-                        prompt: generationPrompt, quality: quality as any, aspectRatio, count: count ?? 1, seed: seed ?? undefined, negativePrompt, guidanceScale: guidanceScale ?? undefined,
-                        referenceImage, referenceMimeType,
+                        prompt: generationPrompt,
+                        quality: quality as any,
+                        aspectRatio,
+                        count: count ?? 1,
+                        seed: seed ?? undefined,
+                        negativePrompt: negativePrompt ?? undefined,
+                        guidanceScale: guidanceScale ?? undefined,
+                        modelType,
+                        referenceImages: refImages.length > 0 ? refImages.map((data: string) => ({
+                            data,
+                            mimeType: referenceMimeType,
+                            usage: 'content' as const
+                        })) : undefined,
                         onProgress: (current, total) => {
-                            sendEvent({ type: 'progress', current, total, message: `Generated ${current} of ${total} images...` });
+                            sendEvent({ type: 'progress', current, total, message: `Generating image ${current}/${total}...` });
                         }
                     });
                 }
 
-                if (!result.success || !result.images || result.images.length === 0) {
-                    await sendEvent({ type: 'error', error: result.error || 'Generation failed' });
+                if (!result || !result.images || result.images.length === 0) {
+                    const errorMessage = (result as any)?.error || 'No media generated';
+                    console.error(`[Generate API] Generation failed for userId: ${userId}. Error: ${errorMessage}`);
+                    await sendEvent({ type: 'error', error: errorMessage });
                     await writer.close();
                     return;
                 }
@@ -178,9 +228,11 @@ export async function POST(request: NextRequest) {
                 // 3. Save Media
                 for (let i = 0; i < result.images.length; i++) {
                     const mediaData = await GenerationService.saveMedia(userId, result.images[i], {
-                        prompt: generationPrompt, quality: quality as any, aspectRatio, promptType, madlibsData, seed: seed ?? undefined, negativePrompt, guidanceScale: guidanceScale ?? undefined,
+                        prompt: coreSynthesisPrompt, quality: quality as any, aspectRatio, promptType, madlibsData, seed: seed ?? undefined, negativePrompt, guidanceScale: guidanceScale ?? undefined,
                         sourceImageId, promptSetID, collectionIds, requestedModality: modality, modality,
-                        initialImageUrl: referenceImageUrl, modifiers, coreSubject
+                        initialImageUrl: referenceImageUrl, modifiers, coreSubject,
+                        variables: variables || undefined,
+                        compiledPrompt: coreSynthesisPrompt,
                     });
 
                     generatedMediaData.push(mediaData);
@@ -207,7 +259,11 @@ export async function POST(request: NextRequest) {
                 console.error('SSE Generation error:', err);
                 await sendEvent({ type: 'error', error: err.message || 'Internal server error' });
             } finally {
-                await writer.close();
+                try {
+                    await writer.close();
+                } catch (e) {
+                    // Stream already closed
+                }
             }
         })();
 

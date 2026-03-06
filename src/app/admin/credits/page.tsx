@@ -353,7 +353,7 @@ export default function AdminCreditsPage() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase text-foreground-muted">Min "Refill to X" Value</label>
+                                <label className="text-[10px] font-black uppercase text-foreground-muted">Min &quot;Refill to X&quot; Value</label>
                                 <input
                                     type="number"
                                     value={config.minRefillAmount}

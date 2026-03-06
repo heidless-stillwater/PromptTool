@@ -6,9 +6,9 @@ import {
     CreditTransaction,
     TransactionType,
     CREDIT_COSTS,
+    getGenerationCost,
     ImageQuality,
-    SubscriptionTier,
-    DAILY_ALLOWANCE
+    SubscriptionTier
 } from '../types';
 
 export class CreditsService {
@@ -25,20 +25,17 @@ export class CreditsService {
         return snap.exists() ? (snap.data() as UserCredits) : null;
     }
 
-    // Get available credits (balance + daily allowance if still subbed, else just balance)
+    // Get available credits (pure balance in new model)
     async getAvailableCredits(): Promise<number> {
         const credits = await this.getCredits();
         if (!credits) return 0;
 
-        // Note: New prepaid model ignores daily allowance used, but we keep the logic 
-        // for backward compatibility with existing session/subscriptions during transition.
-        const remainingDaily = Math.max(0, (credits.dailyAllowance || 0) - (credits.dailyAllowanceUsed || 0));
-        return credits.balance + remainingDaily;
+        return credits.balance;
     }
 
     // Check if user can afford generation (including overdraft buffer if authorized)
-    async canAfford(quality: ImageQuality): Promise<boolean> {
-        const cost = CREDIT_COSTS[quality];
+    async canAfford(quality: ImageQuality, modelType: 'standard' | 'pro' = 'standard'): Promise<boolean> {
+        const cost = getGenerationCost('image', quality, modelType);
         const credits = await this.getCredits();
         if (!credits) return false;
 
@@ -59,16 +56,16 @@ export class CreditsService {
      * Used inside transactions to avoid the double-read anti-pattern.
      */
     private static computeAvailable(credits: UserCredits): number {
-        const remainingDaily = Math.max(0, (credits.dailyAllowance || 0) - (credits.dailyAllowanceUsed || 0));
-        return credits.balance + remainingDaily;
+        return credits.balance;
     }
 
     // Deduct credits with Oxygen Tank support
     async deductCredits(
         quality: ImageQuality,
-        description: string
+        description: string,
+        modelType: 'standard' | 'pro' = 'standard'
     ): Promise<{ success: boolean; newBalance: number; error?: string; isOxygenActive?: boolean }> {
-        const cost = CREDIT_COSTS[quality];
+        const cost = getGenerationCost('image', quality, modelType);
         const creditsRef = doc(db, 'users', this.userId, 'data', 'credits');
 
         try {
@@ -99,15 +96,11 @@ export class CreditsService {
                 }
 
                 // 2. Perform Deduction (Sub-zero Ledger)
-                // We deduct from dailyAllowanceUsed first (for compatibility), then balance
-                const remainingDaily = Math.max(0, (credits.dailyAllowance || 0) - (credits.dailyAllowanceUsed || 0));
-                let dailyDeduction = Math.min(cost, remainingDaily);
-                let balanceDeduction = cost - dailyDeduction;
+                const balanceDeduction = cost;
 
                 const newCredits: UserCredits = {
                     ...credits,
                     balance: credits.balance - balanceDeduction,
-                    dailyAllowanceUsed: (credits.dailyAllowanceUsed || 0) + dailyDeduction,
                     totalUsed: credits.totalUsed + cost,
                     isOxygenDeployed: isOxygenActive ? true : (credits.isOxygenDeployed || false)
                 };
@@ -122,7 +115,6 @@ export class CreditsService {
                     description,
                     metadata: {
                         quality,
-                        dailyDeduction,
                         balanceDeduction,
                         isOxygenActive
                     },
@@ -132,7 +124,7 @@ export class CreditsService {
 
                 return {
                     success: true,
-                    newBalance: newCredits.balance + ((newCredits.dailyAllowance || 0) - (newCredits.dailyAllowanceUsed || 0)),
+                    newBalance: newCredits.balance,
                     isOxygenActive
                 };
             });
@@ -216,11 +208,8 @@ export class CreditsService {
         }, { merge: true });
     }
 
-    // Update subscription and daily allowance (Legacy compatibility)
+    // Removed daily allowance update as it's no longer used
     async updateSubscription(newTier: SubscriptionTier): Promise<void> {
-        const creditsRef = doc(db, 'users', this.userId, 'data', 'credits');
-        await setDoc(creditsRef, {
-            dailyAllowance: DAILY_ALLOWANCE[newTier],
-        }, { merge: true });
+        // No-op or update any other subscription-specific metadata if needed
     }
 }

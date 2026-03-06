@@ -15,7 +15,7 @@ export const POST = withApiHandler({
         amount: 1
     },
     handler: async (req, { body, userId }) => {
-        const { subject, modifiers, aspectRatio, proSettings } = body;
+        const { subject, modifiers, aspectRatio, proSettings, variables } = body;
 
         if (!subject || typeof subject !== 'string') {
             return NextResponse.json({ success: false, error: 'Core subject is required' }, { status: 400 });
@@ -37,7 +37,7 @@ export const POST = withApiHandler({
         }
 
         const aiPromptService = getAIPromptService();
-        const compiledPrompt = await aiPromptService.compileNanobananaPrompt(subject, modifiers || [], aspectRatio, proSettings);
+        const compiledPrompt = await aiPromptService.compileNanobananaPrompt(subject, modifiers || [], aspectRatio, proSettings, variables);
 
         return NextResponse.json({
             success: true,

@@ -23,6 +23,7 @@ interface ImageGroupModalProps {
     creatingCollection: boolean;
     collectionError: string;
     setCollectionError: (value: string) => void;
+    onDeleteImages?: (ids: string[]) => Promise<void>;
 }
 
 export default function ImageGroupModal({
@@ -38,7 +39,8 @@ export default function ImageGroupModal({
     onCreateCollection,
     creatingCollection,
     collectionError,
-    setCollectionError
+    setCollectionError,
+    onDeleteImages
 }: ImageGroupModalProps) {
     const router = useRouter();
     const pathname = usePathname() || '';
@@ -48,6 +50,40 @@ export default function ImageGroupModal({
     const [gridSize, setGridSize] = useState<'sm' | 'md' | 'lg'>('md');
     const [copied, setCopied] = useState(false);
     const { showToast } = useToast();
+
+    // Selection state
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [isSelectionMode, setIsSelectionMode] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const toggleSelectionMode = () => {
+        setIsSelectionMode(!isSelectionMode);
+        setSelectedIds(new Set());
+    };
+
+    const toggleSelection = (id: string) => {
+        setSelectedIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(id)) newSet.delete(id);
+            else newSet.add(id);
+            return newSet;
+        });
+    };
+
+    const handleDeleteSelected = async () => {
+        if (!onDeleteImages || selectedIds.size === 0) return;
+        setIsDeleting(true);
+        try {
+            await onDeleteImages(Array.from(selectedIds));
+            setSelectedIds(new Set());
+            setIsSelectionMode(false);
+            if (selectedGroup.length <= selectedIds.size) {
+                onClose(); // Close if we deleted all items in the group
+            }
+        } finally {
+            setIsDeleting(false);
+        }
+    };
 
     useEffect(() => {
         if (showCreateCollection && inputRef.current) {
@@ -267,6 +303,23 @@ export default function ImageGroupModal({
                             )}
                         </div>
 
+                        <div className="h-6 w-px bg-white/10 mx-1 hidden md:block" />
+
+                        {onDeleteImages && (
+                            <button
+                                onClick={toggleSelectionMode}
+                                className={cn(
+                                    "px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border flex items-center gap-2",
+                                    isSelectionMode
+                                        ? "bg-primary/20 border-primary text-primary"
+                                        : "bg-background-secondary hover:bg-background-tertiary border-border"
+                                )}
+                            >
+                                <Icons.check size={14} />
+                                {isSelectionMode ? "Cancel Selection" : "Select"}
+                            </button>
+                        )}
+
                         {pathname.includes('/generate') && (
                             <button
                                 onClick={onClose}
@@ -406,11 +459,22 @@ export default function ImageGroupModal({
                     )}>
                         {selectedGroup.map((image) => {
                             const isVideo = !!(image.videoUrl || image.settings?.modality === 'video');
+                            const isSelected = selectedIds.has(image.id);
+
                             return (
                                 <div
                                     key={image.id}
-                                    onClick={() => onImageSelect(image)}
-                                    className="group relative aspect-square rounded-xl overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition-all bg-background-secondary"
+                                    onClick={() => {
+                                        if (isSelectionMode) {
+                                            toggleSelection(image.id);
+                                        } else {
+                                            onImageSelect(image);
+                                        }
+                                    }}
+                                    className={cn(
+                                        "group relative aspect-square rounded-xl overflow-hidden cursor-pointer hover:ring-2 transition-all bg-background-secondary",
+                                        isSelected ? "ring-2 ring-primary scale-[0.98]" : "hover:ring-primary/50"
+                                    )}
                                 >
                                     {isVideo ? (
                                         <>
@@ -436,7 +500,7 @@ export default function ImageGroupModal({
                                                 loop
                                                 muted
                                                 preload="metadata"
-                                                onMouseEnter={(e) => { if (e.currentTarget.paused) e.currentTarget.play().catch(() => { }); }}
+                                                onMouseEnter={(e) => { if (e.currentTarget.paused && !isSelectionMode) e.currentTarget.play().catch(() => { }); }}
                                                 onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
                                             />
                                         </>
@@ -449,8 +513,28 @@ export default function ImageGroupModal({
                                         />
                                     )}
 
+                                    {/* Selection Checkbox */}
+                                    {(isSelectionMode || isSelected) && (
+                                        <div
+                                            className="absolute top-2 left-2 z-50 cursor-pointer"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleSelection(image.id);
+                                            }}
+                                        >
+                                            <div className={cn(
+                                                "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors backdrop-blur-sm shadow-md",
+                                                isSelected
+                                                    ? "bg-primary border-primary text-white"
+                                                    : "bg-black/40 border-white/60 text-transparent hover:border-white w-6 h-6"
+                                            )}>
+                                                <Icons.check size={14} className={isSelected ? 'opacity-100' : 'opacity-0 hover:opacity-100 text-white'} />
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {image.sourceImageId && (
-                                        <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-accent/90 text-white text-[10px] font-bold rounded uppercase z-30">
+                                        <div className={cn("absolute px-1.5 py-0.5 bg-accent/90 text-white text-[10px] font-bold rounded uppercase z-30", (isSelectionMode || isSelected) ? "top-2 right-2" : "top-2 left-2")}>
                                             Variation
                                         </div>
                                     )}
@@ -460,7 +544,7 @@ export default function ImageGroupModal({
                                         </div>
                                     )}
                                     {image.isExemplar && (
-                                        <div className="absolute top-2 right-2 z-30 bg-gradient-to-r from-amber-400 to-yellow-500 text-white text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded shadow-lg flex items-center gap-1 border border-amber-300/30">
+                                        <div className={cn("absolute right-2 z-30 bg-gradient-to-r from-amber-400 to-yellow-500 text-white text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded shadow-lg flex items-center gap-1 border border-amber-300/30", (isSelectionMode || isSelected) && image.sourceImageId ? "top-8" : "top-2")}>
                                             <Icons.exemplar size={10} />
                                             Exemplar
                                         </div>
@@ -470,16 +554,70 @@ export default function ImageGroupModal({
                                             <Icons.video size={14} className="text-white" />
                                         </div>
                                     )}
-                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-40">
-                                        <span className="text-white text-sm font-bold bg-black/50 px-3 py-1.5 rounded-full backdrop-blur-sm border border-white/20">
-                                            View Details
-                                        </span>
-                                    </div>
+
+                                    {!isSelectionMode && (
+                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-40">
+                                            <span className="text-white text-sm font-bold bg-black/50 px-3 py-1.5 rounded-full backdrop-blur-sm border border-white/20">
+                                                View Details
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}
                     </div>
                 </div>
+
+                {/* Batch Action Bar */}
+                <AnimatePresence>
+                    {isSelectionMode && selectedIds.size > 0 && (
+                        <motion.div
+                            initial={{ y: 50, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            exit={{ y: 50, opacity: 0 }}
+                            className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[100]"
+                        >
+                            <div className="flex items-center gap-6 px-6 py-4 shadow-2xl border border-primary/30 bg-[#12121a]/95 backdrop-blur-xl ring-1 ring-white/10 rounded-2xl">
+                                <div className="flex items-center gap-3 pr-6 border-r border-border/50">
+                                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-white font-black text-sm shadow-lg shadow-primary/20 animate-in zoom-in duration-300">
+                                        {selectedIds.size}
+                                    </div>
+                                    <span className="text-sm font-black uppercase tracking-widest text-foreground opacity-80">Selected</span>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <button
+                                        onClick={() => {
+                                            const allIds = new Set(selectedGroup.map(img => img.id));
+                                            setSelectedIds(allIds);
+                                        }}
+                                        className="h-9 px-4 text-[10px] rounded-lg font-black uppercase tracking-widest bg-background-secondary hover:bg-background-tertiary transition-colors border border-border"
+                                    >
+                                        Select All
+                                    </button>
+                                    <button
+                                        onClick={() => setSelectedIds(new Set())}
+                                        className="h-9 px-4 text-[10px] rounded-lg font-black uppercase tracking-widest bg-background-secondary hover:bg-background-tertiary transition-colors border border-border"
+                                    >
+                                        Clear
+                                    </button>
+                                    <div className="w-px h-6 bg-border/50 mx-1" />
+                                    <button
+                                        onClick={handleDeleteSelected}
+                                        disabled={isDeleting}
+                                        className="flex items-center gap-2 h-9 px-6 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg shadow-error/20 bg-error hover:bg-error-hover text-white transition-colors disabled:opacity-50"
+                                    >
+                                        {isDeleting ? (
+                                            <Icons.spinner size={14} className="animate-spin" />
+                                        ) : (
+                                            <Icons.delete size={14} />
+                                        )}
+                                        Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
         </motion.div>
     );

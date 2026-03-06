@@ -61,10 +61,12 @@ export async function loginWithEmail(page: Page) {
     console.log('Waiting for login form to manifest...');
     // The button is the "gate" that means the form is rendered
     const authBtn = page.getByRole('button', { name: /authenticate/i });
+    const emailInput = page.locator('#email');
 
     // Increased timeout for slow dev servers/cold starts
     try {
-        await expect(authBtn).toBeVisible({ timeout: 25000 });
+        await expect(emailInput).toBeVisible({ timeout: 45000 });
+        await expect(authBtn).toBeVisible({ timeout: 10000 });
         console.log('Login form manifests. Filling credentials...');
     } catch (e) {
         console.error('Timed out waiting for login form. Current URL:', page.url());

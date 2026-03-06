@@ -40,7 +40,9 @@ export default function Tooltip({ content, children, position = 'top', className
         >
             {children}
             {isVisible && (
-                <div className={`absolute z-[100] px-2 py-1.5 text-[10px] font-bold text-foreground bg-background-tertiary border border-border rounded-lg shadow-xl whitespace-nowrap animate-in fade-in zoom-in-95 duration-200 ${positionClasses[position]}`}>
+                <div
+                    className={`absolute z-[9999] px-4 py-2 text-[10px] font-bold text-foreground bg-background-tertiary border border-border rounded-lg shadow-xl whitespace-normal w-60 md:w-80 max-w-[400px] animate-in fade-in zoom-in-95 duration-200 ${positionClasses[position]}`}
+                >
                     {content}
                     <div className={`absolute border-[5px] ${arrowClasses[position]}`} />
                 </div>

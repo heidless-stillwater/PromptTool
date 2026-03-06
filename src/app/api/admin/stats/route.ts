@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
                 const creditDoc = await adminDb.collection('users').doc(userDoc.id).collection('data').doc('credits').get();
                 if (creditDoc.exists) {
                     const data = creditDoc.data()!;
-                    totalCreditsHeld += (data.balance || 0) + Math.max(0, (data.dailyAllowance || 0) - (data.dailyAllowanceUsed || 0));
+                    totalCreditsHeld += (data.balance || 0);
                     totalLifetimeUsed += (data.totalUsed || 0);
                 }
             } catch (e) {

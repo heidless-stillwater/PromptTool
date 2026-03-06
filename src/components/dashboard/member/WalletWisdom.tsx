@@ -11,9 +11,7 @@ interface WalletWisdomProps {
 
 export default function WalletWisdom({ credits }: WalletWisdomProps) {
     const purchasedBalance = credits?.balance || 0;
-    const dailyAllowance = credits?.dailyAllowance || 0;
-    const dailyUsed = credits?.dailyAllowanceUsed || 0;
-    const dailyRemaining = Math.max(0, dailyAllowance - dailyUsed);
+    const dailyRemaining = 0;
 
     // Total available = Purchased + Daily Bonus
     const totalAvailable = purchasedBalance + dailyRemaining;

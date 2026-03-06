@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import Tooltip from '@/components/Tooltip';
-import { ImageQuality, AspectRatio, MediaModality, CREDIT_COSTS } from '@/lib/types';
+import { ImageQuality, AspectRatio, MediaModality, CREDIT_COSTS, getGenerationCost } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 interface SettingsSectionProps {
@@ -25,6 +25,7 @@ interface SettingsSectionProps {
     allowedQualities: string[];
     isPro: boolean;
     isCasual: boolean;
+    modelType: 'standard' | 'pro';
 }
 
 export default function SettingsSection({
@@ -41,7 +42,8 @@ export default function SettingsSection({
     onGenerateSetID,
     allowedQualities,
     isPro,
-    isCasual
+    isCasual,
+    modelType
 }: SettingsSectionProps) {
     return (
         <Card id="settings-panel" className="p-5" variant="glass">
@@ -97,13 +99,13 @@ export default function SettingsSection({
                         ) : (
                             <>
                                 <option value="standard" disabled={!allowedQualities.includes('standard')}>
-                                    Standard HD — {CREDIT_COSTS.standard} credit
+                                    Standard HD — {getGenerationCost('image', 'standard', modelType)} credit{getGenerationCost('image', 'standard', modelType) > 1 ? 's' : ''}
                                 </option>
                                 <option value="high" disabled={!allowedQualities.includes('high')}>
-                                    High Definition (2K) — {CREDIT_COSTS.high} credits
+                                    High Definition (2K) — {getGenerationCost('image', 'high', modelType)} credits
                                 </option>
                                 <option value="ultra" disabled={!allowedQualities.includes('ultra')}>
-                                    Ultra 4K — {CREDIT_COSTS.ultra} credits {!allowedQualities.includes('ultra') ? '(Pro only)' : ''}
+                                    Ultra 4K — {getGenerationCost('image', 'ultra', modelType)} credits {!allowedQualities.includes('ultra') ? '(Pro only)' : ''}
                                 </option>
                             </>
                         )}

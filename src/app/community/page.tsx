@@ -49,7 +49,7 @@ function CommunityContent() {
 
     const canManageCollections = userLevel === 'master' || isAdmin || isSu;
 
-    const availableCredits = (credits?.balance || 0) + Math.max(0, (credits?.dailyAllowance || 0) - (credits?.dailyAllowanceUsed || 0));
+    const availableCredits = credits?.balance || 0;
 
     if (!user || !profile) {
         return (

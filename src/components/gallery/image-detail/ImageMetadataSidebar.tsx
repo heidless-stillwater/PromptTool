@@ -106,13 +106,16 @@ export default function ImageMetadataSidebar({
                     )}
 
                     <Button
-                        variant="primary"
+                        variant={image.status === 'draft' ? "outline" : "primary"}
                         size="sm"
                         onClick={onGenerateVariation}
-                        className="w-full mt-4 text-[10px] uppercase font-black tracking-widest h-9"
+                        className={cn(
+                            "w-full mt-4 text-[10px] uppercase font-black tracking-widest h-9",
+                            image.status === 'draft' ? "border-primary/50 text-primary hover:bg-primary/10" : ""
+                        )}
                     >
                         <Icons.wand size={14} className="mr-2" />
-                        New Version
+                        {image.status === 'draft' ? "Resume Variation" : "New Version"}
                     </Button>
                 </div>
             </div>

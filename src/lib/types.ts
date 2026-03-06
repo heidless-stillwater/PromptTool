@@ -106,7 +106,7 @@ export interface SystemConfig {
 // Credit System Types
 // ============================================
 
-export type TransactionType = 'purchase' | 'usage' | 'daily_allowance' | 'refund' | 'subscription' | 'overdraft_recovery';
+export type TransactionType = 'purchase' | 'usage' | 'refund' | 'subscription' | 'overdraft_recovery';
 
 export interface CreditTransaction {
     id: string;
@@ -124,10 +124,6 @@ export interface CreditTransaction {
 
 export interface UserCredits {
     balance: number;            // Can be negative (down to -maxOverdraft)
-    dailyAllowance: number;     // @deprecated for new prepaid model
-    dailyAllowanceUsed: number; // @deprecated for new prepaid model
-    lastDailyReset: FirestoreTimestamp;
-    expiresAt: FirestoreTimestamp | null;
     totalPurchased: number;
     totalUsed: number;
 
@@ -144,23 +140,40 @@ export interface UserCredits {
     lastPurchaseAt: FirestoreTimestamp | null;
 }
 
-// Credit costs by quality tier
+// Credit costs by model and quality tier
 export const CREDIT_COSTS = {
-    standard: 1,  // 1024px
-    high: 3,      // 2K
-    ultra: 5,     // 4K (Pro only)
-    video: 10,    // 5-second video (Pro only)
+    standard: {
+        standard: 1, // 1024px
+        high: 3,     // 2K
+        ultra: 5,    // 4K
+    },
+    pro: {
+        standard: 2, // 1024px (Pro model)
+        high: 6,     // 2K (Pro model)
+        ultra: 10,   // 4K (Pro model)
+    },
+    video: 10,       // 5-second video (Pro only)
 } as const;
+
+/**
+ * Calculates the cost of a generation based on modality, quality, and model type.
+ */
+export function getGenerationCost(
+    modality: MediaModality,
+    quality: ImageQuality | 'video',
+    modelType: 'standard' | 'pro' = 'standard'
+): number {
+    if (modality === 'video' || quality === 'video') {
+        return CREDIT_COSTS.video;
+    }
+
+    const q = quality as ImageQuality;
+    return CREDIT_COSTS[modelType][q];
+}
 
 export type ImageQuality = 'standard' | 'high' | 'ultra';
 export type MediaModality = 'image' | 'video';
 
-// Daily allowance by subscription
-export const DAILY_ALLOWANCE = {
-    free: 5,
-    standard: 15,
-    pro: 50,
-} as const;
 
 // ============================================
 // Image Generation Types
@@ -181,6 +194,8 @@ export interface GenerationSettings {
     guidanceScale?: number;
     modifiers?: { category: string, value: string }[];
     coreSubject?: string;
+    variables?: Record<string, string>;
+    modelType?: 'standard' | 'pro';
 }
 
 export interface MadLibsSelection {
@@ -215,6 +230,7 @@ export interface GeneratedImage {
     duration?: number;           // Video duration in seconds
     variationCount?: number;     // Count of variations generated from this image
     isExemplar?: boolean;        // Whether this is an exemplar of high quality (admin set)
+    status?: 'draft' | 'completed'; // Added to track drafts vs completed generations
 }
 
 // ============================================
@@ -313,7 +329,6 @@ export interface SubscriptionPlan {
     price: number; // monthly price in cents
     features: string[];
     creditsPerMonth: number;
-    dailyAllowance: number;
     allowedModes: AudienceMode[];
     allowedQualities: ImageQuality[];
     batchGeneration: boolean;
@@ -330,7 +345,8 @@ export interface CreditPack {
     name: string;      // e.g., "Starter Pack"
     credits: number;   // e.g., 100
     priceCents: number;// e.g., 1000 ($10.00)
-    stripePriceId: string;
+    /** @deprecated Not used by checkout-one-time route (uses inline price_data). Kept for future Stripe Price catalog integration. */
+    stripePriceId?: string;
     isMostPopular?: boolean;
 }
 
@@ -353,12 +369,9 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
         name: 'Free',
         price: 0,
         features: [
-            '5 free credits daily',
-            'Standard quality images',
             'Casual mode only',
         ],
         creditsPerMonth: 0,
-        dailyAllowance: 5,
         allowedModes: ['casual'],
         allowedQualities: ['standard'],
         batchGeneration: false,
@@ -376,13 +389,9 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
         name: 'Standard',
         price: 999, // $9.99
         features: [
-            '15 credits daily',
-            '100 bonus credits monthly',
-            'Standard & High quality',
             'Casual mode',
         ],
         creditsPerMonth: 100,
-        dailyAllowance: 15,
         allowedModes: ['casual'],
         allowedQualities: ['standard', 'high'],
         batchGeneration: false,
@@ -401,16 +410,9 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
         name: 'Professional',
         price: 2999, // $29.99
         features: [
-            '50 credits daily',
-            '500 bonus credits monthly',
-            'All quality levels incl. 4K',
-            'Video generation (5-sec)',
-            'Professional + Casual modes',
-            'Batch generation',
             'Priority support',
         ],
         creditsPerMonth: 500,
-        dailyAllowance: 50,
         allowedModes: ['casual', 'professional'],
         allowedQualities: ['standard', 'high', 'ultra'],
         batchGeneration: true,

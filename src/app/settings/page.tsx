@@ -507,7 +507,7 @@ export default function SettingsPage() {
                                             <div className="hidden md:block w-px h-12 bg-white/10" />
                                             <div className="p-4 rounded-2xl bg-black/40 border border-white/5 text-center px-8">
                                                 <p className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Protocol Action</p>
-                                                <p className="text-xs font-black text-white italic">"Deploy Refill Modal"</p>
+                                                <p className="text-xs font-black text-white italic">&quot;Deploy Refill Modal&quot;</p>
                                             </div>
                                         </div>
                                     </div>

@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense, useCallback, useRef } from 'react';
 import { PROMPT_CATEGORIES, buildPromptFromMadLibs, FEATURED_PROMPTS } from '@/lib/prompt-templates';
-import { ImageQuality, AspectRatio, MadLibsSelection, CREDIT_COSTS, SUBSCRIPTION_PLANS, GeneratedImage, MediaModality } from '@/lib/types';
+import { ImageQuality, AspectRatio, MadLibsSelection, CREDIT_COSTS, getGenerationCost, SUBSCRIPTION_PLANS, GeneratedImage, MediaModality } from '@/lib/types';
 import { normalizeImageData } from '@/lib/image-utils';
 import Link from 'next/link';
 import TextOverlayEditor from '@/components/TextOverlayEditor';
@@ -85,6 +85,7 @@ function GeneratePageContent() {
     const [generationProgress, setGenerationProgress] = useState<{ current: number; total: number; message: string } | null>(null);
     const [promptSetID, setPromptSetID] = useState<string>('');
     const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
+    const [modelType, setModelType] = useState<'standard' | 'pro'>('standard');
 
     // History & Remix state
     const [historyImages, setHistoryImages] = useState<GeneratedImage[]>([]);
@@ -278,7 +279,7 @@ function GeneratePageContent() {
             const response = await fetch('/api/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ prompt: promptMode === 'madlibs' ? buildPromptFromMadLibs(madLibs) : prompt, quality, aspectRatio, modality, batchSize, negativePrompt, seed, guidanceScale, promptSetID, collectionIds: selectedCollectionIds, referenceImage: referenceImage?.base64 })
+                body: JSON.stringify({ prompt: promptMode === 'madlibs' ? buildPromptFromMadLibs(madLibs) : prompt, quality, aspectRatio, modality, batchSize, negativePrompt, seed, guidanceScale, promptSetID, collectionIds: selectedCollectionIds, referenceImage: referenceImage?.base64, modelType })
             });
             if (!response.ok) throw new Error(await response.text());
             const reader = response.body?.getReader();
@@ -300,8 +301,8 @@ function GeneratePageContent() {
     };
 
     const isAdmin = profile?.role === 'admin';
-    const availableCredits = (credits?.balance || 0) + Math.max(0, (credits?.dailyAllowance || 0) - (credits?.dailyAllowanceUsed || 0));
-    const currentCost = (modality === 'video' ? 100 : (quality === 'ultra' ? 8 : (quality === 'standard' ? 1 : 4))) * batchSize;
+    const availableCredits = credits?.balance || 0;
+    const currentCost = getGenerationCost(modality, quality, modelType) * batchSize;
 
     return (
         <div className="min-h-screen bg-background flex flex-col">
@@ -347,6 +348,7 @@ function GeneratePageContent() {
                             allowedQualities={['standard', 'premium']}
                             isPro={true}
                             isCasual={false}
+                            modelType={modelType}
                         />
 
                         <AdvancedControls
@@ -358,6 +360,8 @@ function GeneratePageContent() {
                             setSeed={setSeed}
                             guidanceScale={guidanceScale}
                             setGuidanceScale={setGuidanceScale}
+                            modelType={modelType}
+                            setModelType={setModelType}
                             isCasual={false}
                         />
 

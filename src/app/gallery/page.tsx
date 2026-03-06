@@ -35,7 +35,7 @@ function GalleryContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
 
-    const availableCredits = (credits?.balance || 0) + (credits?.dailyAllowance || 0) - (credits?.dailyAllowanceUsed || 0);
+    const availableCredits = credits?.balance || 0;
 
     const {
         fetchImages,
@@ -323,6 +323,7 @@ function GalleryContent() {
                         creatingCollection={gallery.creatingCollection}
                         collectionError={gallery.collectionError}
                         setCollectionError={gallery.setCollectionError}
+                        onDeleteImages={gallery.deleteImages}
                     />
                 )}
             </AnimatePresence>

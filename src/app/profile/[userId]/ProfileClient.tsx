@@ -30,7 +30,7 @@ export default function ProfileClient() {
         isSu: authIsSu
     } = auth;
 
-    const availableCredits = (authCredits?.balance || 0) + Math.max(0, (authCredits?.dailyAllowance || 0) - (authCredits?.dailyAllowanceUsed || 0));
+    const availableCredits = authCredits?.balance || 0;
 
     const profile = useProfile();
     const {

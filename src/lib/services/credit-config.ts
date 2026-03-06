@@ -29,14 +29,12 @@ export class CreditConfigService {
                     name: 'Starter Pack',
                     credits: 100,
                     priceCents: 1000,
-                    stripePriceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_STANDARD || '',
                 },
                 {
                     id: 'pro_300',
                     name: 'Pro Pack',
                     credits: 300,
                     priceCents: 2500,
-                    stripePriceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO || '',
                     isMostPopular: true,
                 },
                 {
@@ -44,7 +42,6 @@ export class CreditConfigService {
                     name: 'Value Pack',
                     credits: 750,
                     priceCents: 5000,
-                    stripePriceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_VALUE || process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO || '',
                 }
             ],
             defaultOverdraftLimit: 3,

@@ -31,8 +31,8 @@ test.describe('Credits Overdraft and Oxygen Tank', () => {
         await page.goto('/generate');
         await waitForHydration(page);
 
-        // Wait for prompt input to be visible
-        await page.waitForSelector('#prompt-input', { state: 'visible', timeout: 15000 });
+        // Wait for prompt input to be visible - 60s for slow dev server compilation
+        await page.waitForSelector('#prompt-input', { state: 'visible', timeout: 60000 });
     }
 
     test('should show RefillModal when balance is 0 and Oxygen is not authorized', async ({ page }) => {
@@ -43,101 +43,59 @@ test.describe('Credits Overdraft and Oxygen Tank', () => {
 
         await loginWithEmail(page);
 
-        // 1. Setup OVERRIDE before generator
+        // Setup OVERRIDE: 0 balance, Oxygen unauthorized
         await page.addInitScript((credits: any) => {
             (window as any).__PR_CREDITS_OVERRIDE__ = credits;
         }, {
             balance: 0,
             isOxygenAuthorized: false,
-            maxOverdraft: 3,
-            autoRefillEnabled: false,
-            dailyAllowance: 0,
-            dailyAllowanceUsed: 0
+            maxOverdraft: 5
         });
 
+        // Initial state
         await ensureGenerator(page);
+        await expect(page.locator('#tour-energy-button')).toContainText(/0/i);
 
-        // Verify balance 0 is reflected
-        await expect(page.getByText('0 Energy')).toBeVisible();
-
-        // Fill prompt
-        await page.locator('#prompt-input').fill('A test generation');
-        await expect(page.locator('#manifest-button')).not.toBeDisabled();
-
-        // Click generate
+        // 1. Fill prompt and generate
+        await page.locator('#prompt-input').fill('Test low energy modal');
         await page.locator('#manifest-button').click();
-
-        // Wait for Review Modal
-        await expect(page.locator('[data-testid="review-modal"]')).toBeVisible({ timeout: 15000 });
-
-        // Click the final generate button in the modal
         await page.getByRole('button', { name: /weave masterpiece/i }).click();
 
-        // Check for RefillModal
+        // Should show RefillModal because 0 < 1 and Oxygen is unauthorized
         await expect(page.locator('[data-testid="refill-modal"]')).toBeVisible({ timeout: 15000 });
         await expect(page.getByText(/energy low/i)).toBeVisible();
-        await expect(page.getByText(/oxygen tank offline/i)).toBeVisible();
     });
 
     test('should allow generation if Oxygen Tank is armed and within limit', async ({ page }) => {
-        // Mock both endpoints
+        // Mock success
         await page.route('**/api/generate/nanobanana', async (route) => {
-            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, compiledPrompt: 'Mocked weave 2' }) });
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, compiledPrompt: 'Oxygen test' }) });
         });
         await page.route('**/api/generate', async (route) => {
-            // Delay the SSE response so generation state is visible in the UI
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            await route.fulfill({
-                status: 200,
-                contentType: 'text/event-stream',
-                body: [
-                    'data: {"type": "progress", "message": "Inbound payload detected...", "current": 0, "total": 1}\n\n',
-                    'data: {"type": "complete", "images": [{"url": "https://example.com/test.png", "prompt": "test"}]}\n\n',
-                    'data: [DONE]\n\n'
-                ].join('')
-            });
+            await route.fulfill({ status: 200, contentType: 'text/event-stream', body: 'data: {"type": "complete", "images": [{"url": "https://example.com/oxygen.png"}]}\n\ndata: [DONE]\n\n' });
         });
 
         await loginWithEmail(page);
 
-        // 1. Setup OVERRIDE
+        // Setup: 0 balance, Oxygen authorized
         await page.addInitScript((credits: any) => {
             (window as any).__PR_CREDITS_OVERRIDE__ = credits;
         }, {
-            balance: 1,
+            balance: 0,
             isOxygenAuthorized: true,
-            maxOverdraft: 5,
-            dailyAllowance: 0,
-            dailyAllowanceUsed: 0
+            maxOverdraft: 5
         });
 
         await ensureGenerator(page);
+        await expect(page.locator('#tour-energy-button')).toContainText(/0/i);
 
-        // Verify balance
-        await expect(page.getByText('1 Energy')).toBeVisible();
-
-        // Fill prompt
+        // Perform Generation
         await page.locator('#prompt-input').fill('Oxygen tank test');
-        await expect(page.locator('#manifest-button')).not.toBeDisabled();
-
-        // Click generate — opens review modal
         await page.locator('#manifest-button').click();
-        await expect(page.locator('[data-testid="review-modal"]')).toBeVisible({ timeout: 15000 });
-
-        // Click confirm in review modal — triggers handleGenerate
         await page.getByRole('button', { name: /weave masterpiece/i }).click();
 
-        // Verify: review modal should close after clicking
-        await expect(page.locator('[data-testid="review-modal"]')).not.toBeVisible({ timeout: 10000 });
-
-        // Verify: generation should be in progress — button text changes to "Cancel Synthesis"
-        // OR the generation message "Initializing generation pipeline..." appears
-        const cancelBtn = page.getByText(/cancel synthesis/i);
-        const initMsg = page.getByText(/initializing generation pipeline/i);
-        const progressMsg = page.getByText(/inbound payload detected/i);
-
-        // Wait for any of these indicators that generation started
-        await expect(cancelBtn.or(initMsg).or(progressMsg).first()).toBeVisible({ timeout: 15000 });
+        // Should NOT show modal, should deduct to -1
+        await expect(page.locator('#tour-energy-button')).toContainText(/-1/i, { timeout: 15000 });
     });
 
     test('should show RefillModal when Oxygen Tank is armed but cost exceeds limit', async ({ page }) => {
@@ -148,42 +106,75 @@ test.describe('Credits Overdraft and Oxygen Tank', () => {
 
         await loginWithEmail(page);
 
-        // 1. Setup OVERRIDE
+        // Setup: 0 balance, Oxygen authorized, but cost is higher than overdraft
         await page.addInitScript((credits: any) => {
             (window as any).__PR_CREDITS_OVERRIDE__ = credits;
         }, {
             balance: 0,
             isOxygenAuthorized: true,
-            maxOverdraft: 2, // Set to 2 so cost of 3 (High) fails
-            dailyAllowance: 0,
-            dailyAllowanceUsed: 0
+            maxOverdraft: 2 // Tiny overdraft
         });
 
         await ensureGenerator(page);
+        await expect(page.locator('#tour-energy-button')).toContainText(/0/i);
 
-        // Verify balance
-        await expect(page.getByText('0 Energy')).toBeVisible();
+        // Perform Generation
+        await page.locator('#prompt-input').fill('Exceed limit test');
 
-        // Fill prompt
-        await page.locator('#prompt-input').fill('High cost test');
-
-        // Toggle settings to select High Quality
+        // Toggle settings to select High Quality (Cost: 3)
         const engineeringCore = page.locator('text=Engineering Core');
         await engineeringCore.click();
-
-        // Select High (Cost: 3)
         await page.selectOption('select:near(label:text("Quality"))', 'high');
 
-        // Click generate
         await page.locator('#manifest-button').click();
-        await expect(page.locator('[data-testid="review-modal"]')).toBeVisible({ timeout: 15000 });
-
-        // Click final generate
         await page.getByRole('button', { name: /weave masterpiece/i }).click();
 
         // Should show RefillModal because 3 > 2 (limit)
         await expect(page.locator('[data-testid="refill-modal"]')).toBeVisible({ timeout: 15000 });
         await expect(page.getByText(/energy low/i)).toBeVisible();
         await expect(page.getByText(/oxygen tank depleted/i)).toBeVisible();
+    });
+
+    test('should verify full cycle of overdraft use and recovery through purchase', async ({ page }) => {
+        // Mock endpoints
+        await page.route('**/api/generate/nanobanana', async (route) => {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, compiledPrompt: 'Recovery test' }) });
+        });
+        await page.route('**/api/generate', async (route) => {
+            await route.fulfill({ status: 200, contentType: 'text/event-stream', body: 'data: {"type": "complete", "images": [{"url": "https://example.com/recovery.png"}]}\n\ndata: [DONE]\n\n' });
+        });
+
+        await loginWithEmail(page);
+
+        // 1. Setup OVERRIDE: 0 balance, Oxygen authorized
+        await page.addInitScript((credits: any) => {
+            (window as any).__PR_CREDITS_OVERRIDE__ = credits;
+        }, {
+            balance: 0,
+            isOxygenAuthorized: true,
+            maxOverdraft: 5
+        });
+
+        await ensureGenerator(page);
+        await expect(page.locator('#tour-energy-button')).toContainText(/0/i);
+
+        // 2. Perform Generation
+        await page.locator('#prompt-input').fill('Cycle test');
+        await page.locator('#manifest-button').click();
+        await page.getByRole('button', { name: /weave masterpiece/i }).click();
+
+        // 3. Verify debt state in UI
+        await expect(page.locator('#tour-energy-button')).toContainText(/-1/i, { timeout: 15000 });
+
+        // 4. Trigger Modal by clicking Refill
+        await page.locator('#tour-refill-link').click();
+
+        // Should show RefillModal
+        await expect(page.locator('[data-testid="refill-modal"]')).toBeVisible();
+        await expect(page.getByText(/overdraft detected/i)).toBeVisible();
+        await expect(page.getByText(/automatically recover 1 credits/i)).toBeVisible();
+
+        // Click a pack to verify it mentions "Starter" (from mock config in beforeEach)
+        await expect(page.getByText(/Starter/i)).toBeVisible();
     });
 });

@@ -300,11 +300,9 @@ export function useDashboard() {
         }
     };
 
-    const purchasedBalance = credits?.balance || 0;
-    const dailyRemaining = Math.max(0, (credits?.dailyAllowance || 0) - (credits?.dailyAllowanceUsed || 0));
-    const availableCredits = purchasedBalance + dailyRemaining;
+    const availableCredits = credits?.balance || 0;
     const isOxygenDeployed = credits?.isOxygenDeployed || false;
-    const isBalanceNegative = purchasedBalance < 0;
+    const isBalanceNegative = (credits?.balance || 0) < 0;
 
     return {
         // State

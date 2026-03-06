@@ -1,6 +1,6 @@
 import { adminDb, adminStorage } from '../firebase-admin';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
-import { MediaModality, ImageQuality, AspectRatio, GeneratedImage, MadLibsSelection, SUBSCRIPTION_PLANS, CREDIT_COSTS, ADMIN_EMAILS } from '../types';
+import { MediaModality, ImageQuality, AspectRatio, GeneratedImage, MadLibsSelection, SUBSCRIPTION_PLANS, CREDIT_COSTS, ADMIN_EMAILS, getGenerationCost } from '../types';
 import { checkResourceQuota } from '../resource-guard';
 
 export interface GenerationValidationResult {
@@ -8,9 +8,6 @@ export interface GenerationValidationResult {
     subscription: string;
     credits: {
         balance: number;
-        dailyAllowance: number;
-        dailyAllowanceUsed: number;
-        lastDailyReset: Timestamp;
         isOxygenAuthorized?: boolean;
         isOxygenDeployed?: boolean;
         maxOverdraft?: number;
@@ -19,8 +16,6 @@ export interface GenerationValidationResult {
         single: number;
         total: number;
     };
-    isNewDay: boolean;
-    remainingDaily: number;
     simulation?: any;
 }
 
@@ -41,6 +36,9 @@ export interface MediaSaveOptions {
     initialImageUrl?: string;
     modifiers?: { category: string, value: string }[];
     coreSubject?: string;
+    variables?: Record<string, string>;
+    compiledPrompt?: string;
+    modelType?: 'standard' | 'pro';
 }
 
 export class GenerationService {
@@ -90,7 +88,7 @@ export class GenerationService {
     /**
      * Checks if user has enough credits and calculates costs.
      */
-    static async validateCredits(userId: string, modality: MediaModality, quality: ImageQuality | 'video', count: number, simulation?: any): Promise<GenerationValidationResult> {
+    static async validateCredits(userId: string, modality: MediaModality, quality: ImageQuality | 'video', count: number, modelType: 'standard' | 'pro' = 'standard', simulation?: any): Promise<GenerationValidationResult> {
         const creditsRef = adminDb.collection('users').doc(userId).collection('data').doc('credits');
         const creditsDoc = await creditsRef.get();
 
@@ -104,16 +102,11 @@ export class GenerationService {
             credits = { ...credits, ...simulation };
         }
 
-        const singleCost = modality === 'video' ? CREDIT_COSTS.video : CREDIT_COSTS[quality as ImageQuality];
+        const { getGenerationCost } = await import('../types');
+        const singleCost = getGenerationCost(modality, quality, modelType);
         const totalCost = singleCost * count;
 
-        const lastReset = credits.lastDailyReset.toDate();
-        const today = new Date();
-        const isNewDay = lastReset.toDateString() !== today.toDateString();
-
-        const currentDailyUsed = isNewDay ? 0 : credits.dailyAllowanceUsed;
-        const remainingDaily = Math.max(0, credits.dailyAllowance - currentDailyUsed);
-        let totalAvailable = credits.balance + remainingDaily;
+        let totalAvailable = credits.balance;
 
         // Oxygen Tank (Burst) Logic
         const isOxygenAuthorized = credits.isOxygenAuthorized === true;
@@ -135,8 +128,6 @@ export class GenerationService {
             subscription: '',
             credits: credits as any,
             costs: { single: singleCost, total: totalCost },
-            isNewDay,
-            remainingDaily,
             simulation
         };
     }
@@ -145,22 +136,18 @@ export class GenerationService {
      * Deducts credits and logs history.
      */
     static async deductCredits(val: GenerationValidationResult, actualCount: number, options: any) {
-        const { userId, isNewDay, remainingDaily, costs, credits } = val;
+        const { userId, costs, credits } = val;
         const actualTotalCost = costs.single * actualCount;
 
-        const dailyDeduction = Math.min(actualTotalCost, remainingDaily);
-        const balanceDeduction = actualTotalCost - dailyDeduction;
         const isOxygenActive = (credits as any).isOxygenActive === true;
 
-        console.log(`[Credits] Deducting for ${userId}: Cost ${actualTotalCost}, Daily Deduction ${dailyDeduction}, Balance Deduction ${balanceDeduction}, Oxygen Burst ${isOxygenActive}`);
+        console.log(`[Credits] Deducting for ${userId}: Cost ${actualTotalCost}, Balance Deduction ${actualTotalCost}, Oxygen Burst ${isOxygenActive}`);
 
         const batch = adminDb.batch();
         const creditsRef = adminDb.collection('users').doc(userId).collection('data').doc('credits');
 
         batch.update(creditsRef, {
-            balance: (FieldValue as any).increment(-balanceDeduction),
-            dailyAllowanceUsed: isNewDay ? dailyDeduction : (FieldValue as any).increment(dailyDeduction),
-            lastDailyReset: isNewDay ? Timestamp.now() : val.credits.lastDailyReset,
+            balance: (FieldValue as any).increment(-actualTotalCost),
             totalUsed: (FieldValue as any).increment(actualTotalCost),
             // Mark tank as deployed if burst was used
             isOxygenDeployed: isOxygenActive ? true : (credits.isOxygenDeployed || false)
@@ -195,7 +182,7 @@ export class GenerationService {
         console.log(`[Credits] Batch committed successfully for ${userId}`);
 
         const updatedCredits = (await creditsRef.get()).data()!;
-        const realBalance = updatedCredits.balance + Math.max(0, updatedCredits.dailyAllowance - updatedCredits.dailyAllowanceUsed);
+        const realBalance = updatedCredits.balance;
 
         if (val.simulation) {
             // Return simulated balance drop
@@ -210,7 +197,7 @@ export class GenerationService {
      */
     static async saveMedia(userId: string, media: { data: string, mimeType: string }, options: MediaSaveOptions) {
         const bucket = adminStorage.bucket();
-        const { modality, quality, aspectRatio, prompt, promptType, madlibsData, seed, negativePrompt, guidanceScale, sourceImageId, promptSetID, collectionIds, requestedModality, initialImageUrl, modifiers, coreSubject } = options;
+        const { modality, quality, aspectRatio, prompt, promptType, madlibsData, seed, negativePrompt, guidanceScale, sourceImageId, promptSetID, collectionIds, requestedModality, initialImageUrl, modifiers, coreSubject, variables, compiledPrompt } = options;
 
         const isVideo = media.mimeType.startsWith('video/');
         const extension = media.mimeType.split('/')[1] || (isVideo ? 'mp4' : 'png');
@@ -250,6 +237,8 @@ export class GenerationService {
         if (guidanceScale !== undefined) settings.guidanceScale = guidanceScale;
         if (modifiers) settings.modifiers = modifiers;
         if (coreSubject) settings.coreSubject = coreSubject;
+        if (variables && Object.keys(variables).length > 0) settings.variables = variables;
+        if (compiledPrompt) settings.compiledPrompt = compiledPrompt;
 
         const mediaData: any = {
             userId,
@@ -258,7 +247,7 @@ export class GenerationService {
             imageUrl: (actualModality === 'video' && initialImageUrl) ? initialImageUrl : mediaUrl,
             storagePath: filename,
             byteSize,
-            creditsCost: isVideo ? CREDIT_COSTS.video : CREDIT_COSTS[quality as ImageQuality],
+            creditsCost: getGenerationCost(actualModality as any, quality as any, options.modelType as any),
             createdAt: Timestamp.now(),
             downloadCount: 0,
             ...(actualModality === 'video' && { videoUrl: mediaUrl }),

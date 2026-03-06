@@ -197,6 +197,34 @@ export function useGallery() {
         }
     };
 
+    const deleteImages = async (ids: string[]) => {
+        if (!user || ids.length === 0) return;
+
+        setBatchDeleting(true);
+        try {
+            await Promise.all(ids.map(id =>
+                deleteDoc(doc(db, 'users', user.uid, 'images', id))
+            ));
+            setImages(prev => prev.filter(img => !ids.includes(img.id)));
+            if (selectedGroup) {
+                setSelectedGroup(prev => {
+                    if (!prev) return null;
+                    const filtered = prev.filter(img => !ids.includes(img.id));
+                    return filtered.length > 0 ? filtered : null;
+                });
+            }
+            if (selectedImage && ids.includes(selectedImage.id)) {
+                setSelectedImage(null);
+            }
+            showToast('Images deleted successfully', 'success');
+        } catch (error) {
+            console.error('Delete error:', error);
+            showToast('Failed to delete images', 'error');
+        } finally {
+            setBatchDeleting(false);
+        }
+    };
+
     const handleDelete = (imageId: string) => {
         setConfirmationState({ type: 'single', id: imageId });
     };
@@ -690,6 +718,7 @@ export function useGallery() {
         // Actions
         fetchImages, fetchCollections,
         handleDelete, handleBatchDelete, handleCreateCollection,
+        deleteImages,
         handleCommunityToggle,
         confirmUnpublish: () => unpublishConfirmImage && performCommunityToggle(unpublishConfirmImage, 'unpublish'),
         groupImagesByPromptSet,

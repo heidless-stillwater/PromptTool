@@ -16,6 +16,10 @@ interface AdvancedControlsProps {
     setSeed: (s: number | undefined) => void;
     guidanceScale: number;
     setGuidanceScale: (g: number) => void;
+    modelType: 'standard' | 'pro';
+    setModelType: (m: 'standard' | 'pro') => void;
+    safetyThreshold?: 'strict' | 'medium' | 'permissive';
+    setSafetyThreshold?: (s: 'strict' | 'medium' | 'permissive') => void;
     isCasual: boolean;
 }
 
@@ -28,6 +32,10 @@ export default function AdvancedControls({
     setSeed,
     guidanceScale,
     setGuidanceScale,
+    modelType,
+    setModelType,
+    safetyThreshold = 'medium',
+    setSafetyThreshold,
     isCasual
 }: AdvancedControlsProps) {
     if (isCasual) return null;
@@ -78,6 +86,63 @@ export default function AdvancedControls({
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Model Selection */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted ml-1 flex items-center justify-between">
+                                <span className="flex items-center gap-2">
+                                    Core Model
+                                    <Tooltip content="Choose between the balanced Standard model or the high-fidelity Pro model">
+                                        <Icons.info size={12} />
+                                    </Tooltip>
+                                </span>
+                            </label>
+                            <div className="flex bg-background-secondary p-1 rounded-xl border border-border">
+                                <button
+                                    type="button"
+                                    onClick={() => setModelType('standard')}
+                                    className={cn(
+                                        "flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all",
+                                        modelType === 'standard' ? "bg-primary text-white shadow-md" : "text-foreground-muted hover:text-foreground"
+                                    )}
+                                >
+                                    Standard (Flash)
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setModelType('pro')}
+                                    className={cn(
+                                        "flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all",
+                                        modelType === 'pro' ? "bg-primary text-white shadow-md" : "text-foreground-muted hover:text-foreground"
+                                    )}
+                                >
+                                    Pro
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Safety Threshold */}
+                        {setSafetyThreshold && (
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted ml-1 flex items-center justify-between">
+                                    <span className="flex items-center gap-2">
+                                        Safety Threshold
+                                        <Tooltip content="Adjust the intensity of neutral content filtering">
+                                            <Icons.info size={12} />
+                                        </Tooltip>
+                                    </span>
+                                </label>
+                                <select
+                                    value={safetyThreshold}
+                                    onChange={(e) => setSafetyThreshold(e.target.value as any)}
+                                    className="w-full h-11 px-4 text-sm bg-background-secondary border border-border rounded-xl text-foreground font-medium focus:outline-none focus:border-primary"
+                                >
+                                    <option value="strict">Strict</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="permissive">Permissive</option>
+                                </select>
+                            </div>
+                        )}
+
                         {/* Seed Control */}
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted ml-1 flex items-center justify-between">

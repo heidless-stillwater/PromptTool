@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
 
         let totalStorageBytes = 0;
         for (const file of files) {
-            totalStorageBytes += parseInt(file.metadata.size || '0');
+            totalStorageBytes += parseInt(String(file.metadata.size || '0'));
         }
 
         // 2. Calculate DB Writes (Optional: Reset to a baseline? Usually we just keep the daily count)

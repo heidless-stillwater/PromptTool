@@ -1,4 +1,5 @@
 'use client';
+import { Suspense } from 'react';
 
 import { useAuth } from '@/lib/auth-context';
 import { CreditPack, CreditSystemConfig } from '@/lib/types';
@@ -11,7 +12,7 @@ import { Icons } from '@/components/ui/Icons';
 import { Badge } from '@/components/ui/Badge';
 import { cn } from '@/lib/utils';
 
-export default function PricingPage() {
+function PricingPageContent() {
     const { user, profile, credits, loading: authLoading } = useAuth();
     const [config, setConfig] = useState<CreditSystemConfig | null>(null);
     const [loading, setLoading] = useState(true);
@@ -81,9 +82,7 @@ export default function PricingPage() {
         );
     }
 
-    const purchasedBalance = credits?.balance || 0;
-    const dailyRemaining = Math.max(0, (credits?.dailyAllowance || 0) - (credits?.dailyAllowanceUsed || 0));
-    const availableCredits = purchasedBalance + dailyRemaining;
+    const availableCredits = credits?.balance || 0;
 
     return (
         <div className="min-h-screen bg-black text-white selection:bg-primary/30">
@@ -256,5 +255,17 @@ export default function PricingPage() {
                 </footer>
             </main >
         </div >
+    );
+}
+
+export default function PricingPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center bg-black">
+                <Icons.spinner className="w-8 h-8 animate-spin text-primary" />
+            </div>
+        }>
+            <PricingPageContent />
+        </Suspense>
     );
 }

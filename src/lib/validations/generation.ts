@@ -25,19 +25,27 @@ export const generationSchema = z.object({
     seed: z.number().int().min(0).nullish(),
     negativePrompt: z.string().max(500).optional(),
     guidanceScale: z.number().min(1).max(20).nullish().transform(v => v ?? 7),
-    referenceImage: z.string().optional(), // Base64
-    referenceImageUrl: z.string().optional(), // URL for thumbnail initialization
-    referenceMimeType: z.string().optional(),
+    modelType: z.enum(['standard', 'pro']).default('standard'),
+    referenceImage: z.string().optional(), // Base64 - for legacy support
+    referenceImageUrl: z.string().optional(), // URL for thumbnail initialization - for legacy support
+    referenceMimeType: z.string().optional(), // for legacy support
+    referenceImages: z.array(z.object({
+        data: z.string(), // Base64
+        mimeType: z.string().optional(),
+        usage: z.enum(['style', 'content']).default('content'),
+    })).optional(),
     sourceImageId: z.string().optional(),
     promptSetID: z.string().optional(),
     collectionIds: z.array(z.string()).optional(),
     modality: z.enum(['image', 'video']).default('image'),
+    skipWeave: z.boolean().optional(),
     simulation: z.object({
         balance: z.number().optional(),
         isOxygenAuthorized: z.boolean().optional(),
         isOxygenDeployed: z.boolean().optional(),
         maxOverdraft: z.number().optional(),
     }).optional(),
+    variables: z.record(z.string(), z.string()).optional(),
 });
 
 export type GenerationInput = z.infer<typeof generationSchema>;
@@ -96,8 +104,36 @@ export const nanobananaSchema = z.object({
         mediaType: z.enum(['image', 'video']).optional(),
         quality: z.string().optional(),
         guidanceScale: z.number().optional(),
-        negativePrompt: z.string().optional()
-    }).optional()
+        negativePrompt: z.string().optional(),
+        modelType: z.enum(['standard', 'pro']).optional(),
+    }).optional(),
+    variables: z.record(z.string(), z.string()).optional()
 });
 
 export type NanobananaInput = z.infer<typeof nanobananaSchema>;
+
+/**
+ * Zod schema for saving a generation draft.
+ */
+export const draftSchema = z.object({
+    prompt: z.string(),
+    compiledPrompt: z.string().optional(),
+    quality: z.enum(['standard', 'high', 'ultra', 'video']),
+    aspectRatio: z.enum(['1:1', '4:3', '16:9', '9:16', '3:4']),
+    promptType: z.enum(['freeform', 'madlibs']),
+    modifiers: z.array(z.object({
+        category: z.string(),
+        value: z.string()
+    })).optional(),
+    coreSubject: z.string().optional(),
+    seed: z.number().int().min(0).nullish(),
+    negativePrompt: z.string().max(500).optional(),
+    guidanceScale: z.number().min(1).max(20).nullish(),
+    modelType: z.enum(['standard', 'pro']).default('standard'),
+    sourceImageId: z.string().optional(),
+    promptSetID: z.string().optional(),
+    modality: z.enum(['image', 'video']).default('image'),
+    variables: z.record(z.string(), z.string()).optional(),
+});
+
+export type DraftInput = z.infer<typeof draftSchema>;

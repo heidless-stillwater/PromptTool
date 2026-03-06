@@ -186,15 +186,7 @@ export default function PlanManager() {
                                     />
                                 </div>
 
-                                <div className="space-y-1.5">
-                                    <label className="text-[9px] font-black uppercase tracking-widest text-white/40 ml-1">Daily Credit Energy</label>
-                                    <Input
-                                        type="number"
-                                        value={plan.dailyAllowance}
-                                        onChange={(e) => handleUpdateField(tier, 'dailyAllowance', parseInt(e.target.value))}
-                                        className="bg-black/40 border-white/5 h-10 text-sm font-bold focus:border-primary/50"
-                                    />
-                                </div>
+
 
                                 <div className="space-y-1.5">
                                     <label className="text-[9px] font-black uppercase tracking-widest text-white/40 ml-1">Storage Quota (GB)</label>

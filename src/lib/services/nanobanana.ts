@@ -2,14 +2,13 @@
 import { GoogleGenAI } from '@google/genai';
 import { AspectRatio, ImageQuality } from '../types';
 
-// Model selection based on quality
+// Model selection based on quality and tier
 const MODELS = {
-    standard: 'gemini-2.5-flash-image',
-    high: 'gemini-2.5-flash-image',
-    ultra: 'gemini-2.5-flash-image',
+    standard: 'gemini-3.1-flash-image-preview',
+    pro: 'gemini-3-pro-image-preview',
 } as const;
 
-// Resolution by quality
+// Resolution by quality (Upgraded for NanoBanana 2)
 const RESOLUTIONS = {
     standard: undefined, // Default 1024px
     high: '2K',
@@ -18,14 +17,14 @@ const RESOLUTIONS = {
 
 interface GenerateImageOptions {
     prompt: string;
+    modelType?: 'standard' | 'pro';
     quality: ImageQuality;
     aspectRatio: AspectRatio;
     count?: number;
     seed?: number;
     negativePrompt?: string;
     guidanceScale?: number;
-    referenceImage?: string;    // Base64 image data for Img2Img variations
-    referenceMimeType?: string; // MIME type of reference image (default: image/png)
+    referenceImages?: { data: string, mimeType?: string, usage: 'style' | 'content' }[];
     onProgress?: (current: number, total: number) => void;
 }
 
@@ -175,8 +174,8 @@ export class NanoBananaService {
     }
 
     async generateImage(options: GenerateImageOptions): Promise<GenerateImageResult> {
-        const { prompt, quality, aspectRatio, count = 1, seed, negativePrompt, guidanceScale, referenceImage, referenceMimeType, onProgress } = options;
-        const model = MODELS[quality];
+        const { prompt, modelType = 'standard', quality, aspectRatio, count = 1, seed, negativePrompt, guidanceScale, referenceImages, onProgress } = options;
+        const model = MODELS[modelType];
         const resolution = RESOLUTIONS[quality];
 
         const images: ImageResult[] = [];
@@ -185,7 +184,7 @@ export class NanoBananaService {
             // Loop for multiple images (Batch Generation)
             for (let i = 0; i < count; i++) {
                 let attempts = 0;
-                const maxAttempts = 2; // Up to 2 retries for each image
+                const maxAttempts = 3; // Up to 3 retries for each image
                 let foundImageInCandidate = false;
                 let lastError: any = null;
 
@@ -194,23 +193,31 @@ export class NanoBananaService {
                         attempts++;
                         // Build config
                         const config: any = {
-                            responseModalities: ['IMAGE'],
+                            responseModalities: ["IMAGE"],
                             safetySettings: [
-                                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
-                                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
-                                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
-                                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+                                {
+                                    category: "HARM_CATEGORY_HATE_SPEECH",
+                                    threshold: "BLOCK_ONLY_HIGH",
+                                },
+                                {
+                                    category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+                                    threshold: "BLOCK_ONLY_HIGH",
+                                },
+                                {
+                                    category: "HARM_CATEGORY_HARASSMENT",
+                                    threshold: "BLOCK_ONLY_HIGH",
+                                },
+                                {
+                                    category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                                    threshold: "BLOCK_ONLY_HIGH",
+                                },
                             ],
                         };
 
                         // Add generation config for advanced controls
                         const generationConfig: any = {};
                         if (seed !== undefined) {
-                            // If count > 1 and seed is locked, we use the same seed.
-                            // However, usually users want DIFFERENT images in a batch.
-                            // If seed is provided, we'll add the index to it for variation unless we want them identical.
-                            // For now, let's use the seed as a base.
-                            generationConfig.seed = seed + (i * 100);
+                            generationConfig.seed = seed + i * 100;
                         }
                         if (guidanceScale !== undefined) {
                             generationConfig.guidanceScale = guidanceScale;
@@ -225,11 +232,11 @@ export class NanoBananaService {
 
                         // Convert aspect ratio format
                         const aspectRatioMap: Record<AspectRatio, string> = {
-                            '1:1': '1:1',
-                            '4:3': '4:3',
-                            '16:9': '16:9',
-                            '9:16': '9:16',
-                            '3:4': '3:4',
+                            "1:1": "1:1",
+                            "4:3": "4:3",
+                            "16:9": "16:9",
+                            "9:16": "9:16",
+                            "3:4": "3:4",
                         };
                         imageConfig.aspectRatio = aspectRatioMap[aspectRatio];
 
@@ -247,52 +254,84 @@ export class NanoBananaService {
                             finalPrompt = `${prompt}\n\nNegative Prompt: ${negativePrompt}`;
                         }
 
-                        // Build contents - multimodal if reference image provided
-                        let contents: any;
-                        if (referenceImage) {
-                            // Img2Img mode: include reference image + text prompt
-                            const variationPrompt = `Create a variation of this image. ${finalPrompt}`;
-                            contents = [
-                                {
+                        // Build contents - multimodal if reference images provided
+                        let contents: any[] = [];
+
+                        if (referenceImages && referenceImages.length > 0) {
+                            // NanoBanana 2 native multimodal support
+                            referenceImages.forEach((ref) => {
+                                contents.push({
                                     inlineData: {
-                                        mimeType: referenceMimeType || 'image/png',
-                                        data: referenceImage,
+                                        mimeType: ref.mimeType || "image/png",
+                                        data: ref.data,
                                     },
-                                },
-                                { text: variationPrompt },
-                            ];
+                                    // Use role or tag if supported, for now just include the data
+                                });
+                            });
+
+                            // Adjust prompt for Img2Img/Style mode
+                            const hasStyleRef = referenceImages.some(
+                                (r) => r.usage === "style",
+                            );
+                            const basePrefix = hasStyleRef
+                                ? "Using the provided style reference image(s), generate a new image: "
+                                : "Create a variation incorporating these reference image(s): ";
+
+                            contents.push({
+                                text: `${basePrefix}${finalPrompt}`,
+                            });
                         } else {
                             // Text-only mode
-                            contents = finalPrompt;
+                            contents = [{ text: finalPrompt }];
                         }
 
-                        const response = await this.client.models.generateContent({
-                            model,
-                            contents,
-                            config,
-                        });
+                        const response =
+                            await this.client.models.generateContent({
+                                model,
+                                contents,
+                                config,
+                            });
 
                         const candidate = response.candidates?.[0];
 
                         if (candidate) {
-                            if (candidate.finishReason && candidate.finishReason !== 'STOP') {
-                                console.warn(`[NanoBanana] Generation stopped with reason: ${candidate.finishReason}`);
-                                console.warn(`[NanoBanana] Full candidate:`, JSON.stringify(candidate, null, 2));
+                            if (
+                                candidate.finishReason &&
+                                candidate.finishReason !== "STOP"
+                            ) {
+                                console.warn(
+                                    `[NanoBanana] Generation stopped with reason: ${candidate.finishReason}`,
+                                );
+                                console.warn(
+                                    `[NanoBanana] Full candidate:`,
+                                    JSON.stringify(candidate, null, 2),
+                                );
 
                                 let blockReason = `Generation blocked: ${candidate.finishReason}`;
                                 if (candidate.finishMessage) {
                                     blockReason += ` - ${candidate.finishMessage}`;
                                 }
                                 if (candidate.safetyRatings) {
-                                    const highRiskFilters = candidate.safetyRatings
-                                        .filter((r: any) => r.probability !== 'NEGLIGIBLE' && r.probability !== 'LOW')
-                                        .map((r: any) => `${r.category}: ${r.probability}`);
+                                    const highRiskFilters =
+                                        candidate.safetyRatings
+                                            .filter(
+                                                (r: any) =>
+                                                    r.probability !==
+                                                    "NEGLIGIBLE" &&
+                                                    r.probability !== "LOW",
+                                            )
+                                            .map(
+                                                (r: any) =>
+                                                    `${r.category}: ${r.probability}`,
+                                            );
                                     if (highRiskFilters.length > 0) {
-                                        blockReason += `. Safety Flags: ${highRiskFilters.join(', ')}`;
+                                        blockReason += `. Safety Flags: ${highRiskFilters.join(", ")}`;
                                     }
                                 }
 
+                                // Safety blocks are NOT retryable
                                 lastError = new Error(blockReason);
+                                break;
                             }
 
                             // Extract image from response
@@ -303,7 +342,9 @@ export class NanoBananaService {
                                     if (part.inlineData && part.inlineData.data) {
                                         images.push({
                                             data: part.inlineData.data,
-                                            mimeType: part.inlineData.mimeType || 'image/png',
+                                            mimeType:
+                                                part.inlineData.mimeType ||
+                                                "image/png",
                                         });
                                         foundImageInCandidate = true;
                                         break;
@@ -313,19 +354,53 @@ export class NanoBananaService {
                         }
 
                         if (!foundImageInCandidate) {
-                            console.warn(`[NanoBanana] Attempt ${attempts} failed to find image in response for index ${i}`);
+                            console.warn(
+                                `[NanoBanana] Attempt ${attempts} failed to find image in response for index ${i}`,
+                            );
                             if (!lastError) {
-                                lastError = new Error('No image data returned from API');
+                                lastError = new Error(
+                                    "No image data returned from API",
+                                );
                             }
                         }
                     } catch (innerError: any) {
-                        console.error(`[NanoBanana] Attempt ${attempts} failed for index ${i}:`, innerError.message);
+                        const errorMsg = innerError.message || "";
+                        console.error(
+                            `[NanoBanana] Attempt ${attempts} failed for index ${i}:`,
+                            errorMsg,
+                        );
                         lastError = innerError;
+
                         if (attempts >= maxAttempts) {
                             break;
                         }
-                        // Short wait before retry
-                        await new Promise(resolve => setTimeout(resolve, 500));
+
+                        // Determine if retryable
+                        const isRetryable =
+                            errorMsg.toLowerCase().includes("quota") ||
+                            errorMsg.toLowerCase().includes("too many requests") ||
+                            errorMsg.toLowerCase().includes("exhausted") ||
+                            errorMsg.toLowerCase().includes("unavailable") ||
+                            errorMsg.toLowerCase().includes("high demand") ||
+                            errorMsg.toLowerCase().includes("fetch failed") ||
+                            errorMsg.toLowerCase().includes("network") ||
+                            errorMsg.toLowerCase().includes("aborted");
+
+                        if (!isRetryable) {
+                            console.warn(
+                                "[NanoBanana] Non-retryable error detected. Aborting retries.",
+                            );
+                            break;
+                        }
+
+                        // Short wait before retry (exponential backoff)
+                        const backoff = Math.pow(2, attempts - 1) * 1000;
+                        console.log(
+                            `[NanoBanana] Retrying in ${backoff}ms...`,
+                        );
+                        await new Promise((resolve) =>
+                            setTimeout(resolve, backoff),
+                        );
                     }
                 }
 
@@ -334,7 +409,10 @@ export class NanoBananaService {
                 }
 
                 if (!foundImageInCandidate && i === 0 && images.length === 0) {
-                    return { success: false, error: `Initial generation failed: ${lastError?.message || 'Unknown error'}` };
+                    return {
+                        success: false,
+                        error: `Initial generation failed: ${lastError?.message || "Unknown error"}`,
+                    };
                 }
             }
 

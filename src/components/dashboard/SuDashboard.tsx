@@ -42,11 +42,11 @@ export default function SuDashboard({ dashboardData }: SuDashboardProps) {
     } = dashboardData;
 
     const availableCredits = credits
-        ? credits.balance + Math.max(0, credits.dailyAllowance - credits.dailyAllowanceUsed)
+        ? credits.balance
         : 0;
 
     const dailyRemaining = credits
-        ? Math.max(0, credits.dailyAllowance - credits.dailyAllowanceUsed)
+        ? 0
         : 0;
 
     return (
@@ -188,28 +188,28 @@ export default function SuDashboard({ dashboardData }: SuDashboardProps) {
                         <div className="flex items-center justify-between p-4 bg-black/40 rounded-2xl border border-white/5 hover:border-white/10 transition-all group">
                             <div>
                                 <p className="font-black uppercase tracking-widest text-[10px] text-white/90">Standard</p>
-                                <p className="text-[9px] text-white/30 uppercase tracking-widest font-bold mt-1">1024px Image</p>
+                                <p className="text-[9px] text-white/30 uppercase tracking-widest font-bold mt-1">1024px Image (Flash)</p>
                             </div>
-                            <span className="text-xl font-black text-primary group-hover:scale-110 transition-transform">{CREDIT_COSTS.standard}</span>
+                            <span className="text-xl font-black text-primary group-hover:scale-110 transition-transform">{CREDIT_COSTS.standard.standard}</span>
                         </div>
                         <div className="flex items-center justify-between p-4 bg-black/40 rounded-2xl border border-white/5 hover:border-white/10 transition-all group">
                             <div>
                                 <p className="font-black uppercase tracking-widest text-[10px] text-white/90">High Def</p>
-                                <p className="text-[9px] text-white/30 uppercase tracking-widest font-bold mt-1">2K resolution</p>
+                                <p className="text-[9px] text-white/30 uppercase tracking-widest font-bold mt-1">2K resolution (Flash)</p>
                             </div>
-                            <span className="text-xl font-black text-primary group-hover:scale-110 transition-transform">{CREDIT_COSTS.high}</span>
+                            <span className="text-xl font-black text-primary group-hover:scale-110 transition-transform">{CREDIT_COSTS.standard.high}</span>
                         </div>
                         <div className="flex items-center justify-between p-4 bg-black/40 rounded-2xl border border-white/5 hover:border-white/10 transition-all group">
                             <div>
                                 <p className="font-black uppercase tracking-widest text-[10px] text-white/90">Ultra 4K</p>
-                                <p className="text-[9px] text-accent uppercase tracking-widest font-bold mt-1">Pro only</p>
+                                <p className="text-[9px] text-accent uppercase tracking-widest font-bold mt-1">Level 3 Master (Pro)</p>
                             </div>
-                            <span className="text-xl font-black text-accent group-hover:scale-110 transition-transform">{CREDIT_COSTS.ultra}</span>
+                            <span className="text-xl font-black text-accent group-hover:scale-110 transition-transform">{CREDIT_COSTS.pro.ultra}</span>
                         </div>
                         <div className="flex items-center justify-between p-4 bg-primary/5 rounded-2xl border border-primary/20 hover:border-primary/40 transition-all group ring-1 ring-primary/20">
                             <div>
                                 <p className="font-black uppercase tracking-widest text-[10px] text-primary">Video</p>
-                                <p className="text-[9px] text-primary/50 uppercase tracking-widest font-bold mt-1">Pro · 5-sec</p>
+                                <p className="text-[9px] text-primary/50 uppercase tracking-widest font-bold mt-1">Cinematic (Pro)</p>
                             </div>
                             <span className="text-xl font-black text-primary group-hover:scale-110 transition-transform">{CREDIT_COSTS.video}</span>
                         </div>

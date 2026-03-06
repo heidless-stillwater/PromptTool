@@ -10,7 +10,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, Timestamp, onSnapshot } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { UserProfile, UserRole, SubscriptionTier, AudienceMode, ADMIN_EMAILS, UserCredits, DAILY_ALLOWANCE, SystemConfig } from './types';
+import { UserProfile, UserRole, SubscriptionTier, AudienceMode, ADMIN_EMAILS, UserCredits, SystemConfig } from './types';
 
 interface AuthContextType {
     user: User | null;
@@ -143,22 +143,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (creditsSnap.exists()) {
             const existingCredits = creditsSnap.data() as UserCredits;
 
-            // Check if daily reset is needed
-            const lastReset = existingCredits.lastDailyReset.toDate();
-            const today = new Date();
-            const isNewDay = lastReset.toDateString() !== today.toDateString();
-
-            if (isNewDay) {
-                const updatedCredits: UserCredits = {
-                    ...existingCredits,
-                    dailyAllowanceUsed: 0,
-                    dailyAllowance: DAILY_ALLOWANCE[subscription],
-                    lastDailyReset: now,
-                };
-                await setDoc(creditsRef, updatedCredits);
-                return updatedCredits;
-            }
-
             return existingCredits;
         }
 
@@ -178,10 +162,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         const newCredits: UserCredits = {
             balance: initialBalance,
-            dailyAllowance: DAILY_ALLOWANCE[subscription],
-            dailyAllowanceUsed: 0,
-            lastDailyReset: now,
-            expiresAt: null,
             totalPurchased: 0,
             totalUsed: 0,
             maxOverdraft: 0,
@@ -198,7 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (initialBalance > 0) {
             const txRef = doc(db, 'users', userId, 'creditHistory', 'welcome_bonus');
             await setDoc(txRef, {
-                type: 'daily_allowance', // Closest type for now
+                type: 'subscription', // Using subscription for initial grant
                 amount: initialBalance,
                 description: 'Stillwater Welcome Pack',
                 createdAt: now,

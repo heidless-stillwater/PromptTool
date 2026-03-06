@@ -16,20 +16,18 @@ export class AIPromptService {
         }
 
         try {
-            const model = 'gemini-2.5-flash'; // Fast and capable for text expansion
+            const model = 'gemini-3.1-flash-lite-preview'; // Flash Lite 3.1 is available
 
             const systemInstruction = `
         You are a world-class prompt engineer for AI image generation (e.g., Midjourney, DALL-E, Stable Diffusion).
         Your goal is to take a simple, short user prompt and expand it into a detailed, descriptive, and visually stunning masterpiece.
         
-        Guidelines:
-        1. Keep the original core subject but surround it with rich details.
-        2. Describe lighting (e.g., "cinematic lighting", "golden hour", "volumetric fog").
-        3. Describe textures and materials (e.g., "weathered leather", "iridescent glass", "soft velvet").
-        4. Mention camera settings or artistic styles (e.g., "macro photography", "hyper-realistic", "surrealism", "cyberpunk aesthetic").
-        5. Use evocative adjectives.
-        6. Keep the final result concise but high-impact (usually 50-100 words).
-        7. Return ONLY the enhanced prompt. No introductions, no explanations.
+        Guidelines for Literal Expansion:
+        1. PERSERVE SUBJECT: The core subject must remain the singular focus.
+        2. NO HALLUCINATION: You are forbidden from adding any artistic styles, moods, lighting, or technical settings (e.g., Photography, Oil Painting, Cinematic) that are NOT present in the input parameters.
+        3. NO META-TALK: Do not use phrases like "rendered in", "the scene is", "captured in", or "evokes a". Skip all narrative connective tissue.
+        4. MATERIAL ADJECTIVES ONLY: Use only physical, literal adjectives to describe the subject (e.g., "weathered", "metallic", "translucent") based on the prompt text.
+        5. OUTPUT ONLY: Return only the descriptive string. No preamble.
       `;
 
             let userPrompt = `Original Prompt: "${prompt}"\n`;
@@ -64,13 +62,13 @@ export class AIPromptService {
      * Compiles a highly structured prompt using the "Nanobanana" recipe format.
      * Takes a core subject and an ordered array of modifiers. Order dictates priority.
      */
-    async compileNanobananaPrompt(subject: string, modifiers: { category: string, value: string }[], aspectRatio?: string, proSettings?: { mediaType?: string; quality?: string; guidanceScale?: number; negativePrompt?: string; }): Promise<string> {
+    async compileNanobananaPrompt(subject: string, modifiers: { category: string, value: string }[], aspectRatio?: string, proSettings?: { mediaType?: string; quality?: string; guidanceScale?: number; negativePrompt?: string; }, variables?: Record<string, string>): Promise<string> {
         if (!subject || subject.trim().length === 0) {
             throw new Error("Core subject is required for Nanobanana compilation");
         }
 
         try {
-            const model = 'gemini-2.5-flash';
+            const model = 'gemini-3.1-flash-lite-preview';
             console.log(`[AI Prompt Service] Compiling Nanobanana prompt for subject: "${subject}" with ${modifiers.length} modifiers`);
 
             const systemInstruction = `
@@ -81,15 +79,24 @@ export class AIPromptService {
         Your Mission:
         Weave the Core Subject and the Modifiers into a single, cohesive, vivid, highly optimized paragraph prompt.
         
-        Rules:
-        1. The ORDER of the modifiers in the prompt should reflect their priority (the order they appear in the user's list from top to bottom).
-        2. Do not just append them mechanically with commas. Integrate them naturally, but ensure keywords are prominent.
-        3. Keep it to a single paragraph. NO line breaks. NO markdown formatting.
-        4. Return ONLY the final compiled prompt string. NO conversational fluff or explanations.
-        5. IMPORTANT OVERRIDE RULE: The user has selected specific Pro Core Settings (like Modality, Quality, Aspect Ratio). These are the ultimate source of truth. If the original prompt or modifiers mention ANY values that contradict the user's Pro Core Settings, OVERRIDE THEM or completely REMOVE THEM from the compiled prompt. Ensure the final prompt strictly adheres to the user's selected constraints.
+        Rules for Passive Compilation:
+        1. LITERAL WEAVE: You are a passive compiler. You take the Core Subject and the Modifiers and weave them together with minimal logical connection.
+        2. NO CREATIVITY: You must NOT introduce any art styles, moods, motifs, or concepts not present in the DNA constituent list. If a category is empty (e.g. no Mood modifier), you must NOT invent a mood.
+        3. NO META-PHRASING: Eliminate phrases like "captured in a", "rendered as", "evokes a", "overall aesthetic is", "scene is bathed in". These are forbidden tokens.
+        4. ZERO INJECTION: You are strictly prohibited from adding independent concepts, objects, attributes, or stylistic details. The output must strictly encompass only what is provided. Do NOT extrapolate or hallucinate details.
+        5. SOURCE FIDELITY: Every word in the output should have a direct mapping to an input constituent.
       `;
 
             let userPrompt = `Core Subject: "${subject}"\n`;
+
+            if (variables && Object.keys(variables).length > 0) {
+                userPrompt += `\nActive DNA Variables (Current Definitions):\n`;
+                Object.entries(variables).forEach(([name, value]) => {
+                    userPrompt += `- [${name}] = "${value}"\n`;
+                });
+                userPrompt += `\nReminder: Use these values for context but PRESERVE the [${Object.keys(variables).join('], [')}] tokens in the output.\n`;
+            }
+
             if (aspectRatio) {
                 userPrompt += `\nTarget Aspect Ratio (Overrides any conflicting aspect ratio!): ${aspectRatio}\n`;
             }
@@ -107,7 +114,8 @@ export class AIPromptService {
                     userPrompt += `${index + 1}. [${mod.category}] ${mod.value}\n`;
                 });
             }
-            userPrompt += `\nCompiled Prompt:`;
+
+            userPrompt += `\nCompiled Paragraph Prompt (Start now):`;
 
             const response = await this.client.models.generateContent({
                 model,
@@ -143,7 +151,7 @@ export class AIPromptService {
         }
 
         try {
-            const model = 'gemini-2.5-flash';
+            const model = 'gemini-3.1-flash-lite-preview';
             const systemInstruction = `
         You are an expert content curator for an AI image gallery.
         Given a list of image prompts, suggest 5-8 relevant, descriptive tags.
