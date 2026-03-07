@@ -22,7 +22,7 @@ import { DNAStrip } from "@/components/generate/DNAViews";
 import DNAModifierModal from "@/components/generate/DNAModifierModal";
 import { MODIFIER_CATEGORIES } from "@/lib/constants";
 import { Suspense } from "react";
-import { cn } from "@/lib/utils";
+import { cn, sanitizeAIResponse } from "@/lib/utils";
 import ImageGroupModal from "@/components/gallery/ImageGroupModal";
 import { GallerySelectionModal } from "@/components/gallery/GallerySelectionModal";
 import { useSettings, type UserLevel } from "@/lib/context/SettingsContext";
@@ -37,6 +37,7 @@ import { ActiveVariablesPanel } from "@/components/generate/ActiveVariablesPanel
 import { VariableInteractiveEditor } from "@/components/generate/VariableInteractiveEditor";
 import { VariableInjector } from "@/components/generate/VariableInjector";
 import { VariableVault } from "@/components/generate/VariableVault";
+import { syncModifiersWithText, syncVariablesWithText, getActiveModifiersFromText } from "@/lib/prompt-utils";
 
 // --- TYPES ---
 export type PresentationMode = "grid-sm" | "grid-md" | "grid-lg" | "list";
@@ -64,6 +65,7 @@ export interface GeneratorState {
   aspectRatio: string;
   batchSize: number;
   promptSetId: string;
+  promptSetName?: string;
   seed?: number;
   guidanceScale?: number;
   negativePrompt?: string;
@@ -258,7 +260,7 @@ function GeneratePageContent() {
   >("full");
   const [inputCursorPos, setInputCursorPos] = useState<{ start: number; end: number } | null>(null);
   const [activeModifiers, setActiveModifiers] = useState<Modifier[]>([]);
-  const { scanPrompt, resolvePrompt, loadVariables, variables, getMissingVariables, updateVariableValue } = useVariables();
+  const { scanPrompt, resolvePrompt, loadVariables, variables, getMissingVariables, updateVariableValue, registerVariable, clearVariables, removeVariable } = useVariables();
   const [missingVars, setMissingVars] = useState<string[]>([]);
   const [showVariableRequiredModal, setShowVariableRequiredModal] = useState(false);
 
@@ -267,6 +269,9 @@ function GeneratePageContent() {
   const [isEngineeringCoreOpen, setIsEngineeringCoreOpen] = useState(false);
   const [pendingStyle, setPendingStyle] = useState<VisualStyle | null>(null);
   const [showStyleMergeModal, setShowStyleMergeModal] = useState(false);
+  const [isWeaveFailed, setIsWeaveFailed] = useState(false);
+  const [showImprovePromptModal, setShowImprovePromptModal] = useState(false);
+  const [improvePromptText, setImprovePromptText] = useState("");
   const [serviceError, setServiceError] = useState<{
     code: number;
     title: string;
@@ -365,6 +370,7 @@ function GeneratePageContent() {
     aspectRatio: "1:1",
     batchSize: 1,
     promptSetId: Date.now().toString(36),
+    promptSetName: "",
     modelType: "standard",
     safetyThreshold: "medium",
   });
@@ -377,11 +383,15 @@ function GeneratePageContent() {
   const [generationMessage, setGenerationMessage] = useState<string>("");
   const [publishingId, setPublishingId] = useState<string | null>(null);
 
+  // Reserved keys that belong to DNA Helix categories. 
+  // We exclude these from 'custom variables' sent to the AI to prevent 
+  // removed modifiers from being re-instated as mandatory variables.
+  const dnaReservedKeys = useMemo(() => new Set(MODIFIER_CATEGORIES.map(c => c.id.toUpperCase())), []);
+
   // AI Weaver State
   const [compiledPrompt, setCompiledPrompt] = useState<string>("");
   const [lastWovenPrompt, setLastWovenPrompt] = useState<string>("");
 
-  // Variables Scanner Loop (Debounced)
   useEffect(() => {
     const timer = setTimeout(() => {
       const primaries = promptEditMode === "full" && compiledPrompt
@@ -393,9 +403,49 @@ function GeneratePageContent() {
         : (compiledPrompt ? [compiledPrompt] : []);
 
       scanPrompt(primaries, secondaries);
-    }, 300); // 300ms pause identifies 'completion'
+    }, 300);
     return () => clearTimeout(timer);
   }, [coreSubject, compiledPrompt, activeModifiers, scanPrompt]);
+
+  // Synchronize DNA Helix to the Variable Engine as first-class variables
+  useEffect(() => {
+    // 1. Register/Update Active Modifiers
+    activeModifiers.forEach(m => {
+      const varName = m.category.toUpperCase();
+      const varValue = m.value.toLowerCase();
+
+      // Populate the registry with DNA Helix selections. 
+      // These are treated as 'registry' source so they persist and stabilize the synthesis.
+      if (variables[varName]?.currentValue !== varValue) {
+        registerVariable({
+          name: varName,
+          defaultValue: varValue,
+          currentValue: varValue,
+          source: 'registry'
+        });
+      }
+    });
+
+    // 2. Clear Stale Modifiers (categories no longer selected)
+    const activeCategories = new Set(activeModifiers.map(m => m.category.toUpperCase()));
+    Object.entries(variables).forEach(([name, v]) => {
+      if (v.source === 'registry' && !activeCategories.has(name)) {
+        removeVariable(name);
+      }
+    });
+  }, [activeModifiers, registerVariable, variables, removeVariable]);
+
+  // Synchronize variable values with the compiled prompt text
+  useEffect(() => {
+    if (isApplyingSubstitution.current) return;
+    if (compiledPrompt) {
+      const synced = syncVariablesWithText(compiledPrompt, variables);
+      if (synced !== compiledPrompt) {
+        setCompiledPrompt(synced);
+      }
+    }
+  }, [variables, compiledPrompt]);
+
   const [isCompiling, setIsCompiling] = useState<boolean>(false);
   const [isEnhancing, setIsEnhancing] = useState<boolean>(false);
   const [remainingEnhances, setRemainingEnhances] = useState<number | null>(
@@ -430,12 +480,13 @@ function GeneratePageContent() {
   >(null);
 
   const [showBackConfirmModal, setShowBackConfirmModal] = useState<boolean>(false);
+  const [showSaveChoiceModal, setShowSaveChoiceModal] = useState<boolean>(false);
   const [lastSavedSignature, setLastSavedSignature] = useState<string>("");
 
   const currentWorkspaceSignature = useMemo(() => {
     const modsStr = activeModifiers.map(m => `${m.category}:${m.value}`).sort().join(',');
     const varsStr = Object.entries(variables).map(([k, v]) => `${k}:${v.currentValue}`).sort().join(',');
-    return `${coreSubject.trim()}|${modsStr}|${varsStr}|${genState.mediaType}|${genState.aspectRatio}|${genState.quality}|${genState.guidanceScale}|${genState.negativePrompt}|${compiledPrompt}`;
+    return `${coreSubject.trim()}|${modsStr}|${varsStr}|${genState.mediaType}|${genState.aspectRatio}|${genState.quality}|${genState.guidanceScale}|${genState.negativePrompt}|${genState.modelType}|${compiledPrompt}`;
   }, [coreSubject, activeModifiers, variables, genState, compiledPrompt]);
 
   const hasUnsavedChanges = useMemo(() => {
@@ -518,16 +569,15 @@ function GeneratePageContent() {
       .map(([k, v]) => `${k}:${v.currentValue}`)
       .join(",");
 
-    const settingsPart = `${genState.aspectRatio}|${genState.mediaType}|${genState.quality}|${genState.guidanceScale}|${genState.negativePrompt}`;
+    const settingsPart = `${genState.aspectRatio}|${genState.mediaType}|${genState.quality}|${genState.guidanceScale}|${genState.negativePrompt}|${genState.modelType}|${genState.seed}`;
     return `${coreSubject.trim().toLowerCase()}|${sortedMods.map((m) => `${m.category}:${m.value}`).join(";")}|${sortedVars}|${settingsPart}`;
   }, [coreSubject, activeModifiers, genState, variables]);
 
   const [lastWovenInputSignature, setLastWovenInputSignature] = useState<string>("");
-  const isInputDiverged =
-    lastWovenInputSignature !== "" && currentDnaInputSignature !== lastWovenInputSignature;
+  const isInputDiverged = currentDnaInputSignature !== lastWovenInputSignature;
 
   // Detect if the user edited the Woven Prompt itself (the result of synthesis)
-  const isOutputDiverged = lastWovenPrompt !== "" && compiledPrompt !== lastWovenPrompt;
+  const isOutputDiverged = compiledPrompt !== lastWovenPrompt;
 
   const synthesisRequired = !compiledPrompt || isInputDiverged || isOutputDiverged;
 
@@ -592,17 +642,11 @@ function GeneratePageContent() {
     resolveRef();
   }, [searchParams, user, isResolvingRef, historyImages, showToast]);
 
-  // Clear compiled prompt when core inputs change - ALWAYS
-  // The compiled prompt is a cached AI output based on previous inputs.
-  // If the user changes coreSubject or modifiers, the cache is STALE and must be invalidated.
-  // Previously this only cleared in "subject" mode, which meant editing the subject
-  // while in "full" mode left a stale Masterpiece containing old literal text (e.g. "cat").
-  useEffect(() => {
-    // Skip clearing when applySubstitution is actively restoring state
-    if (isApplyingSubstitution.current) return;
-    setCompiledPrompt("");
-    setPromptEditMode("subject");
-  }, [coreSubject, activeModifiers]);
+  // Clear compiled prompt when core inputs change - REMOVED
+  // Automatically erasing the compiled prompt wipes user's work when they simply
+  // click a modifier in the DNA Helix. The application instead relies on
+  // the `synthesisRequired` state flag to prompt the user to weave again when
+  // inputs and outputs have diverged.
 
   // Ensure aspect ratio is not 1:1 if modality is video
   useEffect(() => {
@@ -624,7 +668,7 @@ function GeneratePageContent() {
     }
   }, [remixImage, activeExemplarId]);
 
-  const handleSaveDraft = async () => {
+  const handleSaveDraft = async (showChoice = false) => {
     if (!user || (!coreSubject.trim() && activeModifiers.length === 0)) return;
     try {
       setIsSavingDraft(true);
@@ -637,16 +681,17 @@ function GeneratePageContent() {
         },
         body: JSON.stringify({
           draftId: draftId || undefined, // Pass existing draft ID so the API updates instead of creating
-          prompt: displayPrompt,
+          prompt: compiledPrompt || rawPromptPreview,
           compiledPrompt: compiledPrompt || undefined,
           quality: genState.quality,
           aspectRatio: genState.aspectRatio,
           promptType: "freeform",
-          seed: genState.seed === "" ? undefined : parseInt(genState.seed, 10),
+          seed: genState.seed,
           negativePrompt: genState.negativePrompt,
           guidanceScale: genState.guidanceScale,
           sourceImageId: remixImage?.id || activeExemplarId || undefined,
           promptSetID: genState.promptSetId || undefined,
+          promptSetName: genState.promptSetName || undefined,
           modality: genState.mediaType,
           modelType: genState.modelType,
           modifiers: activeModifiers.map((m) => ({ category: m.category, value: m.value })),
@@ -674,6 +719,10 @@ function GeneratePageContent() {
         setGenState(prev => ({ ...prev, promptSetId: data.id }));
       }
 
+      if (showChoice) {
+        setShowSaveChoiceModal(true);
+      }
+
     } catch (err: any) {
       console.error("Save Draft Error:", err);
       showToast(err.message || "Failed to save draft", "error");
@@ -687,14 +736,11 @@ function GeneratePageContent() {
     if (!displayPrompt || !user) return;
 
     const getMissingDNA = () => {
-      const dnaSources = [coreSubject, ...activeModifiers.map(m => m.value)];
-      // If we are in full mode, the compiledPrompt is the source of truth for generation
-      if (promptEditMode === "full" && compiledPrompt) {
-        dnaSources.push(compiledPrompt);
-      } else if (promptEditMode === "full" && !compiledPrompt) {
-        dnaSources.push(rawPromptPreview);
-      }
-      return Array.from(new Set(dnaSources.flatMap(s => getMissingVariables(s))));
+      const sourceText = promptEditMode === "subject"
+        ? coreSubject
+        : (compiledPrompt || rawPromptPreview);
+
+      return getMissingVariables(sourceText);
     };
 
     const missing = getMissingDNA();
@@ -731,10 +777,14 @@ function GeneratePageContent() {
       return;
     }
 
-    let finalPrompt = displayPrompt;
+    let finalPrompt = compiledPrompt || rawPromptPreview;
 
     // DNA Integrity: Prefix generation with a weave if inputs have changed since last synthesis
-    if (synthesisRequired && coreSubject.trim()) {
+    const effectiveSubject = promptEditMode === "full"
+      ? (compiledPrompt || rawPromptPreview)
+      : coreSubject;
+
+    if (synthesisRequired && effectiveSubject.trim()) {
       setIsCompiling(true);
       setGenerationMessage("Synthesizing DNA Helix...");
       try {
@@ -751,7 +801,7 @@ function GeneratePageContent() {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            subject: coreSubject,
+            subject: effectiveSubject,
             modifiers: activeModifiers.map((m) => ({
               category: m.category,
               value: m.value,
@@ -766,7 +816,7 @@ function GeneratePageContent() {
               quality: genState.quality,
               guidanceScale: genState.guidanceScale,
               negativePrompt: genState.negativePrompt,
-              modelType: genState.modelType || 'standard',
+              modelType: genState.modelType,
             },
           }),
         });
@@ -777,9 +827,11 @@ function GeneratePageContent() {
         }
 
         if (data.success && data.compiledPrompt) {
-          setCompiledPrompt(data.success && data.compiledPrompt ? data.compiledPrompt : "");
-          setLastWovenPrompt(data.success && data.compiledPrompt ? data.compiledPrompt : "");
+          setCompiledPrompt(data.compiledPrompt);
+          setLastWovenPrompt(data.compiledPrompt);
+          setLastWovenInputSignature(currentDnaInputSignature);
           setPromptEditMode("full");
+          setIsWeaveFailed(false);
           showToast("DNA Synthesis complete. Review your masterpiece.", "success");
           setIsCompiling(false);
           setGenerationMessage("");
@@ -790,7 +842,9 @@ function GeneratePageContent() {
         }
       } catch (e) {
         console.error("Auto-weave failed:", e);
-        showToast("Synthesis failed. Using raw DNA constituents.", "info");
+        setIsWeaveFailed(true);
+        showToast("Synthesis failed. You can proceed with raw DNA or abort.", "error");
+        setShowReviewModal(true); // Still show modal so they can decide to proceed or abort
       } finally {
         setIsCompiling(false);
       }
@@ -820,13 +874,15 @@ function GeneratePageContent() {
         },
         signal: abortControllerRef.current.signal,
         body: JSON.stringify({
-          prompt: finalPrompt,
+          prompt: finalPrompt, // Send WITH brackets. Server will resolve before sending to model.
+          compiledPrompt: finalPrompt,
           quality: genState.quality,
           aspectRatio: genState.aspectRatio,
           modality: genState.mediaType,
           promptType: "freeform", // bypassing UI-based madlibs logic
           count: genState.batchSize,
           promptSetID: activePromptSetId,
+          promptSetName: genState.promptSetName || undefined,
           seed: userLevel === "master" ? genState.seed : undefined,
           guidanceScale:
             userLevel === "master" ? genState.guidanceScale : undefined,
@@ -839,9 +895,11 @@ function GeneratePageContent() {
             category: m.category,
             value: m.value,
           })),
-          coreSubject: resolvePrompt(coreSubject),
+          coreSubject: coreSubject,
           variables: Object.fromEntries(
-            Object.entries(variables).map(([k, v]) => [k, v.currentValue || ''])
+            Object.entries(variables)
+              .filter(([k]) => !dnaReservedKeys.has(k.toUpperCase()))
+              .map(([k, v]) => [k, v.currentValue || ''])
           ),
           simulation: (window as any).__PR_CREDITS_OVERRIDE__
             ? {
@@ -980,11 +1038,15 @@ function GeneratePageContent() {
   };
 
   const handleCompilePrompt = async () => {
-    if (!coreSubject.trim()) return;
+    const effectiveSubject = promptEditMode === "full"
+      ? (compiledPrompt || rawPromptPreview)
+      : coreSubject;
 
-    // Validation: Ensure all DNA variables are defined before synthesis
-    const dnaSources = [coreSubject, ...activeModifiers.map(m => m.value)];
-    const missing = Array.from(new Set(dnaSources.flatMap(s => getMissingVariables(s))));
+    if (!effectiveSubject.trim()) return;
+
+    // Validation: Ensure all DNA variables are defined before synthesis.
+    // We only scan the effectiveSubject (either the core subject or the currently woven prompt).
+    const missing = getMissingVariables(effectiveSubject);
 
     if (missing.length > 0) {
       setPendingAction("compile");
@@ -1003,14 +1065,16 @@ function GeneratePageContent() {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          subject: coreSubject,
+          subject: effectiveSubject,
           modifiers: activeModifiers.map((m) => ({
             category: m.category,
             value: m.value,
           })),
           aspectRatio: genState.aspectRatio,
           variables: Object.fromEntries(
-            Object.entries(variables).map(([k, v]) => [k, v.currentValue]),
+            Object.entries(variables)
+              .filter(([k]) => !dnaReservedKeys.has(k.toUpperCase()))
+              .map(([k, v]) => [k, v.currentValue]),
           ),
           proSettings: {
             mediaType: genState.mediaType,
@@ -1028,10 +1092,12 @@ function GeneratePageContent() {
       }
 
       if (data.success && data.compiledPrompt) {
-        setCompiledPrompt(data.compiledPrompt);
-        setLastWovenPrompt(data.compiledPrompt);
-        setLastWovenInputSignature(currentDnaInputSignature);
-        setPromptEditMode("full"); // Automatically show the result in full mode
+        const sanitized = sanitizeAIResponse(data.compiledPrompt);
+        setCompiledPrompt(sanitized);
+        setLastWovenPrompt(sanitized);
+        setIsWeaveFailed(false);
+        showToast("DNA Synthesis complete. Review your masterpiece.", "success");
+        setShowReviewModal(true); // Pop the modal NOW that weave is done
       } else if (data.error) {
         const interpretation = interpretServiceError(data.error);
         if (interpretation) {
@@ -1058,9 +1124,11 @@ function GeneratePageContent() {
     }
   };
 
-  const handleEnhancePrompt = async () => {
-    const rawText =
-      promptEditMode === "subject" ? coreSubject : compiledPrompt || rawPromptPreview;
+  const handleEnhancePrompt = async (overrideText?: string | any) => {
+    const textOverride = typeof overrideText === "string" ? overrideText : undefined;
+    const rawText = textOverride ?? (
+      promptEditMode === "subject" ? coreSubject : compiledPrompt || rawPromptPreview
+    );
 
     // Validation: Enforce that all DNA architectural variables are defined before enhancement
     const missing = getMissingVariables(rawText);
@@ -1071,7 +1139,8 @@ function GeneratePageContent() {
       return;
     }
 
-    const textToEnhance = resolvePrompt(rawText);
+    // Ensure we have a string to work with
+    const textToEnhance = String(rawText || "");
     if (!textToEnhance.trim()) {
       showToast("Enter a prompt to enhance.", "error");
       return;
@@ -1100,6 +1169,7 @@ function GeneratePageContent() {
           prompt: textToEnhance,
           mood,
           style,
+          modifiers: activeModifiers.map(m => ({ category: m.category, value: m.value })),
         }),
       });
       const data = await res.json();
@@ -1110,12 +1180,11 @@ function GeneratePageContent() {
       }
 
       if (data.success && data.enhanced) {
+        const sanitized = sanitizeAIResponse(data.enhanced);
         if (promptEditMode === "subject") {
-          setCoreSubject(data.enhanced);
+          setCoreSubject(sanitized);
         } else {
-          setCompiledPrompt(data.enhanced);
-          setLastWovenPrompt(data.enhanced);
-          setLastWovenInputSignature(currentDnaInputSignature);
+          setCompiledPrompt(sanitized);
           setPromptEditMode("full");
         }
       } else if (data.error) {
@@ -1304,7 +1373,7 @@ function GeneratePageContent() {
     setActiveModifiers([]);
     setCompiledPrompt("");
     setLastWovenPrompt("");
-    setLastWovenSignature("");
+    setLastWovenInputSignature("");
     setRemixImage(null);
     setActiveExemplarId(null);
     setPromptEditMode("full");
@@ -1352,7 +1421,6 @@ function GeneratePageContent() {
   const applySubstitution = (target: GeneratedImage | Exemplar) => {
     isApplyingSubstitution.current = true;
     setGeneratedImages(null);
-    setCompiledPrompt("");
     setPromptEditMode("full");
 
     if ("subjectBase" in target) {
@@ -1371,7 +1439,8 @@ function GeneratePageContent() {
       );
       const settingsPart = `${genState.aspectRatio}|${genState.mediaType}|${genState.quality}|${genState.guidanceScale}|${genState.negativePrompt}`;
       const sig = `${target.subjectBase.trim().toLowerCase()}|${sortedMods.map((m) => `${m.category}:${m.value}`).join(";")}|${settingsPart}`;
-      setLastWovenSignature(sig);
+      setLastWovenInputSignature(sig);
+      setLastWovenPrompt(""); // Templates start with no woven prompt baseline
       setGenState((prev) => ({ ...prev, promptSetId: Date.now().toString(36) }));
       if ((target as any).variables) {
         loadVariables((target as any).variables);
@@ -1382,6 +1451,14 @@ function GeneratePageContent() {
       setCoreSubject(image.settings?.coreSubject || image.prompt);
       setRemixImage(image);
       setActiveExemplarId(null);
+
+      // Restore compiled prompt if it was a woven generation
+      if (image.settings?.modifiers && image.settings.modifiers.length > 0) {
+        setCompiledPrompt(image.prompt);
+        setLastWovenPrompt(image.prompt);
+      } else {
+        setCompiledPrompt("");
+      }
 
       // If resuming a draft, track its ID so saves update in place
       setDraftId(image.status === 'draft' ? image.id : null);
@@ -1470,7 +1547,8 @@ function GeneratePageContent() {
       );
       const settingsPart = `${image.settings?.aspectRatio || genState.aspectRatio}|${image.settings?.modality || genState.mediaType}|${image.settings?.quality || genState.quality}|${image.settings?.guidanceScale || genState.guidanceScale}|${image.settings?.negativePrompt || genState.negativePrompt}`;
       const sig = `${subSubject.trim().toLowerCase()}|${sortedMods.map((m) => `${m.category}:${m.value}`).join(";")}|${settingsPart}`;
-      setLastWovenSignature(sig);
+      setLastWovenInputSignature(sig);
+      setLastWovenPrompt(image.settings?.compiledPrompt || image.prompt || "");
       if (image.settings?.variables) {
         loadVariables(image.settings.variables as any);
       }
@@ -1823,22 +1901,42 @@ function GeneratePageContent() {
 
   const handleToggleModifier = (category: string, value: string) => {
     setActiveModifiers((prev) => {
+      const catConfig = MODIFIER_CATEGORIES.find(c => c.id === category);
+      const isMultiSelect = catConfig?.multiSelect ?? false;
       const lowVal = value.toLowerCase();
+
+      let next;
       const alreadyExists = prev.some(
         (m) => m.category === category && m.value.toLowerCase() === lowVal,
       );
 
       if (alreadyExists) {
-        // Remove all instances of this category + value (case-insensitive)
-        return prev.filter(
+        // Toggle OFF: Remove this specific value
+        next = prev.filter(
           (m) => !(m.category === category && m.value.toLowerCase() === lowVal),
         );
+      } else if (!isMultiSelect) {
+        // Exclusive Mode: Replace previous selection in this category
+        next = [
+          ...prev.filter((m) => m.category !== category),
+          { id: Math.random().toString(36).substring(7), category, value },
+        ];
+      } else {
+        // Additive Mode: Just add it
+        next = [
+          ...prev,
+          { id: Math.random().toString(36).substring(7), category, value },
+        ];
       }
 
-      return [
-        ...prev,
-        { id: Math.random().toString(36).substring(7), category, value },
-      ];
+      // Live Sync: If we have a compiled prompt, try to update it safely using functional updater
+      setCompiledPrompt((prevPrompt) => {
+        if (!prevPrompt) return prevPrompt;
+        const synced = syncModifiersWithText(prevPrompt, next);
+        return synced !== prevPrompt ? synced : prevPrompt;
+      });
+
+      return next;
     });
   };
 
@@ -1857,8 +1955,12 @@ function GeneratePageContent() {
   };
 
   // Live raw preview
-  const rawPromptPreview = `${coreSubject ? coreSubject + (activeModifiers.length > 0 ? ", " : "") : ""}${activeModifiers.map((m) => m.value).join(", ")}`;
+  const rawPromptPreview = `${coreSubject ? coreSubject + (activeModifiers.length > 0 ? " " : "") : ""}${activeModifiers.map((m) => `[${m.category.toLowerCase()}:${m.value.toLowerCase()}]`).join(" ")}`;
   const displayPrompt = resolvePrompt(compiledPrompt || rawPromptPreview);
+  const resolvedWovenPrompt = resolvePrompt(compiledPrompt || rawPromptPreview);
+  const hasInputContent = promptEditMode === "subject"
+    ? coreSubject.trim().length > 0
+    : (compiledPrompt || rawPromptPreview).trim().length > 0;
 
   // Conditionals
   const canStartFromScratch =
@@ -2058,7 +2160,7 @@ function GeneratePageContent() {
                     },
                     {
                       id: "variables",
-                      label: "5. DNA Variables",
+                      label: "5. Engineering Core",
                       icon: Icons.settings,
                       tourId: "tour-tab-variables",
                     },
@@ -2626,6 +2728,16 @@ function GeneratePageContent() {
                           <Icons.arrowLeft size={12} className="text-white/60 group-hover:text-white transition-colors" />
                           Back
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleSaveDraft(true)}
+                          disabled={isSavingDraft || !hasInputContent}
+                          className="h-10 px-4 bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary rounded-xl text-[9px] font-black uppercase tracking-[0.2em] group gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Icons.save size={12} className={cn("text-primary/60 group-hover:text-primary transition-colors", isSavingDraft && "animate-pulse")} />
+                          {isSavingDraft ? "Saving..." : "Save Progress"}
+                        </Button>
                         {(coreSubject ||
                           activeModifiers.length > 0 ||
                           remixImage ||
@@ -2713,7 +2825,7 @@ function GeneratePageContent() {
                                       {promptEditMode === "subject"
                                         ? userLevel === "novice"
                                           ? "Artistic Subject"
-                                          : "Core Synthesis"
+                                          : "Active DNA"
                                         : userLevel === "novice"
                                           ? "Advanced Prompt"
                                           : "Woven DNA"}
@@ -2723,17 +2835,68 @@ function GeneratePageContent() {
                                         MOD_FULL
                                       </span>
                                     )}
+                                    <Tooltip content="Improve and edit woven prompt via AI assistance">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setImprovePromptText(compiledPrompt || rawPromptPreview);
+                                          setShowImprovePromptModal(true);
+                                        }}
+                                        disabled={!(compiledPrompt || rawPromptPreview)}
+                                        className="p-1.5 rounded-lg hover:bg-white/5 text-foreground-muted hover:text-primary transition-colors disabled:opacity-30 ml-1"
+                                      >
+                                        <Icons.sparkles size={14} />
+                                      </button>
+                                    </Tooltip>
                                   </div>
                                   {userLevel !== "novice" && (
                                     <div className="flex items-center gap-3">
-                                      <div className="flex bg-black/40 p-1 rounded-[14px] border border-white/5">
+                                      <Tooltip
+                                        content="DNA SYNTHESIS: Combines your 'Active DNA' and 'Engineering Core' into a high-fidelity 'Woven DNA' prompt. (10 per minute)"
+                                        position="left"
+                                      >
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={handleCompilePrompt}
+                                          disabled={
+                                            isCompiling || !hasInputContent
+                                          }
+                                          className="h-9 text-[10px] font-black uppercase tracking-widest text-primary hover:text-white hover:bg-primary/20 border border-primary/20 rounded-xl px-4 relative"
+                                        >
+                                          {isCompiling ? (
+                                            <>
+                                              <Icons.spinner className="w-3 h-3 mr-2 animate-spin" />{" "}
+                                              Weaving
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Icons.wand className="w-3 h-3 mr-2" />{" "}
+                                              Weave
+                                            </>
+                                          )}
+                                          {remainingCompiles !== null && (
+                                            <span
+                                              className={cn(
+                                                "absolute -top-1 -right-1 z-20 px-1.5 py-0.5 rounded-full text-[8px] font-bold border shadow-sm",
+                                                remainingCompiles > 0
+                                                  ? "bg-primary text-black border-primary/20"
+                                                  : "bg-red-500 text-white border-red-500/20",
+                                              )}
+                                            >
+                                              {remainingCompiles}
+                                            </span>
+                                          )}
+                                        </Button>
+                                      </Tooltip>
+                                      <div className="flex bg-black/40 p-1 rounded-[14px] border border-white/5 mx-2">
                                         <button
                                           onClick={() => {
                                             // Sync variables from full prompt back to coreSubject before switching
                                             if (promptEditMode === "full" && compiledPrompt) {
-                                              const varPattern = /\[[A-Z_]+(?::[^\]]+)?\]/g;
-                                              const fullVars = compiledPrompt.match(varPattern) || [];
-                                              const subjectVars = coreSubject.match(varPattern) || [];
+                                              const varPattern = /(?<!')\[[A-Z_]+(?::[^\]]+)?\](?!')/g;
+                                              const fullVars: string[] = compiledPrompt.match(varPattern) || [];
+                                              const subjectVars: string[] = coreSubject.match(varPattern) || [];
                                               const newVars = fullVars.filter(v => !subjectVars.includes(v));
                                               if (newVars.length > 0) {
                                                 setCoreSubject(prev => prev + (prev.endsWith(' ') ? '' : ' ') + newVars.join(' '));
@@ -2771,11 +2934,35 @@ function GeneratePageContent() {
                                           <Icons.copy size={14} />
                                         </button>
                                       </Tooltip>
+                                      <button
+                                        onClick={() => setIsInteractiveDNA(!isInteractiveDNA)}
+                                        className={`px-3 py-1 text-[8px] font-black uppercase tracking-widest rounded-lg border transition-all ${isInteractiveDNA ? "bg-primary/20 border-primary/40 text-primary" : "border-white/5 text-white/20 hover:text-white"}`}
+                                      >
+                                        {isInteractiveDNA ? "ON: Interactive" : "OFF: Interactive"}
+                                      </button>
                                     </div>
                                   )}
                                 </div>
 
-                                {promptEditMode === "subject" ? (
+                                {isInteractiveDNA ? (
+                                  <div className="relative">
+                                    <div className="w-full px-5 py-4 pr-12 rounded-xl bg-black/40 border border-primary/20 min-h-[54px] flex items-center shadow-[inset_0_0_20px_rgba(99,102,241,0.05)]">
+                                      <VariableInteractiveEditor text={promptEditMode === "subject" ? coreSubject : (compiledPrompt || rawPromptPreview)} />
+                                    </div>
+                                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                                      <VariableInjector onInject={(name) => {
+                                        if (promptEditMode === "subject") {
+                                          const { newText } = insertVariableAtPosition(coreSubject, name, coreSubject.length, coreSubject.length);
+                                          setCoreSubject(newText);
+                                        } else {
+                                          const currentText = compiledPrompt || rawPromptPreview;
+                                          const { newText } = insertVariableAtPosition(currentText, name, currentText.length, currentText.length);
+                                          setCompiledPrompt(newText);
+                                        }
+                                      }} />
+                                    </div>
+                                  </div>
+                                ) : promptEditMode === "subject" ? (
                                   <div className="relative">
                                     <input
                                       id="prompt-subject-input"
@@ -2807,48 +2994,79 @@ function GeneratePageContent() {
                                     </div>
                                   </div>
                                 ) : (
-                                  <div className="relative">
-                                    <textarea
-                                      id="prompt-full-textarea"
-                                      ref={(el) => {
-                                        if (el) {
+                                  <div className="space-y-6">
+                                    <div className="group/name relative">
+                                      <div className="flex items-center gap-2 mb-2 ml-1">
+                                        <Icons.tag size={10} className="text-purple-500/50 group-focus-within/name:text-purple-400 transition-colors" />
+                                        <label className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30 group-focus-within/name:text-purple-400/70 transition-colors">
+                                          Prompt Set Name
+                                        </label>
+                                      </div>
+                                      <input
+                                        type="text"
+                                        value={genState.promptSetName || ""}
+                                        onChange={(e) => setGenState({ ...genState, promptSetName: e.target.value })}
+                                        placeholder="Untitled Architectural Sequence..."
+                                        className="w-full bg-purple-500/5 border border-purple-500/20 rounded-2xl px-6 py-4 text-sm font-bold text-purple-100 placeholder:text-purple-500/20 outline-none focus:border-purple-500/40 focus:bg-purple-500/10 transition-all shadow-inner"
+                                      />
+                                    </div>
+                                    <div className="relative">
+                                      <textarea
+                                        id="prompt-full-textarea"
+                                        ref={(el) => {
+                                          if (el) {
+                                            el.style.height = "auto";
+                                            el.style.height =
+                                              Math.min(el.scrollHeight, 400) + "px";
+                                          }
+                                        }}
+                                        value={compiledPrompt || rawPromptPreview}
+                                        onChange={(e) => {
+                                          const newText = e.target.value;
+                                          setCompiledPrompt(newText);
+                                          setActiveModifiers(prev => getActiveModifiersFromText(newText, prev as any) as any);
+                                          const el = e.target;
                                           el.style.height = "auto";
                                           el.style.height =
                                             Math.min(el.scrollHeight, 400) + "px";
-                                        }
-                                      }}
-                                      value={compiledPrompt || rawPromptPreview}
-                                      onChange={(e) => {
-                                        setCompiledPrompt(e.target.value);
-                                        const el = e.target;
-                                        el.style.height = "auto";
-                                        el.style.height =
-                                          Math.min(el.scrollHeight, 400) + "px";
-                                      }}
-                                      onKeyUp={(e) => setInputCursorPos({ start: e.currentTarget.selectionStart || 0, end: e.currentTarget.selectionEnd || 0 })}
-                                      onClick={(e) => setInputCursorPos({ start: e.currentTarget.selectionStart || 0, end: e.currentTarget.selectionEnd || 0 })}
-                                      onBlur={(e) => setInputCursorPos({ start: e.currentTarget.selectionStart || 0, end: e.currentTarget.selectionEnd || 0 })}
-                                      placeholder="Refining the synthesized output..."
-                                      rows={2}
-                                      style={{ maxHeight: "400px" }}
-                                      className="w-full px-5 py-4 pr-12 rounded-xl bg-black/40 border border-purple-500/30 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20 outline-none transition-all text-sm font-medium italic resize-none custom-scrollbar overflow-y-auto placeholder:text-purple-500/20"
-                                    />
-                                    <div className="absolute right-2 top-4">
-                                      <VariableInjector onInject={(name) => {
-                                        const input = document.getElementById('prompt-full-textarea') as HTMLTextAreaElement;
-                                        const currentText = compiledPrompt || rawPromptPreview;
-                                        const start = inputCursorPos?.start ?? currentText.length;
-                                        const end = inputCursorPos?.end ?? currentText.length;
-                                        const { newText, cursorPos } = insertVariableAtPosition(currentText, name, start, end);
-                                        if (input) input.focus();
-                                        setCompiledPrompt(newText);
-                                        if (input) {
-                                          setTimeout(() => {
-                                            input.setSelectionRange(cursorPos, cursorPos);
-                                          }, 0);
-                                        }
-                                      }} />
+                                        }}
+                                        onKeyUp={(e) => setInputCursorPos({ start: e.currentTarget.selectionStart || 0, end: e.currentTarget.selectionEnd || 0 })}
+                                        onClick={(e) => setInputCursorPos({ start: e.currentTarget.selectionStart || 0, end: e.currentTarget.selectionEnd || 0 })}
+                                        onBlur={(e) => setInputCursorPos({ start: e.currentTarget.selectionStart || 0, end: e.currentTarget.selectionEnd || 0 })}
+                                        placeholder="Refining the synthesized output..."
+                                        rows={2}
+                                        style={{ maxHeight: "400px" }}
+                                        className="w-full px-5 py-4 pr-12 rounded-xl bg-black/40 border border-purple-500/30 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20 outline-none transition-all text-sm font-medium italic resize-none custom-scrollbar overflow-y-auto placeholder:text-purple-500/20"
+                                      />
+                                      <div className="absolute right-2 top-4">
+                                        <VariableInjector onInject={(name) => {
+                                          const input = document.getElementById('prompt-full-textarea') as HTMLTextAreaElement;
+                                          const currentText = compiledPrompt || rawPromptPreview;
+                                          const start = inputCursorPos?.start ?? currentText.length;
+                                          const end = inputCursorPos?.end ?? currentText.length;
+                                          const { newText, cursorPos } = insertVariableAtPosition(currentText, name, start, end);
+                                          if (input) input.focus();
+                                          setCompiledPrompt(newText);
+                                          if (input) {
+                                            setTimeout(() => {
+                                              input.setSelectionRange(cursorPos, cursorPos);
+                                            }, 0);
+                                          }
+                                        }} />
+                                      </div>
                                     </div>
+                                  </div>
+                                )}
+
+                                {promptEditMode === "full" && (
+                                  <div className="mt-4 flex items-center justify-between text-[10px] text-purple-400/40 font-bold uppercase tracking-widest">
+                                    <div className="flex items-center gap-2">
+                                      <Icons.info size={10} />
+                                      Local Synthesis Cache (Temporary Override)
+                                    </div>
+                                    <span className="font-mono not-italic bg-purple-500/10 px-2 py-0.5 rounded">
+                                      {(compiledPrompt || rawPromptPreview).length} CHARS
+                                    </span>
                                   </div>
                                 )}
                               </div>
@@ -2923,7 +3141,7 @@ function GeneratePageContent() {
                       const isExemplar = !!activeExemplar;
                       const title = isExemplar
                         ? (activeExemplar as Exemplar).title
-                        : "Remix Target";
+                        : ((remixImage as GeneratedImage)?.promptSetName || "Remix Target");
                       const description = isExemplar
                         ? (activeExemplar as Exemplar).description
                         : "You are currently iterating on a previous generation.";
@@ -2990,7 +3208,7 @@ function GeneratePageContent() {
                               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-8">
                                 <div className="flex items-center justify-between">
                                   <div>
-                                    <h3 className="text-2xl font-black uppercase tracking-widest text-white leading-none">
+                                    <h3 className="text-2xl font-black text-white leading-none">
                                       {userLevel === "novice" &&
                                         title.includes("Selection")
                                         ? "Featured Creation"
@@ -3040,18 +3258,31 @@ function GeneratePageContent() {
                                             ? "Creative Subject"
                                             : "Advanced Composition"
                                           : promptEditMode === "subject"
-                                            ? "Core Synthesis"
-                                            : "Woven DNA Structure"}
+                                            ? "Active DNA"
+                                            : "Woven DNA"}
                                       </label>
                                       {promptEditMode === "full" && (
                                         <span className="text-[8px] font-black uppercase tracking-widest text-purple-500/50 bg-purple-500/10 px-2 py-0.5 rounded">
                                           DNA_FULL
                                         </span>
                                       )}
+                                      <Tooltip content="Improve and edit woven prompt via AI assistance">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setImprovePromptText(compiledPrompt || rawPromptPreview);
+                                            setShowImprovePromptModal(true);
+                                          }}
+                                          disabled={!(compiledPrompt || rawPromptPreview)}
+                                          className="p-1.5 rounded-lg hover:bg-white/5 text-foreground-muted hover:text-primary transition-colors disabled:opacity-30 ml-1"
+                                        >
+                                          <Icons.sparkles size={14} />
+                                        </button>
+                                      </Tooltip>
                                     </div>
                                     <div className="flex items-center gap-3">
                                       <Tooltip
-                                        content="NEURAL WEAVE: Combines your Subject and Modifiers into a high-fidelity prompt using the NanoBanana AI engine. (10 per minute)"
+                                        content="DNA SYNTHESIS: Combines your 'Active DNA' and 'Engineering Core' into a high-fidelity 'Woven DNA' prompt. (10 per minute)"
                                         position="left"
                                       >
                                         <Button
@@ -3059,7 +3290,7 @@ function GeneratePageContent() {
                                           variant="ghost"
                                           onClick={handleCompilePrompt}
                                           disabled={
-                                            isCompiling || !coreSubject.trim()
+                                            isCompiling || !hasInputContent
                                           }
                                           className="h-9 text-[10px] font-black uppercase tracking-widest text-primary hover:text-white hover:bg-primary/20 border border-primary/20 rounded-xl px-4 relative"
                                         >
@@ -3093,9 +3324,9 @@ function GeneratePageContent() {
                                           onClick={() => {
                                             // Sync variables from full prompt back to coreSubject before switching
                                             if (promptEditMode === "full" && compiledPrompt) {
-                                              const varPattern = /\[[A-Z_]+(?::[^\]]+)?\]/g;
-                                              const fullVars = compiledPrompt.match(varPattern) || [];
-                                              const subjectVars = coreSubject.match(varPattern) || [];
+                                              const varPattern = /(?<!')\[[A-Z_]+(?::[^\]]+)?\](?!')/g;
+                                              const fullVars: string[] = compiledPrompt.match(varPattern) || [];
+                                              const subjectVars: string[] = coreSubject.match(varPattern) || [];
                                               const newVars = fullVars.filter(v => !subjectVars.includes(v));
                                               if (newVars.length > 0) {
                                                 setCoreSubject(prev => prev + (prev.endsWith(' ') ? '' : ' ') + newVars.join(' '));
@@ -3205,7 +3436,9 @@ function GeneratePageContent() {
                                         }}
                                         value={compiledPrompt || rawPromptPreview}
                                         onChange={(e) => {
-                                          setCompiledPrompt(e.target.value);
+                                          const newText = e.target.value;
+                                          setCompiledPrompt(newText);
+                                          setActiveModifiers(prev => getActiveModifiersFromText(newText, prev as any) as any);
                                           const el = e.target;
                                           el.style.height = "auto";
                                           el.style.height =
@@ -3393,7 +3626,8 @@ function GeneratePageContent() {
                       );
                     })()}
                   </section>
-                )}
+                )
+                }
               </div>
             </div>
 
@@ -3427,7 +3661,7 @@ function GeneratePageContent() {
                     >
                       <div className="flex items-center gap-3">
                         <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-400 leading-none group-hover:text-purple-300 transition-colors">
-                          Engineering Core
+                          DNA Helix Architecture
                         </h3>
                         {isInputDiverged || isOutputDiverged ? (
                           <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 text-[7px] font-black uppercase border border-purple-500/20 animate-pulse">
@@ -3642,6 +3876,23 @@ function GeneratePageContent() {
                             </div>
                           </div>
 
+                          {/* Prompt Set Name */}
+                          <div>
+                            <label className="text-[10px] uppercase tracking-widest text-foreground-muted block mb-2">
+                              Prompt Set Name
+                            </label>
+                            <input
+                              type="text"
+                              value={genState.promptSetName || ""}
+                              onChange={(e) =>
+                                setGenState({ ...genState, promptSetName: e.target.value })
+                              }
+                              placeholder="Auto-generated if left blank"
+                              maxLength={100}
+                              className="w-full bg-black/50 border border-white/5 rounded-lg p-1.5 text-xs text-foreground font-medium outline-none focus:border-purple-500/50 mb-3"
+                            />
+                          </div>
+
                           {/* Prompt Set ID */}
                           <div>
                             <label className="text-[10px] uppercase tracking-widest text-foreground-muted block mb-2 flex justify-between">
@@ -3843,7 +4094,7 @@ function GeneratePageContent() {
                     <h2 className="text-xs font-black uppercase tracking-widest text-foreground-muted">
                       {userLevel === "novice"
                         ? "Final Composition"
-                        : "Compiled Pre-Flight"}
+                        : "Woven DNA Prompt"}
                     </h2>
                     <Tooltip content="Save this setup as your own template">
                       <button
@@ -3857,25 +4108,25 @@ function GeneratePageContent() {
                     <Tooltip content="Copy woven prompt to buffer">
                       <button
                         onClick={() => {
-                          if (lastWovenPrompt) {
-                            navigator.clipboard.writeText(resolvePrompt(lastWovenPrompt));
-                            showToast("Woven prompt copied to clipboard", "success");
+                          if (resolvedWovenPrompt) {
+                            navigator.clipboard.writeText(resolvedWovenPrompt);
+                            showToast("Woven DNA copied to clipboard", "success");
                           }
                         }}
-                        disabled={!lastWovenPrompt}
+                        disabled={!resolvedWovenPrompt}
                         className="p-2 rounded-xl bg-white/5 border border-white/10 text-white/50 hover:text-primary hover:border-primary/40 transition-all flex items-center justify-center disabled:opacity-20 disabled:pointer-events-none"
                       >
                         <Icons.copy size={14} />
                       </button>
                     </Tooltip>
-                    {lastWovenPrompt && (
+                    {resolvedWovenPrompt && (
                       <span className="text-[10px] font-mono text-foreground-muted/40 ml-1">
-                        {resolvePrompt(lastWovenPrompt).length} chars
+                        {resolvedWovenPrompt.length} chars
                       </span>
                     )}
                   </div>
                   <Tooltip
-                    content="NEURAL WEAVE: Combines your Subject and Modifiers into a high-fidelity prompt using the NanoBanana AI engine. (10 per minute)"
+                    content="DNA SYNTHESIS: Combines your 'Active DNA' and 'Engineering Core' into a high-fidelity 'Woven DNA' prompt. (10 per minute)"
                     position="left"
                   >
                     <Button
@@ -3883,7 +4134,7 @@ function GeneratePageContent() {
                       size="sm"
                       variant="outline"
                       className="text-[10px] h-6 px-2 border-primary/20 text-primary hover:bg-primary/10 transition-colors relative"
-                      disabled={!coreSubject.trim() || isCompiling}
+                      disabled={isCompiling || !hasInputContent}
                       onClick={handleCompilePrompt}
                     >
                       {isCompiling ? (
@@ -3927,13 +4178,17 @@ function GeneratePageContent() {
                       </div>
                     </div>
                   )}
-                  {lastWovenPrompt ? (
-                    <span className="block whitespace-pre-wrap">
-                      {resolvePrompt(lastWovenPrompt)}
-                    </span>
+                  {resolvedWovenPrompt ? (
+                    <div className="space-y-2">
+                      <span className="block whitespace-pre-wrap">
+                        {resolvedWovenPrompt}
+                      </span>
+                    </div>
                   ) : (
                     <span className="text-foreground-muted italic opacity-50">
-                      No woven prompt yet. Hit &quot;Weave&quot; to compile your synthesis.
+                      {userLevel === "novice"
+                        ? "No composition synthesized yet. Hit \"Enhance Prompt\" to finalize."
+                        : "No woven prompt yet. Hit \"Weave\" to compile your synthesis."}
                     </span>
                   )}
                 </div>
@@ -3945,7 +4200,7 @@ function GeneratePageContent() {
                       ? "bg-red-500/10 text-red-500 border border-red-500/20"
                       : "bg-primary text-white hover:scale-[1.01] active:scale-[0.98]"
                       }`}
-                    disabled={!isGenerating && !coreSubject.trim()}
+                    disabled={!isGenerating && !hasInputContent}
                     onClick={
                       isGenerating
                         ? handleCancelGeneration
@@ -3971,8 +4226,8 @@ function GeneratePageContent() {
                     <Tooltip content="Safe this variation configuration as a draft">
                       <Button
                         variant="outline"
-                        onClick={handleSaveDraft}
-                        disabled={isSavingDraft || (!coreSubject.trim() && activeModifiers.length === 0)}
+                        onClick={() => handleSaveDraft(true)}
+                        disabled={isSavingDraft || !hasInputContent}
                         className="h-16 px-6 bg-white/5 border-white/10 hover:bg-white/10 text-white rounded-[20px]"
                       >
                         {isSavingDraft ? <Icons.loader className="w-5 h-5 animate-spin" /> : <Icons.save className="w-5 h-5" />}
@@ -4427,9 +4682,41 @@ function GeneratePageContent() {
             creatingCollection={false}
             collectionError=""
             setCollectionError={() => { }}
+            onUpdatePromptSetName={async (newName) => {
+              if (!user || !viewingVariationsGroup) return;
+              try {
+                const { writeBatch, doc, deleteField } = await import('firebase/firestore');
+                const { db } = await import('@/lib/firebase');
+                const batch = writeBatch(db);
+                const cleanName = newName.trim() || undefined;
+
+                viewingVariationsGroup.forEach(img => {
+                  const imgRef = doc(db, 'users', user.uid, 'images', img.id);
+                  if (cleanName) {
+                    batch.update(imgRef, { promptSetName: cleanName });
+                  } else {
+                    batch.update(imgRef, { promptSetName: deleteField() });
+                  }
+                });
+
+                await batch.commit();
+
+                // update local state
+                const ids = viewingVariationsGroup.map(i => i.id);
+                setHistoryImages(prev => prev.map(img => ids.includes(img.id) ? { ...img, promptSetName: cleanName } : img));
+                setGeneratedImages(prev => prev ? prev.map(img => ids.includes(img.id) ? { ...img, promptSetName: cleanName } : img) : null);
+                setViewingVariationsGroup(prev => prev ? prev.map(img => ids.includes(img.id) ? { ...img, promptSetName: cleanName } : img) : null);
+                showToast('Prompt set name updated', 'success');
+              } catch (error) {
+                console.error("Failed to update prompt set name", error);
+                showToast('Failed to update prompt set name', 'error');
+              }
+            }}
             onDeleteImages={async (ids) => {
               if (!user) return;
               try {
+                const { deleteDoc, doc } = await import('firebase/firestore');
+                const { db } = await import('@/lib/firebase');
                 await Promise.all(ids.map(id => deleteDoc(doc(db, 'users', user.uid, 'images', id))));
                 setHistoryImages(prev => prev.filter(img => !ids.includes(img.id)));
                 setGeneratedImages(prev => prev ? prev.filter(img => !ids.includes(img.id)) : null);
@@ -4608,12 +4895,16 @@ function GeneratePageContent() {
                   <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white leading-none">
                     {userLevel === "novice"
                       ? "Final Review"
-                      : "Pre-Flight Synthesis"}
+                      : "Neural Architecture Audit"}
                   </h3>
                   <p className="text-[10px] uppercase font-bold tracking-widest text-white/30 mt-2">
                     {userLevel === "novice"
                       ? "Confirm your setup before creating."
-                      : "Validate architectural DNA before weaving."}
+                      : isWeaveFailed
+                        ? "Synthesis engine offline. Review raw constituents."
+                        : synthesisRequired
+                          ? "Validate DNA Helix and Active DNA before synthesis."
+                          : "Neural synthesis verified. Ready for cloud rendering."}
                   </p>
                 </div>
                 <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
@@ -4623,12 +4914,15 @@ function GeneratePageContent() {
               <div className="p-10 space-y-10 max-h-[70vh] overflow-y-auto custom-scrollbar">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-primary/60">
-                      Woven Template
+                    <label className={cn(
+                      "text-[10px] font-black uppercase tracking-widest",
+                      isWeaveFailed ? "text-red-400" : "text-primary/60"
+                    )}>
+                      {isWeaveFailed ? "Raw DNA Constituents (Synthesis Failed)" : isOutputDiverged ? "Manual DNA Refinement" : synthesisRequired ? "DNA Constituent Preview" : "Woven DNA Output"}
                     </label>
                     <Tooltip
                       content="NEURAL WEAVE: Collapses your Subject and Modifiers into a high-fidelity woven prompt using the NanoBanana AI engine."
-                      position="top"
+                      position="bottom"
                     >
                       <button
                         onClick={handleEnhancePrompt}
@@ -4666,25 +4960,34 @@ function GeneratePageContent() {
                       </span>
                     )}
                   </div>
+                  {isWeaveFailed && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-start gap-3">
+                      <Icons.alertCircle size={14} className="text-red-400 mt-0.5 shrink-0" />
+                      <p className="text-[10px] text-red-100/70 leading-relaxed font-bold uppercase tracking-wider">
+                        The neural weaving engine failed to process your request. You can attempt to "Proceed Anyway" using your raw constituents, or "Abort" to refine your DNA.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-4">
                   <label className="text-[10px] font-black uppercase tracking-widest text-primary/60">
-                    Active Modifiers
+                    Active DNA Constituents
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {activeModifiers.length > 0 ? (
-                      activeModifiers.map((m) => (
-                        <span
-                          key={m.id}
-                          className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/5 text-[10px] font-bold uppercase tracking-widest text-white/40"
-                        >
-                          <span className="opacity-20 mr-1">
-                            {m.category}:
-                          </span>{" "}
-                          {m.value}
-                        </span>
-                      ))
+                      activeModifiers.map((m) => {
+                        const varName = m.category.toUpperCase();
+                        const varValue = `[${m.category.toLowerCase()}:${m.value.toLowerCase()}]`;
+                        return (
+                          <span
+                            key={m.id}
+                            className="px-3 py-1.5 rounded-xl bg-primary/5 border border-primary/20 text-[10px] font-black uppercase tracking-widest text-primary/80 flex items-center"
+                          >
+                            <span className="text-primary">{varValue}</span>
+                          </span>
+                        );
+                      })
                     ) : (
                       <span className="text-[10px] text-white/20 italic uppercase tracking-widest">
                         No structural modifiers active
@@ -4785,7 +5088,7 @@ function GeneratePageContent() {
                       }}
                     >
                       <Icons.sparkles size={14} className="mr-2" />{" "}
-                      {synthesisRequired ? "Weave Masterpiece" : "Execute Generation"}
+                      {isWeaveFailed ? "Proceed Anyway" : synthesisRequired ? "Weave Masterpiece" : "Execute Generation"}
                     </Button>
                   </Tooltip>
                 </div>
@@ -4795,82 +5098,164 @@ function GeneratePageContent() {
         )}
       </AnimatePresence>
 
-      {/* Variable Required Modal */}
+      {/* Improve Prompt Modal */}
       <AnimatePresence>
-        {showVariableRequiredModal && (
+        {showImprovePromptModal && (
           <div className="fixed inset-0 z-[1100] bg-black/90 backdrop-blur-xl flex items-center justify-center p-6">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="w-full max-w-lg bg-[#0a0a0f] border border-primary/30 rounded-[32px] overflow-hidden shadow-[0_0_100px_rgba(99,102,241,0.2)]"
+              className="w-full max-w-xl bg-[#0a0a0f] border border-primary/30 rounded-[32px] overflow-hidden shadow-[0_0_100px_rgba(99,102,241,0.2)]"
             >
               <div className="p-8 border-b border-white/5 flex items-center justify-between bg-primary/5">
                 <div>
                   <h3 className="text-xs font-black uppercase tracking-[0.3em] text-primary-light leading-none">
-                    Unassigned DNA Sequence
+                    Evolutionary Feedback
                   </h3>
                   <p className="text-[10px] uppercase font-bold tracking-widest text-white/30 mt-2">
-                    Variable Definitions Required
+                    Refine & Augment Woven DNA
                   </p>
                 </div>
                 <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
-                  <Icons.wand size={18} />
+                  <Icons.sparkles size={18} />
                 </div>
               </div>
 
               <div className="p-10 space-y-6">
-                <p className="text-sm text-white/60 leading-relaxed">
-                  Your prompt contains architectural variables that have not been defined. Please provide values for these components to stabilize the synthesis.
-                </p>
-
-                <div className="space-y-4 max-h-[40vh] overflow-y-auto custom-scrollbar pr-2">
-                  {missingVars.map((name) => (
-                    <div key={name} className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <label className="text-[9px] font-black uppercase tracking-widest text-primary/60">
-                          [{name}]
-                        </label>
-                      </div>
-                      <Input
-                        autoFocus={missingVars.indexOf(name) === 0}
-                        placeholder={`Definitive value for ${name}...`}
-                        value={variables[name]?.currentValue || ""}
-                        onChange={(e) => updateVariableValue(name, e.target.value)}
-                        className="h-12 bg-white/5 border-white/10 text-sm rounded-xl focus:border-primary/40"
-                      />
-                    </div>
-                  ))}
+                <div className="space-y-4">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-primary/60">
+                    Target Synthesis
+                  </label>
+                  <textarea
+                    value={improvePromptText}
+                    onChange={(e) => setImprovePromptText(e.target.value)}
+                    placeholder="Enter details to improve..."
+                    className="w-full h-48 bg-white/5 border border-white/10 rounded-2xl p-4 text-sm text-white/80 focus:ring-1 focus:ring-primary/40 focus:border-primary/40 outline-none transition-all resize-none font-medium italic leading-relaxed"
+                  />
                 </div>
 
-                <div className="pt-4 flex gap-4">
-                  <Button
-                    variant="outline"
-                    className="flex-1 h-14 rounded-2xl font-black uppercase tracking-widest border-white/10 text-white/40 hover:text-white"
-                    onClick={() => setShowVariableRequiredModal(false)}
-                  >
-                    Abort
-                  </Button>
-                  <Button
-                    variant="primary"
-                    className="flex-[2] h-14 rounded-2xl font-black uppercase tracking-widest shadow-[0_0_30px_rgba(99,102,241,0.3)]"
-                    disabled={missingVars.some(name => !variables[name]?.currentValue?.trim())}
-                    onClick={() => {
-                      const action = pendingAction;
-                      setPendingAction(null);
-                      setShowVariableRequiredModal(false);
-                      if (action === "compile") handleCompilePrompt();
-                      else handleGenerate();
+                <div className="flex flex-col gap-3">
+                  <div className="flex gap-4">
+                    <Button
+                      variant="outline"
+                      className="flex-1 h-12 rounded-2xl font-black uppercase tracking-widest border-white/10 text-white/40 hover:text-white"
+                      onClick={() => setShowImprovePromptModal(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="primary"
+                      className="flex-[2] h-12 rounded-2xl font-black uppercase tracking-widest shadow-[0_0_30px_rgba(99,102,241,0.3)]"
+                      onClick={() => {
+                        setCompiledPrompt(improvePromptText);
+                        setPromptEditMode("full");
+                        setShowImprovePromptModal(false);
+                        showToast("Refinement applied to working prompt. Weave to update output.", "info");
+                      }}
+                    >
+                      COMMIT REFINEMENT
+                    </Button>
+                  </div>
+
+                  <button
+                    disabled={isEnhancing}
+                    onClick={async () => {
+                      handleEnhancePrompt(improvePromptText);
                     }}
+                    className="w-full py-2 text-[9px] font-black uppercase tracking-[0.2em] text-primary hover:text-white transition-colors disabled:opacity-50"
                   >
-                    {pendingAction === "compile" ? "Synchronize Weave" : "Initialize Weave"}
-                  </Button>
+                    {isEnhancing ? (
+                      <Icons.spinner className="w-3 h-3 animate-spin mx-auto" />
+                    ) : (
+                      "Auto-Optimize DNA via AI"
+                    )}
+                  </button>
                 </div>
               </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
+
+      {/* Variable Required Modal */}
+      <AnimatePresence>
+        {
+          showVariableRequiredModal && (
+            <div className="fixed inset-0 z-[1100] bg-black/90 backdrop-blur-xl flex items-center justify-center p-6">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="w-full max-w-lg bg-[#0a0a0f] border border-primary/30 rounded-[32px] overflow-hidden shadow-[0_0_100px_rgba(99,102,241,0.2)]"
+              >
+                <div className="p-8 border-b border-white/5 flex items-center justify-between bg-primary/5">
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-[0.3em] text-primary-light leading-none">
+                      Unassigned DNA Sequence
+                    </h3>
+                    <p className="text-[10px] uppercase font-bold tracking-widest text-white/30 mt-2">
+                      Variable Definitions Required
+                    </p>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+                    <Icons.wand size={18} />
+                  </div>
+                </div>
+
+                <div className="p-10 space-y-6">
+                  <p className="text-sm text-white/60 leading-relaxed">
+                    Your prompt contains architectural variables that have not been defined. Please provide values for these components to stabilize the synthesis.
+                  </p>
+
+                  <div className="space-y-4 max-h-[40vh] overflow-y-auto custom-scrollbar pr-2">
+                    {missingVars.map((name) => (
+                      <div key={name} className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <label className="text-[9px] font-black uppercase tracking-widest text-primary/60">
+                            [{name}]
+                          </label>
+                        </div>
+                        <Input
+                          autoFocus={missingVars.indexOf(name) === 0}
+                          placeholder={`Definitive value for ${name}...`}
+                          value={variables[name]?.currentValue || ""}
+                          onChange={(e) => updateVariableValue(name, e.target.value)}
+                          className="h-12 bg-white/5 border-white/10 text-sm rounded-xl focus:border-primary/40"
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="pt-4 flex gap-4">
+                    <Button
+                      variant="outline"
+                      className="flex-1 h-14 rounded-2xl font-black uppercase tracking-widest border-white/10 text-white/40 hover:text-white"
+                      onClick={() => setShowVariableRequiredModal(false)}
+                    >
+                      Abort
+                    </Button>
+                    <Button
+                      variant="primary"
+                      className="flex-[2] h-14 rounded-2xl font-black uppercase tracking-widest shadow-[0_0_30px_rgba(99,102,241,0.3)]"
+                      disabled={missingVars.some(name => !variables[name]?.currentValue?.trim())}
+                      onClick={() => {
+                        const action = pendingAction;
+                        setPendingAction(null);
+                        setShowVariableRequiredModal(false);
+                        if (action === "compile") handleCompilePrompt();
+                        else handleGenerate();
+                      }}
+                    >
+                      {pendingAction === "compile" ? "Synchronize Weave" : "Initialize Weave"}
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )
+        }
+      </AnimatePresence >
 
       <ConfirmationModal
         isOpen={showBackConfirmModal}
@@ -4888,7 +5273,22 @@ function GeneratePageContent() {
           executeBack();
         }}
       />
-    </div>
+
+      <ConfirmationModal
+        isOpen={showSaveChoiceModal}
+        title="Configuration Synthesized"
+        message="Success. Your current workspace DNA has been archived. Would you like to return to the gallery or continue refining your prompt?"
+        confirmLabel="Back to Gallery"
+        cancelLabel="Continue Refining"
+        onConfirm={() => {
+          setShowSaveChoiceModal(false);
+          executeBack();
+        }}
+        onCancel={() => {
+          setShowSaveChoiceModal(false);
+        }}
+      />
+    </div >
   );
 }
 

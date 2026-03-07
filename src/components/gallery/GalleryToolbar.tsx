@@ -13,6 +13,8 @@ interface GalleryToolbarProps {
     isSu: boolean;
     isGrouped: boolean;
     onToggleGrouped: () => void;
+    showHoverOverlay: boolean;
+    onToggleHoverOverlay: () => void;
     selectionMode: boolean;
     onToggleSelectionMode: () => void;
     onClearSelection: () => void;
@@ -43,6 +45,7 @@ interface GalleryToolbarProps {
 export default function GalleryToolbar({
     viewMode, setViewMode, isSu,
     isGrouped, onToggleGrouped,
+    showHoverOverlay, onToggleHoverOverlay,
     selectionMode, onToggleSelectionMode, onClearSelection,
     filterTag, onFilterTagChange,
     filterExemplar, onFilterExemplarChange,
@@ -89,6 +92,21 @@ export default function GalleryToolbar({
                             Sets
                         </Button>
                     </div>
+
+                    <div className="h-6 w-px bg-white/10 mx-1 hidden md:block" />
+
+                    <Button
+                        variant={showHoverOverlay ? 'primary' : 'secondary'}
+                        size="sm"
+                        onClick={onToggleHoverOverlay}
+                        className={cn(
+                            "h-10 w-10 p-0 rounded-xl flex items-center justify-center transition-all flex-shrink-0",
+                            showHoverOverlay ? "bg-primary/20 text-primary border-primary/20" : "bg-white/5 hover:bg-white/10 border-white/5 text-white/70"
+                        )}
+                        title={showHoverOverlay ? "Hide Text Overlays" : "Show Text Overlays"}
+                    >
+                        <Icons.eye size={16} className={!showHoverOverlay ? "opacity-50" : ""} />
+                    </Button>
 
                     <div className="h-6 w-px bg-white/10 mx-1 hidden md:block" />
 

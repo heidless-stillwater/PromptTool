@@ -30,6 +30,7 @@ export interface MediaSaveOptions {
     guidanceScale?: number;
     sourceImageId?: string;
     promptSetID?: string;
+    promptSetName?: string;
     collectionIds?: string[];
     requestedModality: MediaModality;
     modality: MediaModality;
@@ -197,7 +198,7 @@ export class GenerationService {
      */
     static async saveMedia(userId: string, media: { data: string, mimeType: string }, options: MediaSaveOptions) {
         const bucket = adminStorage.bucket();
-        const { modality, quality, aspectRatio, prompt, promptType, madlibsData, seed, negativePrompt, guidanceScale, sourceImageId, promptSetID, collectionIds, requestedModality, initialImageUrl, modifiers, coreSubject, variables, compiledPrompt } = options;
+        const { modality, quality, aspectRatio, prompt, promptType, madlibsData, seed, negativePrompt, guidanceScale, sourceImageId, promptSetID, promptSetName, collectionIds, requestedModality, initialImageUrl, modifiers, coreSubject, variables, compiledPrompt } = options;
 
         const isVideo = media.mimeType.startsWith('video/');
         const extension = media.mimeType.split('/')[1] || (isVideo ? 'mp4' : 'png');
@@ -253,6 +254,7 @@ export class GenerationService {
             ...(actualModality === 'video' && { videoUrl: mediaUrl }),
             ...(sourceImageId && { sourceImageId }),
             ...(promptSetID && { promptSetID }),
+            ...(promptSetName && { promptSetName }),
             ...(collectionIds && { collectionIds }),
         };
 

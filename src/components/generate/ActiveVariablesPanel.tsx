@@ -100,11 +100,10 @@ export const ActiveVariablesPanel: React.FC<ActiveVariablesPanelProps> = ({ coll
                                                 </div>
                                                 <div>
                                                     <h3 className="text-sm font-black uppercase tracking-widest text-white leading-none">
-                                                        Active DNA
+                                                        Active DNA Architecture
                                                     </h3>
-                                                    <p className="text-[10px] uppercase font-bold tracking-widest text-primary/50 mt-1.5 flex items-center gap-1.5">
-                                                        <span className="w-1 h-1 rounded-full bg-primary animate-pulse" />
-                                                        Synchronized
+                                                    <p className="text-[9px] uppercase font-bold tracking-[0.15em] text-primary/40 mt-1.5 leading-relaxed">
+                                                        Defining variables & associated literal tags
                                                     </p>
                                                 </div>
                                             </div>

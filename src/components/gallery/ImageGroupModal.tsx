@@ -24,6 +24,7 @@ interface ImageGroupModalProps {
     collectionError: string;
     setCollectionError: (value: string) => void;
     onDeleteImages?: (ids: string[]) => Promise<void>;
+    onUpdatePromptSetName?: (newName: string) => Promise<void>;
 }
 
 export default function ImageGroupModal({
@@ -40,7 +41,8 @@ export default function ImageGroupModal({
     creatingCollection,
     collectionError,
     setCollectionError,
-    onDeleteImages
+    onDeleteImages,
+    onUpdatePromptSetName
 }: ImageGroupModalProps) {
     const router = useRouter();
     const pathname = usePathname() || '';
@@ -55,6 +57,31 @@ export default function ImageGroupModal({
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+
+    // Title editing state
+    const originalName = selectedGroup?.[0]?.promptSetName || '';
+    const [isEditingTitle, setIsEditingTitle] = useState(false);
+    const [editingTitle, setEditingTitle] = useState(originalName);
+    const [isSavingTitle, setIsSavingTitle] = useState(false);
+
+    // Reset title edit state if the group changes
+    useEffect(() => {
+        setEditingTitle(selectedGroup?.[0]?.promptSetName || '');
+        setIsEditingTitle(false);
+    }, [selectedGroup]);
+
+    const handleSaveTitle = async () => {
+        if (!onUpdatePromptSetName) return;
+        setIsSavingTitle(true);
+        try {
+            await onUpdatePromptSetName(editingTitle);
+            setIsEditingTitle(false);
+        } catch (error) {
+            // handle error if needed
+        } finally {
+            setIsSavingTitle(false);
+        }
+    };
 
     const toggleSelectionMode = () => {
         setIsSelectionMode(!isSelectionMode);
@@ -139,7 +166,56 @@ export default function ImageGroupModal({
                 {/* Header */}
                 <div className="p-6 border-b border-white/5 flex flex-col md:flex-row items-start md:items-center justify-between bg-transparent z-10 gap-4 flex-shrink-0">
                     <div>
-                        <h2 className="text-xl font-black uppercase tracking-widest text-primary">Image Variations</h2>
+                        {isEditingTitle ? (
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="text"
+                                    value={editingTitle}
+                                    onChange={(e) => setEditingTitle(e.target.value)}
+                                    placeholder="Enter Set Name"
+                                    className="px-3 py-1.5 rounded-lg bg-background-secondary border border-border text-primary text-xl font-black transition-all focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 w-full max-w-[300px] md:max-w-md"
+                                    autoFocus
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleSaveTitle();
+                                        if (e.key === 'Escape') {
+                                            setIsEditingTitle(false);
+                                            setEditingTitle(originalName);
+                                        }
+                                    }}
+                                    disabled={isSavingTitle}
+                                />
+                                <button
+                                    onClick={handleSaveTitle}
+                                    disabled={isSavingTitle || editingTitle === originalName}
+                                    className="p-1.5 text-primary hover:bg-primary/10 rounded-lg transition-colors disabled:opacity-50"
+                                >
+                                    {isSavingTitle ? <Icons.spinner className="w-5 h-5 animate-spin" /> : <Icons.check className="w-5 h-5" />}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setIsEditingTitle(false);
+                                        setEditingTitle(originalName);
+                                    }}
+                                    disabled={isSavingTitle}
+                                    className="p-1.5 text-foreground-muted hover:text-foreground hover:bg-background-secondary rounded-lg transition-colors disabled:opacity-50"
+                                >
+                                    <Icons.close className="w-5 h-5" />
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-3 group/title">
+                                <h2 className="text-xl font-black text-primary">{firstImage.promptSetName || "Image Variations"}</h2>
+                                {onUpdatePromptSetName && (
+                                    <button
+                                        onClick={() => setIsEditingTitle(true)}
+                                        className="opacity-0 group-hover/title:opacity-100 transition-opacity text-primary hover:bg-primary/10 p-1.5 rounded-md"
+                                        title="Edit Prompt Set Name"
+                                    >
+                                        <Icons.settings className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
+                        )}
                         <div className="flex flex-wrap items-center gap-2 mt-2">
                             <p className="text-sm text-foreground-muted">
                                 {selectedGroup.length} images • {formatDate(firstImage.createdAt)}

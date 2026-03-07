@@ -158,6 +158,8 @@ function GalleryContent() {
                                 isSu={gallery.isSu}
                                 isGrouped={gallery.isGrouped}
                                 onToggleGrouped={() => gallery.setIsGrouped(!gallery.isGrouped)}
+                                showHoverOverlay={gallery.showHoverOverlay}
+                                onToggleHoverOverlay={() => gallery.setShowHoverOverlay(!gallery.showHoverOverlay)}
                                 selectionMode={gallery.selectionMode}
                                 onToggleSelectionMode={() => gallery.setSelectionMode(!gallery.selectionMode)}
                                 onClearSelection={() => gallery.setSelectedImageIds(new Set())}
@@ -243,6 +245,7 @@ function GalleryContent() {
                                 loadingMore={gallery.loadingMore}
                                 hasMore={gallery.hasMore}
                                 isGrouped={gallery.isGrouped}
+                                showHoverOverlay={gallery.showHoverOverlay}
                                 groupImagesByPromptSet={gallery.groupImagesByPromptSet}
                                 onLoadMore={() => gallery.fetchImages(true)}
                                 selectionMode={gallery.selectionMode}
@@ -324,6 +327,7 @@ function GalleryContent() {
                         collectionError={gallery.collectionError}
                         setCollectionError={gallery.setCollectionError}
                         onDeleteImages={gallery.deleteImages}
+                        onUpdatePromptSetName={(name) => gallery.handleUpdatePromptSetName(selectedGroup, name)}
                     />
                 )}
             </AnimatePresence>

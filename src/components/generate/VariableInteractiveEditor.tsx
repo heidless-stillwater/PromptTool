@@ -10,14 +10,14 @@ interface VariableInteractiveEditorProps {
 export const VariableInteractiveEditor: React.FC<VariableInteractiveEditorProps> = ({ text }) => {
     if (!text) return <span className="text-white/20 italic">No prompt architecture detected...</span>;
 
-    // Pattern to match [VAR] or [VAR:DEFAULT]
-    const regex = /(\[[A-Z0-9_]+(?::[^\]]+)?\])/gi;
+    // Pattern to match [VAR] or [VAR:DEFAULT] or [category:value], but not if wrapped in single quotes '[VAR]'
+    const regex = /((?<!')\[[a-z0-9_]+(?::[^\]]+)?\](?!'))/gi;
     const parts = text.split(regex);
 
     return (
         <div className="leading-loose text-sm font-medium text-white/80">
             {parts.map((part, i) => {
-                const match = part.match(/\[([A-Z0-9_]+)(?::([^\]]+))?\]/i);
+                const match = part.match(/(?<!')\[([A-Z0-9_]+)(?::([^\]]+))?\](?!')/i);
                 if (match) {
                     return <VariablePill key={i} name={match[1]} originalMatch={part} />;
                 }

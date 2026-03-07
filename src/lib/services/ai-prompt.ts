@@ -10,29 +10,39 @@ export class AIPromptService {
     /**
      * Enhances a simple prompt into a detailed masterpiece for image generation.
      */
-    async enhancePrompt(prompt: string, style?: string, mood?: string): Promise<string> {
+    async enhancePrompt(prompt: string, style?: string, mood?: string, modifiers?: { category: string, value: string }[]): Promise<string> {
         if (!prompt || prompt.trim().length === 0) {
             throw new Error("Prompt is required for enhancement");
         }
 
         try {
-            const model = 'gemini-3.1-flash-lite-preview'; // Flash Lite 3.1 is available
+            const model = 'gemini-3.1-flash-lite-preview';
 
             const systemInstruction = `
-        You are a world-class prompt engineer for AI image generation (e.g., Midjourney, DALL-E, Stable Diffusion).
-        Your goal is to take a simple, short user prompt and expand it into a detailed, descriptive, and visually stunning masterpiece.
+        You are a world-class prompt engineer for AI image generation.
+        Your goal is to take a prompt and expand it into a detailed, descriptive, and visually stunning masterpiece.
         
-        Guidelines for Literal Expansion:
-        1. PERSERVE SUBJECT: The core subject must remain the singular focus.
-        2. NO HALLUCINATION: You are forbidden from adding any artistic styles, moods, lighting, or technical settings (e.g., Photography, Oil Painting, Cinematic) that are NOT present in the input parameters.
-        3. NO META-TALK: Do not use phrases like "rendered in", "the scene is", "captured in", or "evokes a". Skip all narrative connective tissue.
-        4. MATERIAL ADJECTIVES ONLY: Use only physical, literal adjectives to describe the subject (e.g., "weathered", "metallic", "translucent") based on the prompt text.
-        5. OUTPUT ONLY: Return only the descriptive string. No preamble.
+        Guidelines for DNA Integrity:
+        1. PERSERVE SUBJECT: The core subject must remain the focus.
+        2. NO HALLUCINATION: Do NOT add artistic styles or technical settings that are NOT present in the input parameters.
+        3. DNA ANCHORS: Architectural tokens in square brackets like [style:cyberpunk] or [BUILDING_NAME:Tower of London] must be preserved EXACTLY as written. 
+           If modifiers or variables are provided in the input, ensure they are represented as "[KEY:VALUE]" in your output.
+        4. WEAVING: Integrate these anchors naturally into the descriptive narrative.
+        5. VARIABLE ARCHITECTURE: Preservation of [SUBJECT], [TEXTURE], [BUILDING_NAME], etc. is mandatory. NEVER resolve them into plain text.
+        6. OUTPUT ONLY: Return only the descriptive string.
       `;
 
             let userPrompt = `Original Prompt: "${prompt}"\n`;
-            if (style) userPrompt += `Target Art Style: ${style}\n`;
-            if (mood) userPrompt += `Target Mood/Vibe: ${mood}\n`;
+            if (modifiers && modifiers.length > 0) {
+                userPrompt += `\nDNA Helix Modifiers (Ensure these anchors are used in the output):\n`;
+                modifiers.forEach(mod => {
+                    userPrompt += `- [${mod.category.toLowerCase()}:${mod.value.toLowerCase()}]\n`;
+                });
+            } else {
+                if (style) userPrompt += `Target Art Style: ${style}\n`;
+                if (mood) userPrompt += `Target Mood/Vibe: ${mood}\n`;
+            }
+
             userPrompt += `\nEnhanced Descriptive Prompt:`;
 
             const response = await this.client.models.generateContent({
@@ -77,41 +87,55 @@ export class AIPromptService {
         The user provides a Core Subject, and an ordered list of Modifiers (Lighting, Camera, Style, Environment, etc).
         
         Your Mission:
-        Weave the Core Subject and the Modifiers into a single, cohesive, vivid, highly optimized paragraph prompt.
+        Weave the Core Subject and the Modifiers into a single, highly descriptive, vivid, and beautifully crafted paragraph prompt.
         
-        Rules for Passive Compilation:
-        1. LITERAL WEAVE: You are a passive compiler. You take the Core Subject and the Modifiers and weave them together with minimal logical connection.
-        2. NO CREATIVITY: You must NOT introduce any art styles, moods, motifs, or concepts not present in the DNA constituent list. If a category is empty (e.g. no Mood modifier), you must NOT invent a mood.
-        3. NO META-PHRASING: Eliminate phrases like "captured in a", "rendered as", "evokes a", "overall aesthetic is", "scene is bathed in". These are forbidden tokens.
-        4. ZERO INJECTION: You are strictly prohibited from adding independent concepts, objects, attributes, or stylistic details. The output must strictly encompass only what is provided. Do NOT extrapolate or hallucinate details.
-        5. SOURCE FIDELITY: Every word in the output should have a direct mapping to an input constituent.
+        DNA Anchor Protocol:
+        1. COHESIVE NARRATIVE: Integrate all elements into a natural-sounding, descriptive narrative.
+        2. NO HALLUCINATION: Do NOT introduce elements absent from the input.
+        3. NO META-FLUFF: Eliminate prefixes like "An image of".
+        4. DNA MODIFIERS: Write DNA Helix modifiers using literal "[category:value]" (e.g., "[style:cyberpunk]").
+        5. VARIABLE ARCHITECTURE: User-defined variables (e.g., [BUILDING_NAME]) MUST be treated as immutable architectural anchors. 
+           CRITICAL: If a variable has a value defined (e.g., [BUILDING_NAME] = "Tower of London"), your output MUST use the format: "[BUILDING_NAME:Tower of London]". 
+           NEVER resolve a variable into plain text. The brackets MUST remain in the output.
+        6. NO CLI PARAMETERS: Do NOT append parameters like "--ar 1:1".
       `;
 
             let userPrompt = `Core Subject: "${subject}"\n`;
 
+            const activeModifierKeys = new Set(modifiers?.map(m => m.category.toUpperCase()) || []);
+
             if (variables && Object.keys(variables).length > 0) {
-                userPrompt += `\nActive DNA Variables (Current Definitions):\n`;
+                let hasCustomVars = false;
+                let varText = `\nActive DNA Variables (Current State):\n`;
+
                 Object.entries(variables).forEach(([name, value]) => {
-                    userPrompt += `- [${name}] = "${value}"\n`;
+                    // Prevent DNA Helix modifiers from being doubly injected as custom variables
+                    if (!activeModifierKeys.has(name.toUpperCase())) {
+                        const tag = value ? `[${name.toUpperCase()}:${value}]` : `[${name.toUpperCase()}]`;
+                        varText += `- Represent this variable in output as: "${tag}"\n`;
+                        hasCustomVars = true;
+                    }
                 });
-                userPrompt += `\nReminder: Use these values for context but PRESERVE the [${Object.keys(variables).join('], [')}] tokens in the output.\n`;
+
+                if (hasCustomVars) {
+                    userPrompt += varText;
+                }
             }
 
             if (aspectRatio) {
-                userPrompt += `\nTarget Aspect Ratio (Overrides any conflicting aspect ratio!): ${aspectRatio}\n`;
+                userPrompt += `\nTarget Aspect Ratio: ${aspectRatio}\n`;
             }
             if (proSettings) {
-                userPrompt += `\nPro Core Settings (Overrides any conflicting keywords!):\n`;
+                userPrompt += `\nPro Core Settings (Use for context, do not output labels):\n`;
                 if (proSettings.mediaType) userPrompt += `- Modality: ${proSettings.mediaType}\n`;
                 if (proSettings.quality) userPrompt += `- Quality: ${proSettings.quality}\n`;
-                if (proSettings.guidanceScale) userPrompt += `- Guidance Scale (CFG): ${proSettings.guidanceScale} (Higher means strict adherence to prompt)\n`;
-                if (proSettings.negativePrompt) userPrompt += `- Negative Prompt (EXCLUDE THESE!): ${proSettings.negativePrompt}\n`;
             }
 
             if (modifiers && modifiers.length > 0) {
-                userPrompt += `\nModifiers (in order of priority, highest first):\n`;
-                modifiers.forEach((mod, index) => {
-                    userPrompt += `${index + 1}. [${mod.category}] ${mod.value}\n`;
+                userPrompt += `\nDNA Helix Modifiers (Use THESE EXACT TOKENS in your output):\n`;
+                modifiers.forEach((mod) => {
+                    const tag = `[${mod.category.toLowerCase()}:${mod.value.toLowerCase()}]`;
+                    userPrompt += `- Use "${tag}" for ${mod.category}\n`;
                 });
             }
 

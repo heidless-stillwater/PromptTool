@@ -344,6 +344,8 @@ function GeneratePageContent() {
                             setBatchSize={setBatchSize}
                             promptSetID={promptSetID}
                             setPromptSetID={setPromptSetID}
+                            promptSetName=""
+                            setPromptSetName={() => { }}
                             onGenerateSetID={() => setPromptSetID(generatePromptSetID())}
                             allowedQualities={['standard', 'premium']}
                             isPro={true}

@@ -17,6 +17,7 @@ interface GalleryGridProps {
     loadingMore: boolean;
     hasMore: boolean;
     isGrouped: boolean;
+    showHoverOverlay: boolean;
     groupImagesByPromptSet: (images: GeneratedImage[]) => Record<string, GeneratedImage[]>;
     onLoadMore: () => void;
     selectionMode: boolean;
@@ -37,6 +38,7 @@ export default function GalleryGrid({
     loadingMore,
     hasMore,
     isGrouped,
+    showHoverOverlay,
     groupImagesByPromptSet,
     onLoadMore,
     selectionMode,
@@ -123,6 +125,7 @@ export default function GalleryGrid({
                                     variant="gallery"
                                     selectionMode={selectionMode}
                                     isSelected={isAnySelected}
+                                    showOverlay={showHoverOverlay}
                                     index={index}
                                     onClick={() => {
                                         if (selectionMode) {
@@ -143,6 +146,7 @@ export default function GalleryGrid({
                                 variant="gallery"
                                 selectionMode={selectionMode}
                                 isSelected={selectedImageIds.has(image.id)}
+                                showOverlay={showHoverOverlay}
                                 index={index}
                                 onClick={() => {
                                     if (selectionMode) {

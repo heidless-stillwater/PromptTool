@@ -36,9 +36,11 @@ export const generationSchema = z.object({
     })).optional(),
     sourceImageId: z.string().optional(),
     promptSetID: z.string().optional(),
+    promptSetName: z.string().optional(),
     collectionIds: z.array(z.string()).optional(),
     modality: z.enum(['image', 'video']).default('image'),
     skipWeave: z.boolean().optional(),
+    compiledPrompt: z.string().optional(),
     simulation: z.object({
         balance: z.number().optional(),
         isOxygenAuthorized: z.boolean().optional(),
@@ -77,6 +79,10 @@ export const enhancePromptSchema = z.object({
     prompt: z.string().min(1, "Original prompt is required").max(2000, "Prompt is too long to enhance (max 2000 characters)"),
     style: z.string().optional(),
     mood: z.string().optional(),
+    modifiers: z.array(z.object({
+        category: z.string(),
+        value: z.string()
+    })).optional(),
 });
 
 export type EnhancePromptInput = z.infer<typeof enhancePromptSchema>;
@@ -100,6 +106,8 @@ export const nanobananaSchema = z.object({
         value: z.string()
     })).optional(),
     aspectRatio: z.string().optional(),
+    promptSetID: z.string().optional(),
+    promptSetName: z.string().optional(),
     proSettings: z.object({
         mediaType: z.enum(['image', 'video']).optional(),
         quality: z.string().optional(),
@@ -132,6 +140,7 @@ export const draftSchema = z.object({
     modelType: z.enum(['standard', 'pro']).default('standard'),
     sourceImageId: z.string().optional(),
     promptSetID: z.string().optional(),
+    promptSetName: z.string().optional(),
     modality: z.enum(['image', 'video']).default('image'),
     variables: z.record(z.string(), z.string()).optional(),
 });

@@ -2,6 +2,7 @@ export const MODIFIER_CATEGORIES = [
     {
         id: "action",
         label: "Subject Action",
+        multiSelect: false,
         options: [
             "Playing Music",
             "Running",
@@ -26,6 +27,7 @@ export const MODIFIER_CATEGORIES = [
     {
         id: "medium",
         label: "Medium",
+        multiSelect: false,
         options: [
             "Photography",
             "Oil Painting",
@@ -45,6 +47,7 @@ export const MODIFIER_CATEGORIES = [
     {
         id: "style",
         label: "Art Style / Vibe",
+        multiSelect: false,
         options: [
             "Cyberpunk",
             "Fantasy",
@@ -67,6 +70,7 @@ export const MODIFIER_CATEGORIES = [
     {
         id: "lighting",
         label: "Lighting",
+        multiSelect: true,
         options: [
             "Cinematic",
             "Golden Hour",
@@ -82,6 +86,7 @@ export const MODIFIER_CATEGORIES = [
     {
         id: "composition",
         label: "Framing / Composition",
+        multiSelect: false,
         options: [
             "Rule of Thirds",
             "Bird's Eye View",
@@ -97,6 +102,7 @@ export const MODIFIER_CATEGORIES = [
     {
         id: "color",
         label: "Color Palette",
+        multiSelect: true,
         options: [
             "Vibrant",
             "Monochrome",
@@ -111,6 +117,7 @@ export const MODIFIER_CATEGORIES = [
     {
         id: "atmosphere",
         label: "Mood / Atmosphere",
+        multiSelect: true,
         options: [
             "Ethereal",
             "Ominous",
@@ -126,6 +133,7 @@ export const MODIFIER_CATEGORIES = [
     {
         id: "magic",
         label: "Magic Words",
+        multiSelect: true,
         options: [
             "Masterpiece",
             "Photorealistic",
@@ -141,6 +149,7 @@ export const MODIFIER_CATEGORIES = [
     {
         id: "render",
         label: "Technical Render",
+        multiSelect: true,
         options: [
             "Unreal Engine 5",
             "Lumen / Nanite",
@@ -161,6 +170,7 @@ export const MODIFIER_CATEGORIES = [
     {
         id: "environment",
         label: "Environment / Setting",
+        multiSelect: true,
         options: [
             "During Golden Hour",
             "Under a Starry Night Sky",

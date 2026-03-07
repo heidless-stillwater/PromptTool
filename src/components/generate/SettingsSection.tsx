@@ -21,6 +21,8 @@ interface SettingsSectionProps {
     setBatchSize: (size: number) => void;
     promptSetID: string;
     setPromptSetID: (id: string) => void;
+    promptSetName: string;
+    setPromptSetName: (name: string) => void;
     onGenerateSetID: () => void;
     allowedQualities: string[];
     isPro: boolean;
@@ -39,6 +41,8 @@ export default function SettingsSection({
     setBatchSize,
     promptSetID,
     setPromptSetID,
+    promptSetName,
+    setPromptSetName,
     onGenerateSetID,
     allowedQualities,
     isPro,
@@ -133,31 +137,49 @@ export default function SettingsSection({
                 </div>
             </div>
 
-            <div className="mt-6 space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground/80 ml-1 flex items-center gap-2">
-                    Prompt Set Identifier
-                    <Tooltip content="Group multiple generations under a single ID for better organization in your gallery" position="top">
-                        <Icons.info size={12} className="text-foreground-muted" />
-                    </Tooltip>
-                </label>
-                <div className="flex gap-2">
+            <div className="mt-6 space-y-4">
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground/80 ml-1 flex items-center gap-2">
+                        Prompt Set Name
+                        <Tooltip content="A descriptive name for this generation batch" position="top">
+                            <Icons.info size={12} className="text-foreground-muted" />
+                        </Tooltip>
+                    </label>
                     <Input
-                        value={promptSetID}
-                        onChange={(e) => setPromptSetID(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))}
-                        placeholder="Group name or ID..."
-                        maxLength={30}
+                        value={promptSetName}
+                        onChange={(e) => setPromptSetName(e.target.value)}
+                        placeholder="Auto-generated if left blank"
+                        maxLength={100}
                         className="h-11 text-sm bg-background-secondary text-foreground font-medium"
                     />
-                    <Tooltip content="GENERATE ID: Creates a unique cryptographic string to group this generation batch under a specific project thread.">
-                        <Button
-                            variant="secondary"
-                            size="icon"
-                            onClick={onGenerateSetID}
-                            className="h-11 w-11 shadow-sm"
-                        >
-                            <Icons.history size={18} />
-                        </Button>
-                    </Tooltip>
+                </div>
+
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground/80 ml-1 flex items-center gap-2">
+                        Prompt Set Identifier
+                        <Tooltip content="Group multiple generations under a single ID for better organization in your gallery" position="top">
+                            <Icons.info size={12} className="text-foreground-muted" />
+                        </Tooltip>
+                    </label>
+                    <div className="flex gap-2">
+                        <Input
+                            value={promptSetID}
+                            onChange={(e) => setPromptSetID(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))}
+                            placeholder="Group name or ID..."
+                            maxLength={30}
+                            className="h-11 text-sm bg-background-secondary text-foreground font-medium"
+                        />
+                        <Tooltip content="GENERATE ID: Creates a unique cryptographic string to group this generation batch under a specific project thread.">
+                            <Button
+                                variant="secondary"
+                                size="icon"
+                                onClick={onGenerateSetID}
+                                className="h-11 w-11 shadow-sm"
+                            >
+                                <Icons.history size={18} />
+                            </Button>
+                        </Tooltip>
+                    </div>
                 </div>
             </div>
 

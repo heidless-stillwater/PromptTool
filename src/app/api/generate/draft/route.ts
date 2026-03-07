@@ -17,8 +17,16 @@ export const POST = withApiHandler({
                 draftId, // Optional: if provided, update the existing draft instead of creating
                 prompt, compiledPrompt, quality, aspectRatio, promptType,
                 seed, negativePrompt, guidanceScale, sourceImageId,
-                promptSetID, modality, modelType, modifiers, coreSubject, variables
+                promptSetID, promptSetName, modality, modelType, modifiers, coreSubject, variables
             } = body;
+
+            // Generate a default prompt set name if none is provided
+            const defaultName = (coreSubject || compiledPrompt || prompt || "Untitled Generation")
+                .split(' ')
+                .slice(0, 5)
+                .join(' ')
+                .trim();
+            const finalPromptSetName = promptSetName || defaultName;
 
             const settings: any = {
                 modality,
@@ -36,6 +44,7 @@ export const POST = withApiHandler({
             if (coreSubject) settings.coreSubject = coreSubject;
             if (variables && Object.keys(variables).length > 0) settings.variables = variables;
             if (compiledPrompt) settings.compiledPrompt = compiledPrompt;
+            if (finalPromptSetName) settings.promptSetName = finalPromptSetName;
 
             const imagesCol = adminDb.collection('users').doc(userId!).collection('images');
 
@@ -51,6 +60,7 @@ export const POST = withApiHandler({
                         updatedAt: Timestamp.now(),
                         ...(sourceImageId && { sourceImageId }),
                         ...(promptSetID && { promptSetID }),
+                        ...(finalPromptSetName && { promptSetName: finalPromptSetName }),
                     };
 
                     await existingRef.update(updateData);
@@ -59,6 +69,7 @@ export const POST = withApiHandler({
                         success: true,
                         id: draftId,
                         promptSetID: promptSetID || existingSnap.data()?.promptSetID,
+                        promptSetName: finalPromptSetName || existingSnap.data()?.promptSetName,
                         updatedAt: new Date().toISOString()
                     });
                 }
@@ -78,6 +89,7 @@ export const POST = withApiHandler({
                 status: 'draft',
                 ...(sourceImageId && { sourceImageId }),
                 ...(promptSetID && { promptSetID }),
+                ...(finalPromptSetName && { promptSetName: finalPromptSetName }),
             };
 
             const mediaDoc = await imagesCol.add(mediaData);
@@ -86,6 +98,7 @@ export const POST = withApiHandler({
                 success: true,
                 id: mediaDoc.id,
                 promptSetID: promptSetID,
+                promptSetName: finalPromptSetName,
                 ...mediaData,
                 createdAt: new Date().toISOString()
             });

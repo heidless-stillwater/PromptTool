@@ -196,6 +196,8 @@ export interface GenerationSettings {
     coreSubject?: string;
     variables?: Record<string, string>;
     modelType?: 'standard' | 'pro';
+    promptSetName?: string;
+    compiledPrompt?: string;
 }
 
 export interface MadLibsSelection {
@@ -222,6 +224,7 @@ export interface GeneratedImage {
     collectionIds?: string[];   // For multi-collection support
     sourceImageId?: string;     // For Img2Img variations - tracks parent image
     promptSetID?: string;       // Unique ID for the batch/generation set
+    promptSetName?: string;     // Optional name for the prompt set
     publishedToCommunity?: boolean;  // Whether image is published to community hub
     communityEntryId?: string;       // Reference to community hub doc when published
     publishedToLeague?: boolean;     // @deprecated Map to publishedToCommunity
@@ -268,6 +271,7 @@ export interface CommunityEntry {
     variationCount?: number;     // Count of variations generated from this entry
     tags?: string[];
     promptSetID?: string;       // Unique ID for the batch/generation set
+    promptSetName?: string;     // Optional name for the prompt set
     isStack?: boolean;          // UI-only: whether this card represents a stack of variations
     stackSize?: number;         // UI-only: number of variations in the stack
     isExemplar?: boolean;        // Whether this is an exemplar of high quality (admin set)

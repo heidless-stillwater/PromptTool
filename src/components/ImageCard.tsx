@@ -22,6 +22,7 @@ export interface ImageCardProps {
     renderOverlay?: (image: GeneratedImage) => React.ReactNode;
     index?: number;
     dense?: boolean;
+    showOverlay?: boolean;
 }
 
 export default function ImageCard({
@@ -37,7 +38,8 @@ export default function ImageCard({
     showFooter,
     renderOverlay,
     index = 0,
-    dense = false
+    dense = false,
+    showOverlay = true
 }: ImageCardProps) {
     const isDeleting = deletingId === image.id;
     const isVideo = !!(image.videoUrl || image.settings?.modality === 'video');
@@ -200,9 +202,12 @@ export default function ImageCard({
 
                 {/* Gallery Hover Overlay */}
                 {variant === 'gallery' && (
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none flex flex-col justify-end p-3">
+                    <div className={cn(
+                        "absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent transition-opacity z-20 pointer-events-none flex flex-col justify-end p-3",
+                        showOverlay ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                    )}>
                         <p className="text-white text-sm line-clamp-2 drop-shadow-md">
-                            {image.prompt}
+                            {image.promptSetName || image.prompt}
                         </p>
                         <p className="text-white/70 text-xs mt-1 drop-shadow-md">
                             {isStack ? `${count} Variations` : `${image.settings?.quality || 'standard'} • ${image.settings?.aspectRatio || '1:1'}`}
@@ -238,7 +243,7 @@ export default function ImageCard({
             {/* Dashboard Footer Logic */}
             {showCardFooter && (
                 <div className="p-4 rounded-b-2xl bg-background-secondary border-t border-white/5 relative z-10">
-                    <p className="text-sm line-clamp-2 mb-2 text-foreground-primary group-hover:text-primary transition-colors">{image.prompt}</p>
+                    <p className="text-sm line-clamp-2 mb-2 text-foreground-primary group-hover:text-primary transition-colors">{image.promptSetName || image.prompt}</p>
                     <div className="flex items-center justify-between">
                         <p className="text-xs text-foreground-muted font-sans">
                             {image.settings?.quality || 'standard'} • {image.settings?.aspectRatio || '1:1'}

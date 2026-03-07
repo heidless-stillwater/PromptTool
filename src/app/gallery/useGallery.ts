@@ -42,6 +42,7 @@ export function useGallery() {
 
     // UI State
     const [isGrouped, setIsGrouped] = useState(true);
+    const [showHoverOverlay, setShowHoverOverlay] = useState(true);
     const [showCreateCollection, setShowCreateCollection] = useState(false);
     const [newCollectionName, setNewCollectionName] = useState('');
     const [creatingCollection, setCreatingCollection] = useState(false);
@@ -232,6 +233,47 @@ export function useGallery() {
     const handleBatchDelete = () => {
         if (selectedImageIds.size === 0) return;
         setConfirmationState({ type: 'batch' });
+    };
+
+    const handleUpdatePromptSetName = async (imagesToUpdate: GeneratedImage[], promptSetName: string) => {
+        if (!user || imagesToUpdate.length === 0) return;
+
+        try {
+            const { writeBatch } = await import('firebase/firestore');
+            const batch = writeBatch(db);
+
+            const cleanName = promptSetName.trim() || undefined;
+
+            imagesToUpdate.forEach(img => {
+                const imgRef = doc(db, 'users', user.uid, 'images', img.id);
+                if (cleanName) {
+                    batch.update(imgRef, { promptSetName: cleanName });
+                } else {
+                    batch.update(imgRef, { promptSetName: deleteField() });
+                }
+            });
+            await batch.commit();
+
+            const ids = imagesToUpdate.map(i => i.id);
+
+            setImages(prev => prev.map(img =>
+                ids.includes(img.id) ? { ...img, promptSetName: cleanName } : img
+            ));
+
+            if (selectedGroup) {
+                setSelectedGroup(prev => {
+                    if (!prev) return null;
+                    return prev.map(img =>
+                        ids.includes(img.id) ? { ...img, promptSetName: cleanName } : img
+                    );
+                });
+            }
+
+            showToast('Prompt set name updated', 'success');
+        } catch (error) {
+            console.error('Update error:', error);
+            showToast('Failed to update prompt set name', 'error');
+        }
     };
 
     const confirmDelete = async () => {
@@ -713,6 +755,7 @@ export function useGallery() {
         newImageTag, setNewImageTag,
         isUpdatingTags, setIsUpdatingTags, // Export setter
         unpublishConfirmImage, setUnpublishConfirmImage,
+        showHoverOverlay, setShowHoverOverlay,
         viewMode, setViewMode, isSu, isAdmin,
 
         // Actions
@@ -726,6 +769,7 @@ export function useGallery() {
         handleAddImageTag, handleRemoveImageTag,
         handleUpdatePromptSetID, handleToggleExemplar, handleToggleCollection, handleBatchToggleCollection,
         handleDownload, handleNextImage, handlePrevImage, handleUpdateImage,
+        handleUpdatePromptSetName,
         confirmationState, confirmDelete, cancelDelete
     };
 }

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import CollectionSelector from './CollectionSelector';
 import TagManager from './TagManager';
 import PromptSetIDManager from './PromptSetIDManager';
+import PromptSetNameManager from './PromptSetNameManager';
 import ActionsBar from './ActionsBar';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
@@ -23,6 +24,14 @@ interface ImageMetadataSidebarProps {
     onCancelEditingPromptSetID: () => void;
     onChangeEditingPromptSetID: (val: string) => void;
     onSavePromptSetID: () => void;
+    // Prompt Set Name
+    isEditingPromptSetName: boolean;
+    editingPromptSetName: string;
+    isSavingPromptSetName: boolean;
+    onStartEditingPromptSetName: () => void;
+    onCancelEditingPromptSetName: () => void;
+    onChangeEditingPromptSetName: (val: string) => void;
+    onSavePromptSetName: () => void;
     existingPromptSetIDs: { id: string, thumbUrl: string }[];
     isLoadingSuggestions: boolean;
     // Tags
@@ -52,6 +61,13 @@ export default function ImageMetadataSidebar({
     onCancelEditingPromptSetID,
     onChangeEditingPromptSetID,
     onSavePromptSetID,
+    isEditingPromptSetName,
+    editingPromptSetName,
+    isSavingPromptSetName,
+    onStartEditingPromptSetName,
+    onCancelEditingPromptSetName,
+    onChangeEditingPromptSetName,
+    onSavePromptSetName,
     existingPromptSetIDs,
     isLoadingSuggestions,
     newImageTag,
@@ -133,6 +149,19 @@ export default function ImageMetadataSidebar({
                         onCancelEditing={onCancelEditingPromptSetID}
                         onChangeValue={onChangeEditingPromptSetID}
                         onSave={onSavePromptSetID}
+                    />
+                </div>
+
+                <div className="pt-4 border-t border-white/5">
+                    <PromptSetNameManager
+                        promptSetName={image.promptSetName}
+                        isEditing={isEditingPromptSetName}
+                        editingValue={editingPromptSetName}
+                        isSaving={isSavingPromptSetName}
+                        onStartEditing={onStartEditingPromptSetName}
+                        onCancelEditing={onCancelEditingPromptSetName}
+                        onChangeValue={onChangeEditingPromptSetName}
+                        onSave={onSavePromptSetName}
                     />
                 </div>
 

@@ -18,6 +18,11 @@ export function useImageDetails(
     const [editingPromptSetID, setEditingPromptSetID] = useState('');
     const [isSavingPromptSetID, setIsSavingPromptSetID] = useState(false);
 
+    // Prompt Set Name State
+    const [isEditingPromptSetName, setIsEditingPromptSetName] = useState(false);
+    const [editingPromptSetName, setEditingPromptSetName] = useState('');
+    const [isSavingPromptSetName, setIsSavingPromptSetName] = useState(false);
+
     // Tags State
     const [newImageTag, setNewImageTag] = useState('');
     const [isUpdatingTags, setIsUpdatingTags] = useState(false);
@@ -71,8 +76,9 @@ export function useImageDetails(
     // Initialize editing state when image changes
     useEffect(() => {
         setEditingPromptSetID(image.promptSetID || '');
+        setEditingPromptSetName(image.promptSetName || '');
         setNewImageTag('');
-    }, [image.id, image.promptSetID]);
+    }, [image.id, image.promptSetID, image.promptSetName]);
 
     const updatePromptSetID = async () => {
         if (!user) return;
@@ -94,6 +100,29 @@ export function useImageDetails(
             showToast('Failed to update Prompt Set ID', 'error');
         } finally {
             setIsSavingPromptSetID(false);
+        }
+    };
+
+    const updatePromptSetName = async () => {
+        if (!user) return;
+
+        setIsSavingPromptSetName(true);
+        try {
+            const cleanName = editingPromptSetName.trim();
+            const imageRef = doc(db, 'users', user.uid, 'images', image.id);
+
+            await updateDoc(imageRef, {
+                promptSetName: cleanName || deleteField()
+            });
+
+            onUpdate({ ...image, promptSetName: cleanName || undefined });
+            setIsEditingPromptSetName(false);
+            showToast('Prompt Set Name updated', 'success');
+        } catch (error) {
+            console.error('Error updating promptSetName:', error);
+            showToast('Failed to update Prompt Set Name', 'error');
+        } finally {
+            setIsSavingPromptSetName(false);
         }
     };
 
@@ -293,6 +322,11 @@ export function useImageDetails(
         editingPromptSetID,
         setEditingPromptSetID,
         isSavingPromptSetID,
+        isEditingPromptSetName,
+        setIsEditingPromptSetName,
+        editingPromptSetName,
+        setEditingPromptSetName,
+        isSavingPromptSetName,
         existingPromptSetIDs,
         isLoadingSuggestions,
         newImageTag,
@@ -305,6 +339,7 @@ export function useImageDetails(
 
         // Actions
         updatePromptSetID,
+        updatePromptSetName,
         addTag,
         removeTag,
         toggleCommunity,

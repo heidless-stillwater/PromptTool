@@ -34,16 +34,22 @@ export const VariableProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const lastScannedRef = useRef<string>('');
 
     // Scan multiple sources for variables like [NAME] or [NAME:DEFAULT]
-    const scanPrompt = useCallback((primarySources: string[], secondarySources: string[] = []) => {
-        const regex = /\[([A-Z0-9_]+)(?::([^\]]+))?\]/gi;
+    const scanPrompt = useCallback((primarySources: string | string[], secondarySources: string | string[] = []) => {
+        // Normalize to arrays
+        const primary = Array.isArray(primarySources) ? primarySources : [primarySources];
+        const secondary = Array.isArray(secondarySources) ? secondarySources : [secondarySources];
+
+        // Updated regex to exclude strings wrapped in single quotes like '[X]'
+        // It uses a negative lookbehind and lookahead for single quotes.
+        const regex = /(?<!')\[([A-Z0-9_]+)(?::([^\]]+))?\](?!')/gi;
         const currentPromptVars: Record<string, string> = {}; // name -> defaultValue
 
-        const currentSignature = [...primarySources, '||', ...secondarySources].join('|');
+        const currentSignature = [...primary, '||', ...secondary].join('|');
         if (currentSignature === lastScannedRef.current) return;
         lastScannedRef.current = currentSignature;
 
         // 1. Process Primary Sources (User Input: Subject/Modifiers)
-        primarySources.forEach(text => {
+        primary.forEach(text => {
             if (!text) return;
             let match;
             regex.lastIndex = 0;
@@ -57,7 +63,7 @@ export const VariableProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         });
 
         // 2. Process Secondary Sources (AI Output)
-        secondarySources.forEach(text => {
+        secondary.forEach(text => {
             if (!text) return;
             let match;
             regex.lastIndex = 0;
@@ -138,8 +144,10 @@ export const VariableProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const updateVariableValue = useCallback((name: string, value: string) => {
         const key = name.toUpperCase();
         setVariables(prev => {
-            // Allow creation on the fly if not exists
-            const existing = prev[key] || {
+            const existing = prev[key];
+            if (existing && existing.currentValue === value) return prev;
+
+            const newVar = existing || {
                 id: key,
                 name: key,
                 defaultValue: '',
@@ -149,7 +157,7 @@ export const VariableProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             return {
                 ...prev,
                 [key]: {
-                    ...existing,
+                    ...newVar,
                     currentValue: value
                 }
             };
@@ -159,49 +167,59 @@ export const VariableProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const registerVariable = useCallback((variable: Partial<Variable>) => {
         if (!variable.name) return;
         const name = variable.name.toUpperCase();
-        setVariables(prev => ({
-            ...prev,
-            [name]: {
-                id: name,
-                name,
-                defaultValue: variable.defaultValue || '',
-                currentValue: variable.currentValue || variable.defaultValue || '',
-                source: 'registry',
-                ...variable
+        setVariables(prev => {
+            const existing = prev[name];
+            const nextVal = variable.currentValue || variable.defaultValue || '';
+            const nextDef = variable.defaultValue || '';
+
+            if (existing && existing.currentValue === nextVal && existing.defaultValue === nextDef && existing.source === 'registry') {
+                return prev;
             }
-        }));
+
+            return {
+                ...prev,
+                [name]: {
+                    id: name,
+                    name,
+                    defaultValue: nextDef,
+                    currentValue: nextVal,
+                    source: 'registry',
+                    ...variable
+                }
+            };
+        });
     }, []);
 
     const loadVariables = useCallback((vars: Record<string, string>) => {
-        if (!vars) return;
         setVariables(prev => {
             const next = { ...prev };
+            let changed = false;
             Object.entries(vars).forEach(([name, value]) => {
                 const key = name.toUpperCase();
                 if (next[key]) {
-                    // Update current value only, leave default as it is in the prompt text
-                    next[key] = { ...next[key], currentValue: value };
+                    if (next[key].currentValue !== value) {
+                        next[key].currentValue = value;
+                        changed = true;
+                    }
                 } else {
-                    // Create placeholder variable to hold the loaded value
                     next[key] = {
                         id: key,
                         name: key,
-                        // We start with empty default so that the next prompt scan 
-                        // sees a mismatch (if the scan finds a default) and updates 
-                        // only the default, keeping our loaded currentValue.
                         defaultValue: '',
                         currentValue: value,
                         source: 'prompt'
                     };
+                    changed = true;
                 }
             });
-            return next;
+            return changed ? next : prev;
         });
     }, []);
 
     const removeVariable = useCallback((name: string) => {
         const key = name.toUpperCase();
         setVariables(prev => {
+            if (!prev[key]) return prev;
             const next = { ...prev };
             delete next[key];
             return next;
@@ -209,14 +227,17 @@ export const VariableProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }, []);
 
     const clearVariables = useCallback(() => {
-        setVariables({});
+        setVariables(prev => {
+            if (Object.keys(prev).length === 0) return prev;
+            return {};
+        });
     }, []);
 
     // Resolves a string by replacing [VAR] or [VAR:DEFAULT] with their values
     const resolvePrompt = useCallback((text: string) => {
         if (!text) return '';
 
-        return text.replace(/\[([A-Z0-9_]+)(?::([^\]]+))?\]/gi, (match, name, defaultVal) => {
+        return text.replace(/(?<!')\[([A-Z0-9_]+)(?::([^\]]+))?\](?!')/gi, (match, name, defaultVal) => {
             const key = name.toUpperCase();
             const variable = variables[key];
 
@@ -241,12 +262,13 @@ export const VariableProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const getMissingVariables = useCallback((text: string) => {
         if (!text) return [];
         const missing: Set<string> = new Set();
-        const regex = /\[([A-Z0-9_]+)(?::([^\]]+))?\]/gi;
+        const regex = /(?<!')\[([A-Z0-9_]+)(?::([^\]]+))?\](?!')/gi;
         let match;
         regex.lastIndex = 0;
 
         while ((match = regex.exec(text)) !== null) {
             const name = match[1].toUpperCase();
+
             const inlineDefault = match[2];
             const variable = variables[name];
 

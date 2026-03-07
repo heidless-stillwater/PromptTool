@@ -7,6 +7,7 @@ import { GenerationService } from '@/lib/services/generation';
 import { CREDIT_COSTS, ImageQuality, AspectRatio, GeneratedImage, MadLibsSelection, SUBSCRIPTION_PLANS, MediaModality } from '@/lib/types';
 import { generationSchema } from '@/lib/validations/generation';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
+import { sanitizeAIResponse } from '@/lib/utils';
 
 export const maxDuration = 300; // Allow up to 5 minutes for execution (Veo generation takes time)
 
@@ -27,6 +28,7 @@ interface GenerateRequest {
     modelType?: 'standard' | 'pro';
     sourceImageId?: string;       // Original image ID for variation tracking
     promptSetID?: string;         // Unique ID for the batch/generation set
+    promptSetName?: string;       // Optional name for the prompt set
     collectionIds?: string[];     // Collections to add generated images to
     modality?: MediaModality;     // image | video
     modifiers?: { category: string, value: string }[];
@@ -79,9 +81,16 @@ export async function POST(request: NextRequest) {
         const {
             prompt, quality, aspectRatio, promptType, madlibsData,
             count, seed, negativePrompt, guidanceScale, modelType,
-            referenceImage, referenceImageUrl, referenceMimeType, referenceImages, sourceImageId, promptSetID,
+            referenceImage, referenceImageUrl, referenceMimeType, referenceImages, sourceImageId, promptSetID, promptSetName: incomingPromptSetName,
             collectionIds, modality, modifiers, coreSubject, simulation, variables, skipWeave
         } = validatedData;
+
+        const defaultName = (coreSubject || prompt || "Untitled Generation")
+            .split(' ')
+            .slice(0, 5)
+            .join(' ')
+            .trim();
+        const promptSetName = incomingPromptSetName || defaultName;
 
         // 1. Validate Tier Constraints
         await GenerationService.validateTier(userId, validatedData);
@@ -148,7 +157,8 @@ export async function POST(request: NextRequest) {
                             },
                             variables
                         );
-                        console.log('[Generate API] Weave successful:', generationPrompt.substring(0, 100) + '...');
+                        generationPrompt = sanitizeAIResponse(generationPrompt);
+                        console.log('[Generate API] Weave successful (sanitized):', generationPrompt.substring(0, 100) + '...');
                     } catch (weaveError) {
                         console.error('[Generate API] Weave failed, falling back to raw prompt:', weaveError);
                         // Fallback to original prompt if weave fails
@@ -160,7 +170,7 @@ export async function POST(request: NextRequest) {
                 const coreSynthesisPrompt = generationPrompt;
 
                 console.log(`[Generate API] Resolving DNA markers for prompt. Current Variables:`, JSON.stringify(variables));
-                generationPrompt = generationPrompt.replace(/\[([A-Z0-9_]+)(?::([^\]]+))?\]/gi, (match, name, defaultVal) => {
+                generationPrompt = generationPrompt.replace(/(?<!')\[([A-Z0-9_]+)(?::([^\]]+))?\](?!')/gi, (match, name, defaultVal) => {
                     const key = name.toUpperCase();
                     const val = variables?.[key];
 
@@ -229,7 +239,7 @@ export async function POST(request: NextRequest) {
                 for (let i = 0; i < result.images.length; i++) {
                     const mediaData = await GenerationService.saveMedia(userId, result.images[i], {
                         prompt: coreSynthesisPrompt, quality: quality as any, aspectRatio, promptType, madlibsData, seed: seed ?? undefined, negativePrompt, guidanceScale: guidanceScale ?? undefined,
-                        sourceImageId, promptSetID, collectionIds, requestedModality: modality, modality,
+                        sourceImageId, promptSetID, promptSetName, collectionIds, requestedModality: modality, modality,
                         initialImageUrl: referenceImageUrl, modifiers, coreSubject,
                         variables: variables || undefined,
                         compiledPrompt: coreSynthesisPrompt,

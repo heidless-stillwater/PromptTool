@@ -29,11 +29,11 @@ export const POST = withApiHandler({
             }, { status: 429 });
         }
 
-        const { prompt, style, mood } = body;
+        const { prompt, style, mood, modifiers } = body;
 
         // 2. Enhance Prompt via Service
         const aiService = getAIPromptService();
-        const enhancedPrompt = await aiService.enhancePrompt(prompt, style, mood);
+        const enhancedPrompt = await aiService.enhancePrompt(prompt, style, mood, modifiers);
 
         return NextResponse.json({
             success: true,

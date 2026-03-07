@@ -36,6 +36,11 @@ export default function ImageDetailModal({
         editingPromptSetID,
         setEditingPromptSetID,
         isSavingPromptSetID,
+        isEditingPromptSetName,
+        setIsEditingPromptSetName,
+        editingPromptSetName,
+        setEditingPromptSetName,
+        isSavingPromptSetName,
         existingPromptSetIDs,
         isLoadingSuggestions,
         newImageTag,
@@ -43,6 +48,7 @@ export default function ImageDetailModal({
         isUpdatingTags,
         publishingId,
         updatePromptSetID,
+        updatePromptSetName,
         addTag,
         removeTag,
         toggleCommunity,
@@ -119,6 +125,17 @@ export default function ImageDetailModal({
                         }}
                         onChangeEditingPromptSetID={setEditingPromptSetID}
                         onSavePromptSetID={updatePromptSetID}
+                        // Prompt Set Name
+                        isEditingPromptSetName={isEditingPromptSetName}
+                        editingPromptSetName={editingPromptSetName}
+                        isSavingPromptSetName={isSavingPromptSetName}
+                        onStartEditingPromptSetName={() => setIsEditingPromptSetName(true)}
+                        onCancelEditingPromptSetName={() => {
+                            setIsEditingPromptSetName(false);
+                            setEditingPromptSetName(selectedImage.promptSetName || '');
+                        }}
+                        onChangeEditingPromptSetName={setEditingPromptSetName}
+                        onSavePromptSetName={updatePromptSetName}
                         // Tags
                         newImageTag={newImageTag}
                         isUpdatingTags={isUpdatingTags}

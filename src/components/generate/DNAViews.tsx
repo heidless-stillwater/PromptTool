@@ -86,8 +86,9 @@ export const DNAStrip: React.FC<DNAViewProps> = ({
                             }}
                             className="px-2 py-1 rounded-md border border-white/5 bg-white/5 hover:border-error/30 hover:bg-error/5 text-[9px] uppercase flex items-center gap-2 transition-all text-foreground-muted hover:text-error whitespace-nowrap group/chip"
                         >
-                            <span className="opacity-40">{m.category}:</span>
-                            <span className="font-bold">{m.value}</span>
+                            <span className="font-bold text-primary">[</span>
+                            <span className="font-bold">{m.category.toLowerCase()}:{m.value.toLowerCase()}</span>
+                            <span className="font-bold text-primary">]</span>
                             <Icons.close size={8} className="opacity-0 group-hover/chip:opacity-100" />
                         </button>
                     ))}

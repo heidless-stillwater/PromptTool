@@ -113,8 +113,7 @@ export default function DNAModifierModal({
                                                 onClick={() => onToggleModifier(m.category, m.value)}
                                                 className="px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/10 hover:border-error/50 hover:bg-error/20 text-[10px] uppercase flex items-center gap-2 transition-all text-primary group/chip"
                                             >
-                                                <span className="opacity-50">{m.category}:</span>
-                                                <span className="font-bold">{m.value}</span>
+                                                <span className="font-bold">[{m.category.toLowerCase()}:{m.value.toLowerCase()}]</span>
                                                 <Icons.close
                                                     size={10}
                                                     className="opacity-0 group-hover/chip:opacity-100 group-hover/chip:text-error transition-opacity"
