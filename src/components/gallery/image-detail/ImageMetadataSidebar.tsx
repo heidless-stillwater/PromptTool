@@ -5,6 +5,8 @@ import CollectionSelector from './CollectionSelector';
 import TagManager from './TagManager';
 import PromptSetIDManager from './PromptSetIDManager';
 import PromptSetNameManager from './PromptSetNameManager';
+import AttributionManager from './AttributionManager';
+import OriginatorManager from './OriginatorManager';
 import ActionsBar from './ActionsBar';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
@@ -32,6 +34,26 @@ interface ImageMetadataSidebarProps {
     onCancelEditingPromptSetName: () => void;
     onChangeEditingPromptSetName: (val: string) => void;
     onSavePromptSetName: () => void;
+    // Attribution
+    isEditingAttribution: boolean;
+    editingAttributionName: string;
+    editingAttributionUrl: string;
+    isSavingAttribution: boolean;
+    onStartEditingAttribution: () => void;
+    onCancelEditingAttribution: () => void;
+    onChangeEditingAttributionName: (val: string) => void;
+    onChangeEditingAttributionUrl: (val: string) => void;
+    onSaveAttribution: () => void;
+    // Originator
+    isEditingOriginator: boolean;
+    editingOriginatorName: string;
+    editingOriginatorUrl: string;
+    isSavingOriginator: boolean;
+    onStartEditingOriginator: () => void;
+    onCancelEditingOriginator: () => void;
+    onChangeEditingOriginatorName: (val: string) => void;
+    onChangeEditingOriginatorUrl: (val: string) => void;
+    onSaveOriginator: () => void;
     existingPromptSetIDs: { id: string, thumbUrl: string }[];
     isLoadingSuggestions: boolean;
     // Tags
@@ -68,6 +90,24 @@ export default function ImageMetadataSidebar({
     onCancelEditingPromptSetName,
     onChangeEditingPromptSetName,
     onSavePromptSetName,
+    isEditingAttribution,
+    editingAttributionName,
+    editingAttributionUrl,
+    isSavingAttribution,
+    onStartEditingAttribution,
+    onCancelEditingAttribution,
+    onChangeEditingAttributionName,
+    onChangeEditingAttributionUrl,
+    onSaveAttribution,
+    isEditingOriginator,
+    editingOriginatorName,
+    editingOriginatorUrl,
+    isSavingOriginator,
+    onStartEditingOriginator,
+    onCancelEditingOriginator,
+    onChangeEditingOriginatorName,
+    onChangeEditingOriginatorUrl,
+    onSaveOriginator,
     existingPromptSetIDs,
     isLoadingSuggestions,
     newImageTag,
@@ -82,6 +122,8 @@ export default function ImageMetadataSidebar({
     onToggleExemplar
 }: ImageMetadataSidebarProps) {
     const [isPromptExpanded, setIsPromptExpanded] = useState(false);
+    const [isGeneralExpanded, setIsGeneralExpanded] = useState(false);
+    const [isOriginExpanded, setIsOriginExpanded] = useState(false);
 
     // 100 character threshold for truncating
     const CHARACTER_LIMIT = 100;
@@ -92,6 +134,19 @@ export default function ImageMetadataSidebar({
             <div>
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-[10px] uppercase tracking-widest text-primary font-black">Image Details</h2>
+                </div>
+
+                <div className="mb-6">
+                    <PromptSetNameManager
+                        promptSetName={image.promptSetName}
+                        isEditing={isEditingPromptSetName}
+                        editingValue={editingPromptSetName}
+                        isSaving={isSavingPromptSetName}
+                        onStartEditing={onStartEditingPromptSetName}
+                        onCancelEditing={onCancelEditingPromptSetName}
+                        onChangeValue={onChangeEditingPromptSetName}
+                        onSave={onSavePromptSetName}
+                    />
                 </div>
 
                 <div className="group/prompt relative bg-white/5 border border-white/10 rounded-2xl p-6">
@@ -131,40 +186,12 @@ export default function ImageMetadataSidebar({
                         )}
                     >
                         <Icons.wand size={14} className="mr-2" />
-                        {image.status === 'draft' ? "Resume Variation" : "New Version"}
+                        {image.status === 'draft' ? "Resume Variation" : "New Variation"}
                     </Button>
                 </div>
             </div>
 
             <div className="space-y-4 flex-1">
-                <div className="pt-4 border-t border-white/5">
-                    <PromptSetIDManager
-                        promptSetID={image.promptSetID}
-                        isEditing={isEditingPromptSetID}
-                        editingValue={editingPromptSetID}
-                        isSaving={isSavingPromptSetID}
-                        existingPromptSetIDs={existingPromptSetIDs}
-                        isLoadingSuggestions={isLoadingSuggestions}
-                        onStartEditing={onStartEditingPromptSetID}
-                        onCancelEditing={onCancelEditingPromptSetID}
-                        onChangeValue={onChangeEditingPromptSetID}
-                        onSave={onSavePromptSetID}
-                    />
-                </div>
-
-                <div className="pt-4 border-t border-white/5">
-                    <PromptSetNameManager
-                        promptSetName={image.promptSetName}
-                        isEditing={isEditingPromptSetName}
-                        editingValue={editingPromptSetName}
-                        isSaving={isSavingPromptSetName}
-                        onStartEditing={onStartEditingPromptSetName}
-                        onCancelEditing={onCancelEditingPromptSetName}
-                        onChangeValue={onChangeEditingPromptSetName}
-                        onSave={onSavePromptSetName}
-                    />
-                </div>
-
                 <div className="pt-4 border-t border-white/5">
                     <CollectionSelector
                         collections={collections}
@@ -174,25 +201,15 @@ export default function ImageMetadataSidebar({
                     />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
-                    <div className="group/seed relative">
-                        <label className="text-[10px] font-black tracking-widest text-white/40 mb-1 uppercase flex justify-between items-center">
-                            Seed
-                            {image.settings?.seed && (
-                                <button
-                                    onClick={onCopySeed}
-                                    className="text-[8px] font-black uppercase tracking-widest text-primary opacity-0 group-hover/seed:opacity-100 transition-opacity hover:text-primary/80"
-                                >
-                                    Copy
-                                </button>
-                            )}
-                        </label>
-                        <p className="text-sm mt-1 text-white/90 font-bold pr-2 truncate">{image.settings?.seed || 'Auto'}</p>
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black tracking-widest text-white/40 mb-1 uppercase block">Guidance</label>
-                        <p className="text-sm mt-1 text-white/90 font-bold">{image.settings?.guidanceScale || 7.5}</p>
-                    </div>
+                <div className="pt-4 border-t border-white/5">
+                    <TagManager
+                        tags={image.tags || []}
+                        newTag={newImageTag}
+                        isUpdating={isUpdatingTags}
+                        onAdd={onAddTag}
+                        onRemove={onRemoveTag}
+                        onChangeNewTag={onChangeNewTag}
+                    />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 pt-2">
@@ -218,20 +235,114 @@ export default function ImageMetadataSidebar({
                 </div>
 
                 <div className="pt-4 border-t border-white/5">
-                    <TagManager
-                        tags={image.tags || []}
-                        newTag={newImageTag}
-                        isUpdating={isUpdatingTags}
-                        onAdd={onAddTag}
-                        onRemove={onRemoveTag}
-                        onChangeNewTag={onChangeNewTag}
-                    />
-                </div>
-
-                <div className="pt-4 border-t border-white/5">
                     <label className="text-[10px] font-black tracking-widest text-white/40 mb-1 uppercase block">Created</label>
                     <p className="text-sm mt-1 text-white/90 font-bold">{formatDate(image.createdAt)}</p>
                 </div>
+
+                <div className="pt-4 border-t border-white/5">
+                    <button
+                        onClick={() => setIsGeneralExpanded(!isGeneralExpanded)}
+                        className="w-full flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white transition-colors py-2"
+                    >
+                        <span className="flex items-center gap-2">
+                            <Icons.settings size={12} className="text-primary/50" />
+                            Generation Details
+                        </span>
+                        <Icons.chevronDown
+                            size={14}
+                            className={cn("transition-transform duration-200", isGeneralExpanded ? "rotate-180" : "")}
+                        />
+                    </button>
+
+                    {isGeneralExpanded && (
+                        <div className="mt-4 space-y-6 animate-in slide-in-from-top-2 duration-200">
+                            <div>
+                                <PromptSetIDManager
+                                    promptSetID={image.promptSetID}
+                                    isEditing={isEditingPromptSetID}
+                                    editingValue={editingPromptSetID}
+                                    isSaving={isSavingPromptSetID}
+                                    existingPromptSetIDs={existingPromptSetIDs}
+                                    isLoadingSuggestions={isLoadingSuggestions}
+                                    onStartEditing={onStartEditingPromptSetID}
+                                    onCancelEditing={onCancelEditingPromptSetID}
+                                    onChangeValue={onChangeEditingPromptSetID}
+                                    onSave={onSavePromptSetID}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="group/seed relative">
+                                    <label className="text-[10px] font-black tracking-widest text-white/40 mb-1 uppercase flex justify-between items-center">
+                                        Seed
+                                        {image.settings?.seed && (
+                                            <button
+                                                onClick={onCopySeed}
+                                                className="text-[8px] font-black uppercase tracking-widest text-primary opacity-0 group-hover/seed:opacity-100 transition-opacity hover:text-primary/80"
+                                            >
+                                                Copy
+                                            </button>
+                                        )}
+                                    </label>
+                                    <p className="text-sm mt-1 text-white/90 font-bold pr-2 truncate">{image.settings?.seed || 'Auto'}</p>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black tracking-widest text-white/40 mb-1 uppercase block">Guidance</label>
+                                    <p className="text-sm mt-1 text-white/90 font-bold">{image.settings?.guidanceScale || 7.5}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="pt-4 border-t border-white/5">
+                    <button
+                        onClick={() => setIsOriginExpanded(!isOriginExpanded)}
+                        className="w-full flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white transition-colors py-2"
+                    >
+                        <span className="flex items-center gap-2">
+                            <Icons.user size={12} className="text-primary/50" />
+                            Credit & Origin
+                        </span>
+                        <Icons.chevronDown
+                            size={14}
+                            className={cn("transition-transform duration-200", isOriginExpanded ? "rotate-180" : "")}
+                        />
+                    </button>
+
+                    {isOriginExpanded && (
+                        <div className="mt-4 space-y-6 animate-in slide-in-from-top-2 duration-200">
+                            <AttributionManager
+                                attributionName={image.attributionName}
+                                attributionUrl={image.attributionUrl}
+                                isEditing={isEditingAttribution}
+                                editingName={editingAttributionName}
+                                editingUrl={editingAttributionUrl}
+                                isSaving={isSavingAttribution}
+                                onStartEditing={onStartEditingAttribution}
+                                onCancelEditing={onCancelEditingAttribution}
+                                onChangeName={onChangeEditingAttributionName}
+                                onChangeUrl={onChangeEditingAttributionUrl}
+                                onSave={onSaveAttribution}
+                            />
+
+                            <OriginatorManager
+                                originatorName={image.originatorName}
+                                originatorUrl={image.originatorUrl}
+                                isEditing={isEditingOriginator}
+                                editingName={editingOriginatorName}
+                                editingUrl={editingOriginatorUrl}
+                                isSaving={isSavingOriginator}
+                                onStartEditing={onStartEditingOriginator}
+                                onCancelEditing={onCancelEditingOriginator}
+                                onChangeName={onChangeEditingOriginatorName}
+                                onChangeUrl={onChangeEditingOriginatorUrl}
+                                onSave={onSaveOriginator}
+                            />
+                        </div>
+                    )}
+                </div>
+
 
                 {isAdmin && (
                     <div className="pt-4 border-t border-border/50">

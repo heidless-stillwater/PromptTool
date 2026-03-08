@@ -5,7 +5,7 @@ import { rateLimit } from '@/lib/rate-limiter';
 
 import { nanobananaSchema } from '@/lib/validations/generation';
 
-export const maxDuration = 60; // Extra time for Gemini
+export const maxDuration = 120; // Extra time for Gemini DNA Synthesis
 
 export const POST = withApiHandler({
     schema: nanobananaSchema,
@@ -15,6 +15,7 @@ export const POST = withApiHandler({
         amount: 1
     },
     handler: async (req, { body, userId }) => {
+        console.log(`[API] /api/generate/nanobanana - Start - User: ${userId}`);
         const { subject, modifiers, aspectRatio, proSettings, variables } = body;
 
         if (!subject || typeof subject !== 'string') {

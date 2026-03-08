@@ -44,7 +44,7 @@ export function syncModifiersWithText(text: string, modifiers: Modifier[]): stri
     modifiers.forEach(mod => {
         const category = mod.category.toLowerCase();
         const value = mod.value.toLowerCase();
-        const anchor = `[${category}:${value}]`;
+        const anchor = `[${mod.category.toUpperCase()}:${value}]`;
 
         const hasExactMatch = newText.toLowerCase().includes(anchor.toLowerCase());
 
@@ -141,9 +141,9 @@ export function syncVariablesWithText(text: string, variables: Record<string, { 
         if (variable) {
             if (variable.currentValue) {
                 const cleanValue = String(variable.currentValue).replace(/\]+$/, '');
-                return `[${name}:${cleanValue}]`;
+                return `[${key}:${cleanValue}]`;
             }
-            return `[${name}]`;
+            return `[${key}]`;
         }
 
         return match;

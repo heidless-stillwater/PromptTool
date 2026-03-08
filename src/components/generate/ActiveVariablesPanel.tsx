@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { Icons } from '@/components/ui/Icons';
 import Tooltip from '@/components/Tooltip';
 import { motion, AnimatePresence } from 'framer-motion';
+import { VariableModifierModal } from './VariableModifierModal';
 
 export interface ActiveVariablesPanelProps {
     collapsible?: boolean;
@@ -19,6 +20,8 @@ export const ActiveVariablesPanel: React.FC<ActiveVariablesPanelProps> = ({ coll
     const activeKeys = Object.keys(variables);
     const detectedKeys = Object.keys(detectedVariables);
 
+    const [selectedVarForModal, setSelectedVarForModal] = React.useState<string | null>(null);
+
     console.log('ActiveVariablesPanel State:', { activeKeys, detectedKeys });
 
     const handleBulkActivate = () => {
@@ -27,6 +30,12 @@ export const ActiveVariablesPanel: React.FC<ActiveVariablesPanelProps> = ({ coll
 
     return (
         <div className="space-y-6">
+            <VariableModifierModal
+                isOpen={!!selectedVarForModal}
+                onClose={() => setSelectedVarForModal(null)}
+                variableName={selectedVarForModal || ''}
+            />
+
             {/* Engine Status (Always Visible if panel exists) */}
             {(activeKeys.length === 0 && detectedKeys.length === 0) && (
                 <div className="px-6 py-4 rounded-2xl border border-white/5 bg-white/[0.02] flex items-center justify-between group grayscale hover:grayscale-0 transition-all duration-500">
@@ -145,9 +154,12 @@ export const ActiveVariablesPanel: React.FC<ActiveVariablesPanelProps> = ({ coll
                                                                     placeholder={variable.defaultValue || 'Enter value...'}
                                                                     className="h-11 bg-black/60 border-white/5 focus:border-primary/50 rounded-xl text-xs font-medium pl-4 pr-10 transition-all shadow-inner"
                                                                 />
-                                                                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-white/5 group-focus-within/input:text-primary/40 transition-colors">
+                                                                <button
+                                                                    onClick={() => setSelectedVarForModal(key)}
+                                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/5 hover:text-primary transition-all cursor-pointer z-10 p-1 rounded-md hover:bg-primary/10"
+                                                                >
                                                                     <Icons.settings size={14} />
-                                                                </div>
+                                                                </button>
                                                             </div>
                                                         </motion.div>
                                                     );

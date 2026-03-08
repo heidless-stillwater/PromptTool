@@ -12,7 +12,7 @@ interface VariablePillProps {
 }
 
 export const VariablePill: React.FC<VariablePillProps> = ({ name, originalMatch }) => {
-    const { variables, detectedVariables, updateVariableValue, activateVariable, removeVariable } = useVariables();
+    const { variables, detectedVariables, updateVariableValue, activateVariable, removeVariable, registerVariable } = useVariables();
     const variable = variables[name.toUpperCase()];
     const isDetected = !!detectedVariables[name.toUpperCase()];
     const [isEditing, setIsEditing] = useState(false);
@@ -33,7 +33,10 @@ export const VariablePill: React.FC<VariablePillProps> = ({ name, originalMatch 
         };
     }, [isEditing]);
 
-    if (!variable && !isDetected) return <span className="text-white/40">{originalMatch}</span>;
+    if (!variable && !isDetected) {
+        const formattedText = originalMatch.replace(/^\[([^:]+)(:.*)?\]$/, (match, p1, p2) => `[${p1.toUpperCase()}${p2 || ''}]`);
+        return <span className="text-white/40">{formattedText}</span>;
+    }
 
     // Ghost state for detected but not active
     if (!variable && isDetected) {
@@ -56,7 +59,7 @@ export const VariablePill: React.FC<VariablePillProps> = ({ name, originalMatch 
                 className="inline-flex items-center gap-1.5 px-2 py-0.5 mx-0.5 rounded-md bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 transition-all text-[10px] font-black uppercase tracking-wider animate-in fade-in zoom-in-95 group"
             >
                 <Icons.wand size={8} className={`transition-transform duration-500 ${isEditing ? 'rotate-180' : ''}`} />
-                {variable.name}
+                {variable.name.toUpperCase()}
                 <span className="text-white/40 font-mono text-[8px] lowercase">: {variable.currentValue || 'empty'}</span>
             </button>
 
@@ -116,6 +119,15 @@ export const VariablePill: React.FC<VariablePillProps> = ({ name, originalMatch 
                                         className="px-3 py-1 bg-white/5 text-white/60 text-[9px] font-black uppercase tracking-widest rounded-lg hover:bg-white/10 transition-all border border-white/5"
                                     >
                                         Close
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            registerVariable({ name, defaultValue: variable.currentValue });
+                                            setIsEditing(false);
+                                        }}
+                                        className="px-2 py-1 bg-white/5 text-white/40 text-[7px] font-black uppercase tracking-widest rounded hover:text-primary transition-all"
+                                    >
+                                        Set Default
                                     </button>
                                     <button
                                         onClick={() => setIsEditing(false)}

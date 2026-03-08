@@ -7,6 +7,7 @@ import { useVariables } from '@/lib/context/VariableContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import Tooltip from '../Tooltip';
+import { VariableModifierModal } from './VariableModifierModal';
 
 interface VariableInjectorProps {
     onInject: (name: string) => void;
@@ -17,6 +18,7 @@ export const VariableInjector: React.FC<VariableInjectorProps> = ({ onInject, cl
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
     const { variables, detectedVariables, registerVariable } = useVariables();
+    const [selectedVarForModal, setSelectedVarForModal] = useState<string | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -40,12 +42,12 @@ export const VariableInjector: React.FC<VariableInjectorProps> = ({ onInject, cl
         const name = search.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_');
         if (!name) return;
 
-        // If not already in registry, register it
-        if (!variables[name]) {
-            registerVariable({ name });
-        }
-
-        handleSelect(name);
+        // Open modal to define defaults
+        setSelectedVarForModal(name);
+        // We'll also inject it immediately for UX
+        onInject(name);
+        setIsOpen(false);
+        setSearch('');
     };
 
     const [alignment, setAlignment] = useState<'left' | 'right'>('right');
@@ -86,6 +88,12 @@ export const VariableInjector: React.FC<VariableInjectorProps> = ({ onInject, cl
 
     return (
         <div className={cn("relative inline-block", className)} ref={menuRef}>
+            <VariableModifierModal
+                isOpen={!!selectedVarForModal}
+                onClose={() => setSelectedVarForModal(null)}
+                variableName={selectedVarForModal || ''}
+            />
+
             <Tooltip content="Injection Core: Add or Define Variables">
                 <button
                     type="button"

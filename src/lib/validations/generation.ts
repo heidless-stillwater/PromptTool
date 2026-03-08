@@ -41,6 +41,10 @@ export const generationSchema = z.object({
     modality: z.enum(['image', 'video']).default('image'),
     skipWeave: z.boolean().optional(),
     compiledPrompt: z.string().optional(),
+    attributionName: z.string().max(100, "Name too long").optional(),
+    attributionUrl: z.string().url("Invalid URL format").or(z.literal('')).optional(),
+    originatorName: z.string().max(100).optional(),
+    originatorUrl: z.string().url().or(z.literal('')).optional(),
     simulation: z.object({
         balance: z.number().optional(),
         isOxygenAuthorized: z.boolean().optional(),
@@ -143,6 +147,10 @@ export const draftSchema = z.object({
     promptSetName: z.string().optional(),
     modality: z.enum(['image', 'video']).default('image'),
     variables: z.record(z.string(), z.string()).optional(),
+    attributionName: z.string().max(100, "Name too long").optional(),
+    attributionUrl: z.string().url("Invalid URL format").or(z.literal('')).optional(),
+    originatorName: z.string().max(100).optional(),
+    originatorUrl: z.string().url().or(z.literal('')).optional(),
 });
 
 export type DraftInput = z.infer<typeof draftSchema>;

@@ -41,6 +41,16 @@ export default function ImageDetailModal({
         editingPromptSetName,
         setEditingPromptSetName,
         isSavingPromptSetName,
+        // Originator
+        isEditingOriginator,
+        setIsEditingOriginator,
+        editingOriginatorName,
+        setEditingOriginatorName,
+        editingOriginatorUrl,
+        setEditingOriginatorUrl,
+        isSavingOriginator,
+        updateOriginator,
+
         existingPromptSetIDs,
         isLoadingSuggestions,
         newImageTag,
@@ -59,7 +69,15 @@ export default function ImageDetailModal({
         toggleExemplar,
         showUnpublishConfirm,
         setShowUnpublishConfirm,
-        confirmUnpublish
+        confirmUnpublish,
+        isEditingAttribution,
+        setIsEditingAttribution,
+        editingAttributionName,
+        setEditingAttributionName,
+        editingAttributionUrl,
+        setEditingAttributionUrl,
+        isSavingAttribution,
+        updateAttribution
     } = useImageDetails(selectedImage, onUpdate);
 
     const handleCopyPrompt = () => {
@@ -136,6 +154,34 @@ export default function ImageDetailModal({
                         }}
                         onChangeEditingPromptSetName={setEditingPromptSetName}
                         onSavePromptSetName={updatePromptSetName}
+                        // Attribution
+                        isEditingAttribution={isEditingAttribution}
+                        editingAttributionName={editingAttributionName}
+                        editingAttributionUrl={editingAttributionUrl}
+                        isSavingAttribution={isSavingAttribution}
+                        onStartEditingAttribution={() => setIsEditingAttribution(true)}
+                        onCancelEditingAttribution={() => {
+                            setIsEditingAttribution(false);
+                            setEditingAttributionName(selectedImage.attributionName || '');
+                            setEditingAttributionUrl(selectedImage.attributionUrl || '');
+                        }}
+                        onChangeEditingAttributionName={setEditingAttributionName}
+                        onChangeEditingAttributionUrl={setEditingAttributionUrl}
+                        onSaveAttribution={updateAttribution}
+                        // Originator
+                        isEditingOriginator={isEditingOriginator}
+                        editingOriginatorName={editingOriginatorName}
+                        editingOriginatorUrl={editingOriginatorUrl}
+                        isSavingOriginator={isSavingOriginator}
+                        onStartEditingOriginator={() => setIsEditingOriginator(true)}
+                        onCancelEditingOriginator={() => {
+                            setIsEditingOriginator(false);
+                            setEditingOriginatorName(selectedImage.originatorName || '');
+                            setEditingOriginatorUrl(selectedImage.originatorUrl || '');
+                        }}
+                        onChangeEditingOriginatorName={setEditingOriginatorName}
+                        onChangeEditingOriginatorUrl={setEditingOriginatorUrl}
+                        onSaveOriginator={updateOriginator}
                         // Tags
                         newImageTag={newImageTag}
                         isUpdatingTags={isUpdatingTags}

@@ -410,6 +410,8 @@ export default function SettingsPage() {
                                 <Input
                                     type="url"
                                     label="Personal Portfolio Website"
+                                    value={socialLinks.website}
+                                    onChange={(e) => setSocialLinks(prev => ({ ...prev, website: e.target.value }))}
                                     placeholder="https://yourportfolio.com"
                                     icon={<Icons.globe size={16} />}
                                 />

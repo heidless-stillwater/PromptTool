@@ -234,6 +234,10 @@ export interface GeneratedImage {
     variationCount?: number;     // Count of variations generated from this image
     isExemplar?: boolean;        // Whether this is an exemplar of high quality (admin set)
     status?: 'draft' | 'completed'; // Added to track drafts vs completed generations
+    attributionName?: string;    // Name of person who inspired the prompt set
+    attributionUrl?: string;     // URL for the inspiration source
+    originatorName?: string;     // Name of the original creator of this specific generation
+    originatorUrl?: string;      // URL of the original creator
 }
 
 // ============================================
@@ -275,6 +279,10 @@ export interface CommunityEntry {
     isStack?: boolean;          // UI-only: whether this card represents a stack of variations
     stackSize?: number;         // UI-only: number of variations in the stack
     isExemplar?: boolean;        // Whether this is an exemplar of high quality (admin set)
+    attributionName?: string;    // Name of person who inspired the prompt set
+    attributionUrl?: string;     // URL for the inspiration source
+    originatorName?: string;
+    originatorUrl?: string;
 }
 
 export interface CommunityComment {

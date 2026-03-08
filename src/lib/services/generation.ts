@@ -40,6 +40,10 @@ export interface MediaSaveOptions {
     variables?: Record<string, string>;
     compiledPrompt?: string;
     modelType?: 'standard' | 'pro';
+    attributionName?: string;
+    attributionUrl?: string;
+    originatorName?: string;
+    originatorUrl?: string;
 }
 
 export class GenerationService {
@@ -198,7 +202,7 @@ export class GenerationService {
      */
     static async saveMedia(userId: string, media: { data: string, mimeType: string }, options: MediaSaveOptions) {
         const bucket = adminStorage.bucket();
-        const { modality, quality, aspectRatio, prompt, promptType, madlibsData, seed, negativePrompt, guidanceScale, sourceImageId, promptSetID, promptSetName, collectionIds, requestedModality, initialImageUrl, modifiers, coreSubject, variables, compiledPrompt } = options;
+        const { modality, quality, aspectRatio, prompt, promptType, madlibsData, seed, negativePrompt, guidanceScale, sourceImageId, promptSetID, promptSetName, collectionIds, requestedModality, initialImageUrl, modifiers, coreSubject, variables, compiledPrompt, attributionName, attributionUrl, originatorName, originatorUrl } = options;
 
         const isVideo = media.mimeType.startsWith('video/');
         const extension = media.mimeType.split('/')[1] || (isVideo ? 'mp4' : 'png');
@@ -256,6 +260,10 @@ export class GenerationService {
             ...(promptSetID && { promptSetID }),
             ...(promptSetName && { promptSetName }),
             ...(collectionIds && { collectionIds }),
+            ...(attributionName && { attributionName }),
+            ...(attributionUrl && { attributionUrl }),
+            ...(originatorName && { originatorName }),
+            ...(originatorUrl && { originatorUrl }),
         };
 
         const mediaDoc = await adminDb.collection('users').doc(userId).collection('images').add(mediaData);

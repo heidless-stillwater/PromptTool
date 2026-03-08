@@ -4,8 +4,8 @@ import { AspectRatio, ImageQuality } from '../types';
 
 // Model selection based on quality and tier
 const MODELS = {
-    standard: 'gemini-3.1-flash-image-preview',
-    pro: 'gemini-3-pro-image-preview',
+    standard: 'models/gemini-2.5-flash-image',
+    pro: 'models/nano-banana-pro-preview',
 } as const;
 
 // Resolution by quality (Upgraded for NanoBanana 2)
@@ -191,9 +191,20 @@ export class NanoBananaService {
                 while (attempts < maxAttempts && !foundImageInCandidate) {
                     try {
                         attempts++;
+                        // Add generation config for advanced controls
+                        const generationConfig: any = {
+                            responseModalities: ["IMAGE"],
+                        };
+                        if (seed !== undefined) {
+                            generationConfig.seed = seed + i * 100;
+                        }
+                        if (guidanceScale !== undefined) {
+                            generationConfig.guidanceScale = guidanceScale;
+                        }
+
                         // Build config
                         const config: any = {
-                            responseModalities: ["IMAGE"],
+                            generationConfig,
                             safetySettings: [
                                 {
                                     category: "HARM_CATEGORY_HATE_SPEECH",
@@ -214,20 +225,7 @@ export class NanoBananaService {
                             ],
                         };
 
-                        // Add generation config for advanced controls
-                        const generationConfig: any = {};
-                        if (seed !== undefined) {
-                            generationConfig.seed = seed + i * 100;
-                        }
-                        if (guidanceScale !== undefined) {
-                            generationConfig.guidanceScale = guidanceScale;
-                        }
-
-                        if (Object.keys(generationConfig).length > 0) {
-                            config.generationConfig = generationConfig;
-                        }
-
-                        // Add image config for aspect ratio and resolution
+                        // Add image config for aspect ratio
                         const imageConfig: any = {};
 
                         // Convert aspect ratio format
@@ -238,10 +236,8 @@ export class NanoBananaService {
                             "9:16": "9:16",
                             "3:4": "3:4",
                         };
-                        imageConfig.aspectRatio = aspectRatioMap[aspectRatio];
-
-                        if (resolution) {
-                            imageConfig.imageSize = resolution;
+                        if (aspectRatio && aspectRatioMap[aspectRatio]) {
+                            imageConfig.aspectRatio = aspectRatioMap[aspectRatio];
                         }
 
                         if (Object.keys(imageConfig).length > 0) {

@@ -368,6 +368,54 @@ export default function CommunityEntryModal({
                                         )}
                                     </div>
                                 ) : null}
+
+                                {entry.attributionName && (
+                                    <div className="p-3 bg-white/[0.02] rounded-xl border border-white/5 space-y-1 col-span-2 group/attribution">
+                                        <label className="text-[9px] text-white/40 uppercase tracking-widest font-black flex items-center gap-2">
+                                            <Icons.user size={10} className="text-primary/50" />
+                                            Original Inspiration
+                                        </label>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            {entry.attributionUrl ? (
+                                                <a
+                                                    href={entry.attributionUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-[11px] text-primary hover:text-primary/80 font-bold transition-colors flex items-center gap-1.5"
+                                                >
+                                                    {entry.attributionName}
+                                                    <Icons.external size={12} />
+                                                </a>
+                                            ) : (
+                                                <p className="text-[11px] text-white/80 font-bold">{entry.attributionName}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {entry.originatorName && (
+                                    <div className="p-3 bg-white/[0.02] rounded-xl border border-white/5 space-y-1 col-span-2 group/originator">
+                                        <label className="text-[9px] text-white/40 uppercase tracking-widest font-black flex items-center gap-2">
+                                            <Icons.user size={10} className="text-primary/50" />
+                                            Originator
+                                        </label>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            {entry.originatorUrl ? (
+                                                <a
+                                                    href={entry.originatorUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-[11px] text-primary hover:text-primary/80 font-bold transition-colors flex items-center gap-1.5"
+                                                >
+                                                    {entry.originatorName}
+                                                    <Icons.external size={12} />
+                                                </a>
+                                            ) : (
+                                                <p className="text-[11px] text-white/80 font-bold">{entry.originatorName}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Collections Section */}

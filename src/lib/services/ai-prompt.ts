@@ -16,7 +16,7 @@ export class AIPromptService {
         }
 
         try {
-            const model = 'gemini-3.1-flash-lite-preview';
+            const model = 'models/gemini-2.5-flash';
 
             const systemInstruction = `
         You are a world-class prompt engineer for AI image generation.
@@ -78,7 +78,7 @@ export class AIPromptService {
         }
 
         try {
-            const model = 'gemini-3.1-flash-lite-preview';
+            const model = 'models/gemini-2.5-flash';
             console.log(`[AI Prompt Service] Compiling Nanobanana prompt for subject: "${subject}" with ${modifiers.length} modifiers`);
 
             const systemInstruction = `
@@ -175,7 +175,7 @@ export class AIPromptService {
         }
 
         try {
-            const model = 'gemini-3.1-flash-lite-preview';
+            const model = 'models/gemini-2.5-flash';
             const systemInstruction = `
         You are an expert content curator for an AI image gallery.
         Given a list of image prompts, suggest 5-8 relevant, descriptive tags.

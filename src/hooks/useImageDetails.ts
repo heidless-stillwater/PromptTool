@@ -23,6 +23,18 @@ export function useImageDetails(
     const [editingPromptSetName, setEditingPromptSetName] = useState('');
     const [isSavingPromptSetName, setIsSavingPromptSetName] = useState(false);
 
+    // Attribution State
+    const [isEditingAttribution, setIsEditingAttribution] = useState(false);
+    const [editingAttributionName, setEditingAttributionName] = useState('');
+    const [editingAttributionUrl, setEditingAttributionUrl] = useState('');
+    const [isSavingAttribution, setIsSavingAttribution] = useState(false);
+
+    // Originator State
+    const [isEditingOriginator, setIsEditingOriginator] = useState(false);
+    const [editingOriginatorName, setEditingOriginatorName] = useState('');
+    const [editingOriginatorUrl, setEditingOriginatorUrl] = useState('');
+    const [isSavingOriginator, setIsSavingOriginator] = useState(false);
+
     // Tags State
     const [newImageTag, setNewImageTag] = useState('');
     const [isUpdatingTags, setIsUpdatingTags] = useState(false);
@@ -73,12 +85,15 @@ export function useImageDetails(
         fetchExistingIDs();
     }, [isEditingPromptSetID, user]);
 
-    // Initialize editing state when image changes
     useEffect(() => {
         setEditingPromptSetID(image.promptSetID || '');
         setEditingPromptSetName(image.promptSetName || '');
+        setEditingAttributionName(image.attributionName || '');
+        setEditingAttributionUrl(image.attributionUrl || '');
+        setEditingOriginatorName(image.originatorName || '');
+        setEditingOriginatorUrl(image.originatorUrl || '');
         setNewImageTag('');
-    }, [image.id, image.promptSetID, image.promptSetName]);
+    }, [image.id, image.promptSetID, image.promptSetName, image.attributionName, image.attributionUrl, image.originatorName, image.originatorUrl]);
 
     const updatePromptSetID = async () => {
         if (!user) return;
@@ -123,6 +138,82 @@ export function useImageDetails(
             showToast('Failed to update Prompt Set Name', 'error');
         } finally {
             setIsSavingPromptSetName(false);
+        }
+    };
+
+    const updateAttribution = async () => {
+        if (!user) return;
+
+        setIsSavingAttribution(true);
+        try {
+            const cleanName = editingAttributionName.trim();
+            const cleanUrl = editingAttributionUrl.trim();
+            const imageRef = doc(db, 'users', user.uid, 'images', image.id);
+
+            await updateDoc(imageRef, {
+                attributionName: cleanName || deleteField(),
+                attributionUrl: cleanUrl || deleteField()
+            });
+
+            // Sync to community if published
+            if (image.publishedToCommunity && image.communityEntryId) {
+                const communityRef = doc(db, 'leagueEntries', image.communityEntryId);
+                await updateDoc(communityRef, {
+                    attributionName: cleanName || null,
+                    attributionUrl: cleanUrl || null
+                }).catch(err => console.error('[ImageDetails] Failed to sync attribution to community:', err));
+            }
+
+            onUpdate({
+                ...image,
+                attributionName: cleanName || undefined,
+                attributionUrl: cleanUrl || undefined
+            });
+            setIsEditingAttribution(false);
+            showToast('Attribution updated', 'success');
+        } catch (error) {
+            console.error('Error updating attribution:', error);
+            showToast('Failed to update attribution', 'error');
+        } finally {
+            setIsSavingAttribution(false);
+        }
+    };
+
+    const updateOriginator = async () => {
+        if (!user) return;
+
+        setIsSavingOriginator(true);
+        try {
+            const cleanName = editingOriginatorName.trim();
+            const cleanUrl = editingOriginatorUrl.trim();
+            const imageRef = doc(db, 'users', user.uid, 'images', image.id);
+
+            await updateDoc(imageRef, {
+                originatorName: cleanName || deleteField(),
+                originatorUrl: cleanUrl || deleteField()
+            });
+
+            // Sync to community if published
+            if (image.publishedToCommunity && image.communityEntryId) {
+                const communityRef = doc(db, 'leagueEntries', image.communityEntryId);
+                await updateDoc(communityRef, {
+                    originatorName: cleanName || null,
+                    originatorUrl: cleanUrl || null
+                }).catch(err => console.error('[ImageDetails] Failed to sync originator to community:', err));
+            }
+
+            onUpdate({
+                ...image,
+                originatorName: cleanName || undefined,
+                originatorUrl: cleanUrl || undefined
+            });
+            setIsEditingOriginator(false);
+            showToast('Originator updated', 'success');
+        } catch (error) {
+            console.error('Error updating originator:', error);
+            showToast('Failed to update originator', 'error');
+        } finally {
+            setIsSavingOriginator(false);
         }
     };
 
@@ -294,21 +385,46 @@ export function useImageDetails(
 
         const newValue = !image.isExemplar;
         try {
+            let updatedImage = { ...image, isExemplar: newValue };
+            let newlyPublished = false;
+
+            // Auto-publish if making it an exemplar and it's not already published
+            if (newValue && !image.publishedToCommunity) {
+                const token = await user.getIdToken();
+                const res = await fetch('/api/community/publish/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({ imageId: image.id, action: 'publish' }),
+                });
+                const data = await res.json();
+
+                if (res.ok && data.communityEntryId) {
+                    updatedImage.publishedToCommunity = true;
+                    updatedImage.communityEntryId = data.communityEntryId;
+                    newlyPublished = true;
+                } else {
+                    console.error('[ImageDetails] Auto-publish for exemplar failed:', data.error);
+                }
+            }
+
             const imageRef = doc(db, 'users', image.userId || user.uid, 'images', image.id);
             await updateDoc(imageRef, {
                 isExemplar: newValue
             });
 
-            // Sync to community if published
-            if (image.publishedToCommunity && image.communityEntryId) {
-                const communityRef = doc(db, 'leagueEntries', image.communityEntryId);
+            // Sync to community if published (either previously or newly auto-published)
+            if (updatedImage.publishedToCommunity && updatedImage.communityEntryId) {
+                const communityRef = doc(db, 'leagueEntries', updatedImage.communityEntryId);
                 await updateDoc(communityRef, {
                     isExemplar: newValue
                 }).catch(err => console.error('[ImageDetails] Failed to sync Exemplar to community:', err));
             }
 
-            onUpdate({ ...image, isExemplar: newValue });
-            showToast(newValue ? '🏅 Marked as Exemplar' : 'Exemplar status removed', 'success');
+            onUpdate(updatedImage);
+            showToast(newValue ? (newlyPublished ? '🏅 Published & Marked as Exemplar' : '🏅 Marked as Exemplar') : 'Exemplar status removed', 'success');
         } catch (error) {
             console.error('Failed to toggle Exemplar:', error);
             showToast('Failed to update Exemplar status', 'error');
@@ -327,6 +443,20 @@ export function useImageDetails(
         editingPromptSetName,
         setEditingPromptSetName,
         isSavingPromptSetName,
+        isEditingAttribution,
+        setIsEditingAttribution,
+        editingAttributionName,
+        setEditingAttributionName,
+        editingAttributionUrl,
+        setEditingAttributionUrl,
+        isSavingAttribution,
+        isEditingOriginator,
+        setIsEditingOriginator,
+        editingOriginatorName,
+        setEditingOriginatorName,
+        editingOriginatorUrl,
+        setEditingOriginatorUrl,
+        isSavingOriginator,
         existingPromptSetIDs,
         isLoadingSuggestions,
         newImageTag,
@@ -340,6 +470,8 @@ export function useImageDetails(
         // Actions
         updatePromptSetID,
         updatePromptSetName,
+        updateAttribution,
+        updateOriginator,
         addTag,
         removeTag,
         toggleCommunity,

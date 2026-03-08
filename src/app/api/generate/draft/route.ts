@@ -17,7 +17,7 @@ export const POST = withApiHandler({
                 draftId, // Optional: if provided, update the existing draft instead of creating
                 prompt, compiledPrompt, quality, aspectRatio, promptType,
                 seed, negativePrompt, guidanceScale, sourceImageId,
-                promptSetID, promptSetName, modality, modelType, modifiers, coreSubject, variables
+                promptSetID, promptSetName, modality, modelType, modifiers, coreSubject, variables, attributionName, attributionUrl, originatorName, originatorUrl
             } = body;
 
             // Generate a default prompt set name if none is provided
@@ -61,6 +61,10 @@ export const POST = withApiHandler({
                         ...(sourceImageId && { sourceImageId }),
                         ...(promptSetID && { promptSetID }),
                         ...(finalPromptSetName && { promptSetName: finalPromptSetName }),
+                        ...(attributionName && { attributionName }),
+                        ...(attributionUrl && { attributionUrl }),
+                        ...(originatorName && { originatorName }),
+                        ...(originatorUrl && { originatorUrl }),
                     };
 
                     await existingRef.update(updateData);
@@ -90,6 +94,10 @@ export const POST = withApiHandler({
                 ...(sourceImageId && { sourceImageId }),
                 ...(promptSetID && { promptSetID }),
                 ...(finalPromptSetName && { promptSetName: finalPromptSetName }),
+                ...(attributionName && { attributionName }),
+                ...(attributionUrl && { attributionUrl }),
+                ...(originatorName && { originatorName }),
+                ...(originatorUrl && { originatorUrl }),
             };
 
             const mediaDoc = await imagesCol.add(mediaData);

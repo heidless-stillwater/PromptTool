@@ -63,6 +63,7 @@ export default function ImageGroupModal({
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [editingTitle, setEditingTitle] = useState(originalName);
     const [isSavingTitle, setIsSavingTitle] = useState(false);
+    const [isPromptExpanded, setIsPromptExpanded] = useState(false);
 
     // Reset title edit state if the group changes
     useEffect(() => {
@@ -229,6 +230,23 @@ export default function ImageGroupModal({
                                 <span className="px-2 py-0.5 bg-gradient-to-r from-amber-400/20 to-yellow-500/20 text-yellow-500 text-[10px] font-bold rounded-full border border-yellow-500/30 flex items-center gap-1">
                                     <Icons.exemplar size={12} className="fill-current" />
                                     Exemplar
+                                </span>
+                            )}
+                            {firstImage.attributionName && (
+                                <span className="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded-full border border-primary/20 flex items-center gap-1 group/attribution cursor-help">
+                                    <Icons.user size={12} className="text-primary/50" />
+                                    Inspiration: {firstImage.attributionName}
+                                    {firstImage.attributionUrl && (
+                                        <a
+                                            href={firstImage.attributionUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="ml-1 hover:text-primary-hover"
+                                        >
+                                            <Icons.external size={10} />
+                                        </a>
+                                    )}
                                 </span>
                             )}
                             {firstImage.publishedToCommunity && (
@@ -492,10 +510,28 @@ export default function ImageGroupModal({
                                     </div>
                                 )}
                             </div>
-                            <div className="flex-1 min-w-0 group/prompt relative z-10">
-                                <p className="text-sm text-foreground font-mono line-clamp-3 leading-relaxed pr-10">
+                            <div className="flex-1 min-w-0 group/prompt relative z-10 flex flex-col justify-start">
+                                <div
+                                    className={cn(
+                                        "text-sm text-foreground font-mono leading-relaxed pr-10",
+                                        isPromptExpanded ? "max-h-[140px] overflow-y-auto custom-scrollbar" : "line-clamp-3"
+                                    )}
+                                    // Prevent text click/scroll from triggering the wrapper's navigation
+                                    onClick={(e) => isPromptExpanded && e.stopPropagation()}
+                                >
                                     {firstImage.prompt}
-                                </p>
+                                </div>
+                                {firstImage.prompt && firstImage.prompt.length > 150 && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsPromptExpanded(!isPromptExpanded);
+                                        }}
+                                        className="text-[9px] font-black uppercase tracking-widest text-primary hover:text-primary-light mt-2 w-fit text-left"
+                                    >
+                                        {isPromptExpanded ? "Show Less" : "Show Full Prompt"}
+                                    </button>
+                                )}
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();

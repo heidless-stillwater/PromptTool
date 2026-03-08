@@ -71,6 +71,10 @@ export interface GeneratorState {
   negativePrompt?: string;
   modelType?: "standard" | "pro";
   safetyThreshold?: "strict" | "medium" | "permissive";
+  attributionName?: string;
+  attributionUrl?: string;
+  originatorName?: string;
+  originatorUrl?: string;
 }
 
 // --- CONSTANTS ---
@@ -230,7 +234,18 @@ function GeneratePageContent() {
   const lastResolvedRef = useRef<string | null>(null);
 
   // Top Level State
-  const { userLevel, setUserLevel } = useSettings();
+  const {
+    userLevel,
+    setUserLevel,
+    attributionNameDefault,
+    setAttributionNameDefault,
+    attributionUrlDefault,
+    setAttributionUrlDefault,
+    originatorNameDefault,
+    setOriginatorNameDefault,
+    originatorUrlDefault,
+    setOriginatorUrlDefault
+  } = useSettings();
   const [showOnboarding, setShowOnboarding] = useState(true);
 
   // Left panel tab
@@ -263,6 +278,7 @@ function GeneratePageContent() {
   const { scanPrompt, resolvePrompt, loadVariables, variables, getMissingVariables, updateVariableValue, registerVariable, clearVariables, removeVariable } = useVariables();
   const [missingVars, setMissingVars] = useState<string[]>([]);
   const [showVariableRequiredModal, setShowVariableRequiredModal] = useState(false);
+  const [showAttributionRequiredModal, setShowAttributionRequiredModal] = useState(false);
 
   const [isModifiersOpen, setIsModifiersOpen] = useState(false);
   const [isInteractiveDNA, setIsInteractiveDNA] = useState(false);
@@ -343,10 +359,13 @@ function GeneratePageContent() {
     }
 
     if (
+      lowError.includes("failed to fetch") ||
       lowError.includes("fetch failed") ||
       lowError.includes("network error") ||
       lowError.includes("aborted") ||
-      lowError.includes("connection")
+      lowError.includes("connection") ||
+      lowError.includes("timeout") ||
+      lowError.includes("timed out")
     ) {
       return {
         code: 0,
@@ -373,8 +392,69 @@ function GeneratePageContent() {
     promptSetName: "",
     modelType: "standard",
     safetyThreshold: "medium",
+    attributionName: attributionNameDefault || "",
+    attributionUrl: attributionUrlDefault || "",
+    originatorName: originatorNameDefault || "",
+    originatorUrl: originatorUrlDefault || "",
   });
 
+  // Pre-fill Attribution & Originator defaults when profile loads (only for new, blank generations)
+  useEffect(() => {
+    if (profile && !remixImage && !activeExemplarId) {
+      setGenState(prev => {
+        const updates: Partial<typeof prev> = {};
+        let changed = false;
+
+        // Auto-fill attribution from settings or profile
+        if (!prev.attributionName && !prev.attributionUrl) {
+          updates.attributionName = attributionNameDefault || profile.displayName || profile.username || "";
+          updates.attributionUrl = attributionUrlDefault || profile.socialLinks?.website || "";
+          changed = true;
+        }
+
+        // Auto-fill originator from settings or profile
+        if (!prev.originatorName && !prev.originatorUrl) {
+          updates.originatorName = originatorNameDefault || profile.displayName || profile.username || "";
+          updates.originatorUrl = originatorUrlDefault || profile.socialLinks?.website || "";
+          changed = true;
+        }
+
+        return changed ? { ...prev, ...updates } : prev;
+      });
+    }
+  }, [profile, remixImage, activeExemplarId, attributionNameDefault, attributionUrlDefault, originatorNameDefault, originatorUrlDefault]);
+
+  // Auto-focus first blank field when attribution modal opens
+  useEffect(() => {
+    if (showAttributionRequiredModal) {
+      const timer = setTimeout(() => {
+        const fields = [
+          { id: 'attr-prompt-set-name', value: genState.promptSetName },
+          { id: 'attr-attribution-name', value: genState.attributionName },
+          { id: 'attr-attribution-url', value: genState.attributionUrl },
+          { id: 'attr-originator-name', value: genState.originatorName },
+          { id: 'attr-originator-url', value: genState.originatorUrl },
+        ];
+        const firstEmpty = fields.find(f => !f.value?.trim());
+        if (firstEmpty) {
+          const element = document.getElementById(firstEmpty.id);
+          if (element) {
+            element.focus();
+            // If it's an input/textarea, move cursor to end
+            if ('selectionStart' in element) {
+              const input = element as HTMLInputElement;
+              input.selectionStart = input.selectionEnd = input.value.length;
+            }
+          }
+        }
+      }, 150); // Small delay to ensure modal animation is underway/DOM is ready
+      return () => clearTimeout(timer);
+    }
+  }, [showAttributionRequiredModal]);
+
+  // Active State
+  const [saveAttributionAsDefault, setSaveAttributionAsDefault] = useState(false);
+  const [saveOriginatorAsDefault, setSaveOriginatorAsDefault] = useState(false);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [generatedImages, setGeneratedImages] = useState<
     GeneratedImage[] | null
@@ -475,6 +555,8 @@ function GeneratePageContent() {
 
   const [focusedImage, setFocusedImage] = useState<GeneratedImage | null>(null);
   const [isPromptExpanded, setIsPromptExpanded] = useState(false);
+  const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
+  const CHARACTER_LIMIT = 100;
   const [viewingVariationsGroup, setViewingVariationsGroup] = useState<
     GeneratedImage[] | null
   >(null);
@@ -564,20 +646,17 @@ function GeneratePageContent() {
       (a, b) =>
         a.category.localeCompare(b.category) || a.value.localeCompare(b.value),
     );
-    const sortedVars = Object.entries(variables)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `${k}:${v.currentValue}`)
-      .join(",");
 
     const settingsPart = `${genState.aspectRatio}|${genState.mediaType}|${genState.quality}|${genState.guidanceScale}|${genState.negativePrompt}|${genState.modelType}|${genState.seed}`;
-    return `${coreSubject.trim().toLowerCase()}|${sortedMods.map((m) => `${m.category}:${m.value}`).join(";")}|${sortedVars}|${settingsPart}`;
-  }, [coreSubject, activeModifiers, genState, variables]);
+    return `${coreSubject.trim().toLowerCase()}|${sortedMods.map((m) => `${m.category}:${m.value}`).join(";")}|${settingsPart}`;
+  }, [coreSubject, activeModifiers, genState]);
 
   const [lastWovenInputSignature, setLastWovenInputSignature] = useState<string>("");
   const isInputDiverged = currentDnaInputSignature !== lastWovenInputSignature;
 
   // Detect if the user edited the Woven Prompt itself (the result of synthesis)
-  const isOutputDiverged = compiledPrompt !== lastWovenPrompt;
+  const stripVars = (text: string) => text.replace(/\[.*?\]/g, "");
+  const isOutputDiverged = stripVars(compiledPrompt || "").trim() !== stripVars(lastWovenPrompt || "").trim();
 
   const synthesisRequired = !compiledPrompt || isInputDiverged || isOutputDiverged;
 
@@ -673,7 +752,7 @@ function GeneratePageContent() {
     try {
       setIsSavingDraft(true);
       const token = await user.getIdToken();
-      const res = await fetch("/api/generate/draft", {
+      const res = await fetch("/api/generate/draft/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -697,6 +776,10 @@ function GeneratePageContent() {
           modifiers: activeModifiers.map((m) => ({ category: m.category, value: m.value })),
           coreSubject,
           variables: Object.fromEntries(Object.entries(variables).map(([k, v]) => [k, v.currentValue])),
+          attributionName: genState.attributionName || undefined,
+          attributionUrl: genState.attributionUrl || undefined,
+          originatorName: genState.originatorName || undefined,
+          originatorUrl: genState.originatorUrl || undefined,
         }),
       });
 
@@ -751,6 +834,13 @@ function GeneratePageContent() {
       return;
     }
 
+    if (!genState.promptSetName?.trim() || !genState.attributionName?.trim()) {
+      setPendingAction("generate");
+      // Attribution auto-fills from profile but promptSetName still requires user input.
+      setShowAttributionRequiredModal(true);
+      return;
+    }
+
     // 1. Pre-check Credits
     const perItemCost = getGenerationCost(
       genState.mediaType as any,
@@ -789,17 +879,20 @@ function GeneratePageContent() {
       setGenerationMessage("Synthesizing DNA Helix...");
       try {
         const token = await user.getIdToken();
+        const synthesisController = new AbortController();
+        const synthesisTimeout = setTimeout(() => synthesisController.abort(), 60000); // 60s safety buffer
 
         // Use the current session ID for this generation batch.
         // We no longer force a new ID on subject deviation here to ensure variations remain grouped.
         const activePromptSetId = genState.promptSetId;
 
-        const res = await fetch("/api/generate/nanobanana", {
+        const res = await fetch("/api/generate/nanobanana/", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
+          signal: synthesisController.signal,
           body: JSON.stringify({
             subject: effectiveSubject,
             modifiers: activeModifiers.map((m) => ({
@@ -820,6 +913,7 @@ function GeneratePageContent() {
             },
           }),
         });
+        clearTimeout(synthesisTimeout);
         const data = await res.json();
 
         if (typeof data.remaining === "number") {
@@ -827,8 +921,9 @@ function GeneratePageContent() {
         }
 
         if (data.success && data.compiledPrompt) {
-          setCompiledPrompt(data.compiledPrompt);
-          setLastWovenPrompt(data.compiledPrompt);
+          const sanitized = sanitizeAIResponse(data.compiledPrompt);
+          setCompiledPrompt(sanitized);
+          setLastWovenPrompt(sanitized);
           setLastWovenInputSignature(currentDnaInputSignature);
           setPromptEditMode("full");
           setIsWeaveFailed(false);
@@ -866,7 +961,7 @@ function GeneratePageContent() {
       // Use the current session ID for this generation batch.
       const activePromptSetId = genState.promptSetId;
 
-      const res = await fetch("/api/generate", {
+      const res = await fetch("/api/generate/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -891,6 +986,10 @@ function GeneratePageContent() {
           modelType: genState.modelType,
           safetyThreshold: genState.safetyThreshold,
           skipWeave: promptEditMode === "full",
+          attributionName: genState.attributionName || undefined,
+          attributionUrl: genState.attributionUrl || undefined,
+          originatorName: genState.originatorName || undefined,
+          originatorUrl: genState.originatorUrl || undefined,
           modifiers: activeModifiers.map((m) => ({
             category: m.category,
             value: m.value,
@@ -1014,6 +1113,7 @@ function GeneratePageContent() {
       } else {
         console.error("Generation Error:", error);
         const msg = error.message || "Generation failed";
+        console.log("[Generate] Interpreting error message:", msg);
         const interpretation = interpretServiceError(msg);
 
         if (interpretation) {
@@ -1058,7 +1158,7 @@ function GeneratePageContent() {
     setIsCompiling(true);
     try {
       const token = await user?.getIdToken();
-      const res = await fetch("/api/generate/nanobanana", {
+      const res = await fetch("/api/generate/nanobanana/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1095,6 +1195,7 @@ function GeneratePageContent() {
         const sanitized = sanitizeAIResponse(data.compiledPrompt);
         setCompiledPrompt(sanitized);
         setLastWovenPrompt(sanitized);
+        setLastWovenInputSignature(currentDnaInputSignature);
         setIsWeaveFailed(false);
         showToast("DNA Synthesis complete. Review your masterpiece.", "success");
         setShowReviewModal(true); // Pop the modal NOW that weave is done
@@ -1159,7 +1260,7 @@ function GeneratePageContent() {
       )?.value;
       const token = await user?.getIdToken();
 
-      const res = await fetch("/api/generate/enhance", {
+      const res = await fetch("/api/generate/enhance/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1380,7 +1481,14 @@ function GeneratePageContent() {
     setIsModifiersOpen(false);
     setDraftId(null);
     clearVariables();
-    setGenState((prev) => ({ ...prev, promptSetId: Date.now().toString(36) }));
+    setGenState((prev) => ({
+      ...prev,
+      promptSetId: Date.now().toString(36),
+      attributionName: "",
+      attributionUrl: "",
+      originatorName: "",
+      originatorUrl: ""
+    }));
     showToast("Studio reset. All buffers and anchors cleared.", "info");
     markSaved();
   };
@@ -1441,7 +1549,12 @@ function GeneratePageContent() {
       const sig = `${target.subjectBase.trim().toLowerCase()}|${sortedMods.map((m) => `${m.category}:${m.value}`).join(";")}|${settingsPart}`;
       setLastWovenInputSignature(sig);
       setLastWovenPrompt(""); // Templates start with no woven prompt baseline
-      setGenState((prev) => ({ ...prev, promptSetId: Date.now().toString(36) }));
+      setGenState((prev) => ({
+        ...prev,
+        promptSetId: Date.now().toString(36),
+        originatorName: (target as any).originatorName || (target as any).authorName || profile?.displayName || profile?.username || "",
+        originatorUrl: (target as any).originatorUrl || profile?.socialLinks?.website || ""
+      }));
       if ((target as any).variables) {
         loadVariables((target as any).variables);
       }
@@ -1532,6 +1645,10 @@ function GeneratePageContent() {
           negativePrompt: s.negativePrompt || prev.negativePrompt,
           seed: s.seed,
           modelType: s.modelType || prev.modelType,
+          attributionName: image.attributionName || '',
+          attributionUrl: image.attributionUrl || '',
+          originatorName: image.originatorName || (image as any).authorName || profile?.displayName || profile?.username || '',
+          originatorUrl: image.originatorUrl || profile?.socialLinks?.website || '',
         }));
       }
 
@@ -1955,7 +2072,7 @@ function GeneratePageContent() {
   };
 
   // Live raw preview
-  const rawPromptPreview = `${coreSubject ? coreSubject + (activeModifiers.length > 0 ? " " : "") : ""}${activeModifiers.map((m) => `[${m.category.toLowerCase()}:${m.value.toLowerCase()}]`).join(" ")}`;
+  const rawPromptPreview = `${coreSubject ? coreSubject + (activeModifiers.length > 0 ? " " : "") : ""}${activeModifiers.map((m) => `[${m.category.toUpperCase()}:${m.value.toLowerCase()}]`).join(" ")}`;
   const displayPrompt = resolvePrompt(compiledPrompt || rawPromptPreview);
   const resolvedWovenPrompt = resolvePrompt(compiledPrompt || rawPromptPreview);
   const hasInputContent = promptEditMode === "subject"
@@ -3010,6 +3127,114 @@ function GeneratePageContent() {
                                         className="w-full bg-purple-500/5 border border-purple-500/20 rounded-2xl px-6 py-4 text-sm font-bold text-purple-100 placeholder:text-purple-500/20 outline-none focus:border-purple-500/40 focus:bg-purple-500/10 transition-all shadow-inner"
                                       />
                                     </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                                      <div className="group/attribution-name relative">
+                                        <div className="flex items-center justify-between mb-2 ml-1">
+                                          <div className="flex items-center gap-2">
+                                            <Icons.user size={10} className="text-purple-500/50 group-focus-within/attribution-name:text-purple-400 transition-colors" />
+                                            <label className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30 group-focus-within/attribution-name:text-purple-400/70 transition-colors">
+                                              Attribution Name
+                                            </label>
+                                          </div>
+                                          {(profile?.displayName || profile?.username) && (
+                                            <button
+                                              type="button"
+                                              onClick={() => setGenState({ ...genState, attributionName: profile?.displayName || profile?.username || "" })}
+                                              className="text-[8px] font-black uppercase tracking-widest text-purple-500/50 hover:text-purple-400 transition-colors mr-1"
+                                            >
+                                              Use Profile Name
+                                            </button>
+                                          )}
+                                        </div>
+                                        <input
+                                          type="text"
+                                          value={genState.attributionName || ""}
+                                          onChange={(e) => setGenState({ ...genState, attributionName: e.target.value })}
+                                          placeholder="Original Creator..."
+                                          className="w-full bg-purple-500/5 border border-purple-500/20 rounded-2xl px-6 py-4 text-sm font-bold text-purple-100 placeholder:text-purple-500/20 outline-none focus:border-purple-500/40 focus:bg-purple-500/10 transition-all shadow-inner"
+                                        />
+                                      </div>
+                                      <div className="group/attribution-url relative">
+                                        <div className="flex items-center justify-between mb-2 ml-1">
+                                          <div className="flex items-center gap-2">
+                                            <Icons.external size={10} className="text-purple-500/50 group-focus-within/attribution-url:text-purple-400 transition-colors" />
+                                            <label className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30 group-focus-within/attribution-url:text-purple-400/70 transition-colors">
+                                              Attribution Link
+                                            </label>
+                                          </div>
+                                          {profile?.socialLinks?.website && (
+                                            <button
+                                              type="button"
+                                              onClick={() => setGenState({ ...genState, attributionUrl: profile.socialLinks?.website || "" })}
+                                              className="text-[8px] font-black uppercase tracking-widest text-purple-500/50 hover:text-purple-400 transition-colors mr-1"
+                                            >
+                                              Use Profile Link
+                                            </button>
+                                          )}
+                                        </div>
+                                        <input
+                                          type="url"
+                                          value={genState.attributionUrl || ""}
+                                          onChange={(e) => setGenState({ ...genState, attributionUrl: e.target.value })}
+                                          placeholder="https://..."
+                                          className="w-full bg-purple-500/5 border border-purple-500/20 rounded-2xl px-6 py-4 text-sm font-bold text-purple-100 placeholder:text-purple-500/20 outline-none focus:border-purple-500/40 focus:bg-purple-500/10 transition-all shadow-inner"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                                      <div className="group/originator-name relative">
+                                        <div className="flex items-center justify-between mb-2 ml-1">
+                                          <div className="flex items-center gap-2">
+                                            <Icons.user size={10} className="text-purple-500/50 group-focus-within/originator-name:text-purple-400 transition-colors" />
+                                            <label className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30 group-focus-within/originator-name:text-purple-400/70 transition-colors">
+                                              Originator Name
+                                            </label>
+                                          </div>
+                                          {(profile?.displayName || profile?.username) && (
+                                            <button
+                                              type="button"
+                                              onClick={() => setGenState({ ...genState, originatorName: profile?.displayName || profile?.username || "" })}
+                                              className="text-[8px] font-black uppercase tracking-widest text-purple-500/50 hover:text-purple-400 transition-colors mr-1"
+                                            >
+                                              Use Profile Name
+                                            </button>
+                                          )}
+                                        </div>
+                                        <input
+                                          type="text"
+                                          value={genState.originatorName || ""}
+                                          onChange={(e) => setGenState({ ...genState, originatorName: e.target.value })}
+                                          placeholder="Genesis Creator..."
+                                          className="w-full bg-purple-500/5 border border-purple-500/20 rounded-2xl px-6 py-4 text-sm font-bold text-purple-100 placeholder:text-purple-500/20 outline-none focus:border-purple-500/40 focus:bg-purple-500/10 transition-all shadow-inner"
+                                        />
+                                      </div>
+                                      <div className="group/originator-url relative">
+                                        <div className="flex items-center justify-between mb-2 ml-1">
+                                          <div className="flex items-center gap-2">
+                                            <Icons.external size={10} className="text-purple-500/50 group-focus-within/originator-url:text-purple-400 transition-colors" />
+                                            <label className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30 group-focus-within/originator-url:text-purple-400/70 transition-colors">
+                                              Originator Link
+                                            </label>
+                                          </div>
+                                          {profile?.socialLinks?.website && (
+                                            <button
+                                              type="button"
+                                              onClick={() => setGenState({ ...genState, originatorUrl: profile.socialLinks?.website || "" })}
+                                              className="text-[8px] font-black uppercase tracking-widest text-purple-500/50 hover:text-purple-400 transition-colors mr-1"
+                                            >
+                                              Use Profile Link
+                                            </button>
+                                          )}
+                                        </div>
+                                        <input
+                                          type="url"
+                                          value={genState.originatorUrl || ""}
+                                          onChange={(e) => setGenState({ ...genState, originatorUrl: e.target.value })}
+                                          placeholder="https://..."
+                                          className="w-full bg-purple-500/5 border border-purple-500/20 rounded-2xl px-6 py-4 text-sm font-bold text-purple-100 placeholder:text-purple-500/20 outline-none focus:border-purple-500/40 focus:bg-purple-500/10 transition-all shadow-inner"
+                                        />
+                                      </div>
+                                    </div>
                                     <div className="relative">
                                       <textarea
                                         id="prompt-full-textarea"
@@ -3243,6 +3468,61 @@ function GeneratePageContent() {
                               <p className="text-[13px] text-white/50 leading-relaxed font-medium uppercase tracking-widest mb-10">
                                 {description}
                               </p>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+                                <div className="group/attribution-name relative">
+                                  <div className="flex items-center justify-between mb-2 ml-1">
+                                    <div className="flex items-center gap-2">
+                                      <Icons.user size={10} className="text-purple-500/50 group-focus-within/attribution-name:text-purple-400 transition-colors" />
+                                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30 group-focus-within/attribution-name:text-purple-400/70 transition-colors">
+                                        Attribution Name
+                                      </label>
+                                    </div>
+                                    {(profile?.displayName || profile?.username) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setGenState({ ...genState, attributionName: profile?.displayName || profile?.username || "" })}
+                                        className="text-[8px] font-black uppercase tracking-widest text-purple-500/50 hover:text-purple-400 transition-colors mr-1"
+                                      >
+                                        Use Profile Name
+                                      </button>
+                                    )}
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={genState.attributionName || ""}
+                                    onChange={(e) => setGenState({ ...genState, attributionName: e.target.value })}
+                                    placeholder="Original Creator..."
+                                    className="w-full bg-purple-500/5 border border-purple-500/20 rounded-2xl px-6 py-4 text-sm font-bold text-purple-100 placeholder:text-purple-500/20 outline-none focus:border-purple-500/40 focus:bg-purple-500/10 transition-all shadow-inner"
+                                  />
+                                </div>
+                                <div className="group/attribution-url relative">
+                                  <div className="flex items-center justify-between mb-2 ml-1">
+                                    <div className="flex items-center gap-2">
+                                      <Icons.external size={10} className="text-purple-500/50 group-focus-within/attribution-url:text-purple-400 transition-colors" />
+                                      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30 group-focus-within/attribution-url:text-purple-400/70 transition-colors">
+                                        Attribution Link
+                                      </label>
+                                    </div>
+                                    {profile?.socialLinks?.website && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setGenState({ ...genState, attributionUrl: profile.socialLinks?.website || "" })}
+                                        className="text-[8px] font-black uppercase tracking-widest text-purple-500/50 hover:text-purple-400 transition-colors mr-1"
+                                      >
+                                        Use Profile Link
+                                      </button>
+                                    )}
+                                  </div>
+                                  <input
+                                    type="url"
+                                    value={genState.attributionUrl || ""}
+                                    onChange={(e) => setGenState({ ...genState, attributionUrl: e.target.value })}
+                                    placeholder="https://..."
+                                    className="w-full bg-purple-500/5 border border-purple-500/20 rounded-2xl px-6 py-4 text-sm font-bold text-purple-100 placeholder:text-purple-500/20 outline-none focus:border-purple-500/40 focus:bg-purple-500/10 transition-all shadow-inner"
+                                  />
+                                </div>
+                              </div>
 
                               <div className="mb-12">
                                 <div
@@ -4471,6 +4751,15 @@ function GeneratePageContent() {
                       </h2>
                     </div>
 
+                    <div className="mb-6">
+                      <label className="text-[10px] font-black tracking-widest text-white/40 mb-1 uppercase block">
+                        Prompt Set Name
+                      </label>
+                      <p className="text-sm mt-1 text-white/90 font-bold truncate">
+                        {focusedImage.promptSetName || "Untitled Set"}
+                      </p>
+                    </div>
+
                     <div className="group/prompt relative bg-white/5 border border-white/10 rounded-2xl p-6">
                       <div className="flex justify-between items-center mb-2">
                         <label className="text-[8px] uppercase tracking-widest text-foreground-muted">
@@ -4520,48 +4809,13 @@ function GeneratePageContent() {
                         className="w-full mt-4 text-[10px] uppercase font-black tracking-widest h-9"
                       >
                         <Icons.wand size={14} className="mr-2" />
-                        New Version
+                        New Variation
                       </Button>
                     </div>
                   </div>
 
                   <div className="space-y-4 flex-1">
                     <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
-                      <div className="group/seed relative">
-                        <label className="text-[10px] font-black tracking-widest text-white/40 mb-1 uppercase flex justify-between items-center">
-                          Seed
-                          {focusedImage.settings?.seed && (
-                            <button
-                              onClick={() => {
-                                navigator.clipboard.writeText(
-                                  String(focusedImage.settings.seed),
-                                );
-                                showToast(
-                                  "Seed copied to clipboard",
-                                  "success",
-                                );
-                              }}
-                              className="text-[8px] font-black uppercase tracking-widest text-primary opacity-0 group-hover/seed:opacity-100 transition-opacity hover:text-primary/80"
-                            >
-                              Copy
-                            </button>
-                          )}
-                        </label>
-                        <p className="text-sm mt-1 text-white/90 font-bold pr-2 truncate">
-                          {focusedImage.settings?.seed || "Auto"}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black tracking-widest text-white/40 mb-1 uppercase block">
-                          Guidance
-                        </label>
-                        <p className="text-sm mt-1 text-white/90 font-bold">
-                          {focusedImage.settings?.guidanceScale || 7.5}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 pt-2">
                       <div>
                         <label className="text-[10px] font-black tracking-widest text-white/40 mb-1 uppercase block">
                           Quality
@@ -4608,6 +4862,119 @@ function GeneratePageContent() {
                         {formatDate(focusedImage.createdAt)}
                       </p>
                     </div>
+
+                    <div className="pt-4 border-t border-white/5">
+                      <button
+                        onClick={() => setIsDetailsExpanded(!isDetailsExpanded)}
+                        className="w-full flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white transition-colors py-2"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Icons.settings size={12} className="text-primary/50" />
+                          Generation Details
+                        </span>
+                        <Icons.chevronDown
+                          size={14}
+                          className={cn("transition-transform duration-200", isDetailsExpanded ? "rotate-180" : "")}
+                        />
+                      </button>
+
+                      {isDetailsExpanded && (
+                        <div className="mt-4 space-y-6 animate-in slide-in-from-top-2 duration-200">
+                          <div>
+                            <label className="text-[10px] font-black tracking-widest text-white/40 mb-1 uppercase block">
+                              Prompt Set ID
+                            </label>
+                            <p className="text-sm mt-1 text-white/90 font-bold font-mono truncate">
+                              {focusedImage.promptSetID || focusedImage.settings?.promptSetID || "No Set ID"}
+                            </p>
+                          </div>
+
+                          {focusedImage.attributionName ? (
+                            <div>
+                              <label className="text-[10px] font-black tracking-widest text-white/40 mb-1 uppercase block">
+                                Attribution
+                              </label>
+                              {focusedImage.attributionUrl ? (
+                                <a
+                                  href={focusedImage.attributionUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm font-bold text-primary hover:text-primary-hover hover:underline transition-colors block truncate"
+                                >
+                                  {focusedImage.attributionName}
+                                </a>
+                              ) : (
+                                <p className="text-sm text-white/90 font-bold">
+                                  {focusedImage.attributionName}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-[10px] text-white/30 italic">No attribution set</p>
+                          )}
+
+                          {focusedImage.originatorName ? (
+                            <div>
+                              <label className="text-[10px] font-black tracking-widest text-white/40 mb-1 uppercase block">
+                                Originator
+                              </label>
+                              {focusedImage.originatorUrl ? (
+                                <a
+                                  href={focusedImage.originatorUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm font-bold text-primary hover:text-primary-hover hover:underline transition-colors block truncate"
+                                >
+                                  {focusedImage.originatorName}
+                                </a>
+                              ) : (
+                                <p className="text-sm text-white/90 font-bold">
+                                  {focusedImage.originatorName}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-[10px] text-white/30 italic">No originator info</p>
+                          )}
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="group/seed relative">
+                              <label className="text-[10px] font-black tracking-widest text-white/40 mb-1 uppercase flex justify-between items-center">
+                                Seed
+                                {focusedImage.settings?.seed && (
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(
+                                        String(focusedImage.settings.seed),
+                                      );
+                                      showToast(
+                                        "Seed copied to clipboard",
+                                        "success",
+                                      );
+                                    }}
+                                    className="text-[8px] font-black uppercase tracking-widest text-primary opacity-0 group-hover/seed:opacity-100 transition-opacity hover:text-primary/80"
+                                  >
+                                    Copy
+                                  </button>
+                                )}
+                              </label>
+                              <p className="text-sm mt-1 text-white/90 font-bold pr-2 truncate">
+                                {focusedImage.settings?.seed || "Auto"}
+                              </p>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-black tracking-widest text-white/40 mb-1 uppercase block">
+                                Guidance
+                              </label>
+                              <p className="text-sm mt-1 text-white/90 font-bold">
+                                {focusedImage.settings?.guidanceScale || 7.5}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                   </div>
 
                   <div className="mt-auto">
@@ -4964,7 +5331,7 @@ function GeneratePageContent() {
                     <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-start gap-3">
                       <Icons.alertCircle size={14} className="text-red-400 mt-0.5 shrink-0" />
                       <p className="text-[10px] text-red-100/70 leading-relaxed font-bold uppercase tracking-wider">
-                        The neural weaving engine failed to process your request. You can attempt to "Proceed Anyway" using your raw constituents, or "Abort" to refine your DNA.
+                        The neural weaving engine failed to process your request. You can attempt to &quot;Proceed Anyway&quot; using your raw constituents, or &quot;Abort&quot; to refine your DNA.
                       </p>
                     </div>
                   )}
@@ -5211,10 +5578,23 @@ function GeneratePageContent() {
                   <div className="space-y-4 max-h-[40vh] overflow-y-auto custom-scrollbar pr-2">
                     {missingVars.map((name) => (
                       <div key={name} className="space-y-2">
-                        <div className="flex justify-between items-center">
+                        <div className="flex justify-between items-center px-1">
                           <label className="text-[9px] font-black uppercase tracking-widest text-primary/60">
                             [{name}]
                           </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const val = variables[name]?.currentValue;
+                              if (val) {
+                                registerVariable({ name, defaultValue: val });
+                                showToast(`[${name}] assigned as permanent default`, 'success');
+                              }
+                            }}
+                            className="text-[7px] font-black uppercase tracking-widest text-white/20 hover:text-primary transition-colors"
+                          >
+                            Assign as default
+                          </button>
                         </div>
                         <Input
                           autoFocus={missingVars.indexOf(name) === 0}
@@ -5256,6 +5636,191 @@ function GeneratePageContent() {
           )
         }
       </AnimatePresence >
+
+      {/* Attribution Required Modal */}
+      <AnimatePresence>
+        {
+          showAttributionRequiredModal && (
+            <div className="fixed inset-0 z-[1100] bg-black/90 backdrop-blur-xl flex items-center justify-center p-6">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="w-full max-w-lg bg-[#0a0a0f] border border-primary/30 rounded-[32px] overflow-hidden shadow-[0_0_100px_rgba(99,102,241,0.2)]"
+              >
+                <div className="p-8 border-b border-white/5 flex items-center justify-between bg-primary/5">
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-[0.3em] text-primary-light leading-none">
+                      Creator Attribution
+                    </h3>
+                    <p className="text-[10px] uppercase font-bold tracking-widest text-white/30 mt-2">
+                      Required for Generation
+                    </p>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+                    <Icons.user size={18} />
+                  </div>
+                </div>
+
+                <div className="p-10 space-y-6">
+                  <p className="text-sm text-white/60 leading-relaxed">
+                    Prior to weaving, you must declare credit intent. Please define a name for this prompt set, along with your creator attribution name and reference link for this prompt architecture.
+                  </p>
+
+                  <div className="space-y-4 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-primary/60">
+                          Prompt Set Name
+                        </label>
+                      </div>
+                      <Input
+                        id="attr-prompt-set-name"
+                        placeholder="e.g. Neon Cyberpunk Concept..."
+                        value={genState.promptSetName || ""}
+                        onChange={(e) => setGenState({ ...genState, promptSetName: e.target.value })}
+                        className="h-12 bg-white/5 border-white/10 text-sm rounded-xl focus:border-primary/40"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-primary/60">
+                          Attribution Name
+                        </label>
+                      </div>
+                      <Input
+                        id="attr-attribution-name"
+                        placeholder="Creator Name..."
+                        value={genState.attributionName || ""}
+                        onChange={(e) => setGenState({ ...genState, attributionName: e.target.value })}
+                        className="h-12 bg-white/5 border-white/10 text-sm rounded-xl focus:border-primary/40"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-primary/60">
+                          Attribution Link
+                        </label>
+                        <span className="text-[7px] font-bold tracking-wider text-white/20 uppercase">
+                          defaults to portfolio website
+                        </span>
+                      </div>
+                      <Input
+                        id="attr-attribution-url"
+                        type="url"
+                        placeholder="https://..."
+                        value={genState.attributionUrl || ""}
+                        onChange={(e) => setGenState({ ...genState, attributionUrl: e.target.value })}
+                        className="h-12 bg-white/5 border-white/10 text-sm rounded-xl focus:border-primary/40"
+                      />
+                      <div className="flex items-center gap-2 mt-1 px-1">
+                        <input
+                          type="checkbox"
+                          id="save-attr-default"
+                          checked={saveAttributionAsDefault}
+                          onChange={(e) => setSaveAttributionAsDefault(e.target.checked)}
+                          className="w-3 h-3 rounded border-white/10 bg-white/5 text-primary focus:ring-primary/20"
+                        />
+                        <label htmlFor="save-attr-default" className="text-[9px] font-black uppercase tracking-widest text-white/40 cursor-pointer hover:text-white/60 transition-colors">
+                          Assign as defaults
+                        </label>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-primary/60">
+                          Originator Name
+                        </label>
+                        {(profile?.displayName || profile?.username) && (
+                          <button
+                            type="button"
+                            onClick={() => setGenState({ ...genState, originatorName: profile?.displayName || profile?.username || "" })}
+                            className="text-[7px] font-bold tracking-wider text-white/20 uppercase hover:text-primary transition-colors"
+                          >
+                            Use Profile Name
+                          </button>
+                        )}
+                      </div>
+                      <Input
+                        id="attr-originator-name"
+                        placeholder="Genesis Creator..."
+                        value={genState.originatorName || ""}
+                        onChange={(e) => setGenState({ ...genState, originatorName: e.target.value })}
+                        className="h-12 bg-white/5 border-white/10 text-sm rounded-xl focus:border-primary/40"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-primary/60">
+                          Originator Link
+                        </label>
+                        {profile?.socialLinks?.website && (
+                          <button
+                            type="button"
+                            onClick={() => setGenState({ ...genState, originatorUrl: profile.socialLinks?.website || "" })}
+                            className="text-[7px] font-bold tracking-wider text-white/20 uppercase hover:text-primary transition-colors"
+                          >
+                            Use Profile Link
+                          </button>
+                        )}
+                      </div>
+                      <Input
+                        id="attr-originator-url"
+                        type="url"
+                        placeholder="https://..."
+                        value={genState.originatorUrl || ""}
+                        onChange={(e) => setGenState({ ...genState, originatorUrl: e.target.value })}
+                        className="h-12 bg-white/5 border-white/10 text-sm rounded-xl focus:border-primary/40"
+                      />
+                      <div className="flex items-center gap-2 mt-1 px-1">
+                        <input
+                          type="checkbox"
+                          id="save-orig-default"
+                          checked={saveOriginatorAsDefault}
+                          onChange={(e) => setSaveOriginatorAsDefault(e.target.checked)}
+                          className="w-3 h-3 rounded border-white/10 bg-white/5 text-primary focus:ring-primary/20"
+                        />
+                        <label htmlFor="save-orig-default" className="text-[9px] font-black uppercase tracking-widest text-white/40 cursor-pointer hover:text-white/60 transition-colors">
+                          Assign as defaults
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex gap-4">
+                    <Button
+                      variant="outline"
+                      className="flex-1 h-14 rounded-2xl font-black uppercase tracking-widest border-white/10 text-white/40 hover:text-white"
+                      onClick={() => setShowAttributionRequiredModal(false)}
+                    >
+                      Abort
+                    </Button>
+                    <Button
+                      variant="primary"
+                      className="flex-[2] h-14 rounded-2xl font-black uppercase tracking-widest shadow-[0_0_30px_rgba(99,102,241,0.3)]"
+                      disabled={!genState.promptSetName?.trim() || !genState.attributionName?.trim()}
+                      onClick={() => {
+                        if (saveAttributionAsDefault) {
+                          setAttributionNameDefault(genState.attributionName || "");
+                          setAttributionUrlDefault(genState.attributionUrl || "");
+                        }
+                        if (saveOriginatorAsDefault) {
+                          setOriginatorNameDefault(genState.originatorName || "");
+                          setOriginatorUrlDefault(genState.originatorUrl || "");
+                        }
+                        setShowAttributionRequiredModal(false);
+                        handleGenerate();
+                      }}
+                    >
+                      Confirm & Weave
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )
+        }
+      </AnimatePresence>
 
       <ConfirmationModal
         isOpen={showBackConfirmModal}

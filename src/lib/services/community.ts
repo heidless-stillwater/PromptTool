@@ -72,6 +72,10 @@ export class CommunityService {
             tags: imageData.tags || [],
             promptSetID: imageData.promptSetID || null,
             isExemplar: imageData.isExemplar || false,
+            attributionName: imageData.attributionName || null,
+            attributionUrl: imageData.attributionUrl || null,
+            originatorName: imageData.originatorName || null,
+            originatorUrl: imageData.originatorUrl || null,
         };
 
         const communityEntryRef = adminDb.collection('leagueEntries').doc();

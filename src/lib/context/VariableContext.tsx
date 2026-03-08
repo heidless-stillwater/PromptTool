@@ -32,6 +32,27 @@ export const VariableProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     // Use a ref to track the last source state we processed to avoid redundant updates
     const lastScannedRef = useRef<string>('');
+    const [isInitialized, setIsInitialized] = useState(false);
+
+    // Persistence: Load from localStorage on mount
+    useEffect(() => {
+        const stored = localStorage.getItem('stillwater_variable_registry');
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                setVariables(parsed);
+            } catch (e) {
+                console.error('[VariableEngine] Failed to parse registry from storage', e);
+            }
+        }
+        setIsInitialized(true);
+    }, []);
+
+    // Persistence: Save to localStorage on change
+    useEffect(() => {
+        if (!isInitialized) return;
+        localStorage.setItem('stillwater_variable_registry', JSON.stringify(variables));
+    }, [variables, isInitialized]);
 
     // Scan multiple sources for variables like [NAME] or [NAME:DEFAULT]
     const scanPrompt = useCallback((primarySources: string | string[], secondarySources: string | string[] = []) => {

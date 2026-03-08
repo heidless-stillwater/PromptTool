@@ -38,6 +38,7 @@ interface GenerateRequest {
 import { checkResourceQuota } from '@/lib/resource-guard';
 
 export async function POST(request: NextRequest) {
+    console.log('[API] /api/generate - Start (POST)');
     try {
         // ... (inside the handler after userId is determined)
         // Verify authentication
@@ -82,7 +83,8 @@ export async function POST(request: NextRequest) {
             prompt, quality, aspectRatio, promptType, madlibsData,
             count, seed, negativePrompt, guidanceScale, modelType,
             referenceImage, referenceImageUrl, referenceMimeType, referenceImages, sourceImageId, promptSetID, promptSetName: incomingPromptSetName,
-            collectionIds, modality, modifiers, coreSubject, simulation, variables, skipWeave
+            collectionIds, modality, modifiers, coreSubject, simulation, variables, skipWeave, attributionName, attributionUrl,
+            originatorName, originatorUrl
         } = validatedData;
 
         const defaultName = (coreSubject || prompt || "Untitled Generation")
@@ -243,6 +245,10 @@ export async function POST(request: NextRequest) {
                         initialImageUrl: referenceImageUrl, modifiers, coreSubject,
                         variables: variables || undefined,
                         compiledPrompt: coreSynthesisPrompt,
+                        attributionName,
+                        attributionUrl,
+                        originatorName,
+                        originatorUrl,
                     });
 
                     generatedMediaData.push(mediaData);
