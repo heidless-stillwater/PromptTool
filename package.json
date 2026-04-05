@@ -5,7 +5,7 @@
     "scripts": {
         "dev": "next dev",
         "build": "next build",
-        "build:export": "mv src/app/api src/api-temp && NEXT_EXPORT=true next build && mv src/api-temp src/app/api",
+        "build:static": "echo 'DEPRECATED: PromptTool now requires an active Node backend. Use standard build.'",
         "start": "next start",
         "lint": "next lint",
         "test": "vitest run",
@@ -17,6 +17,7 @@
     },
     "dependencies": {
         "@google/genai": "^1.0.0",
+        "@opentelemetry/api": "^1.9.1",
         "@stripe/stripe-js": "^2.4.0",
         "@tanstack/react-query": "^5.90.21",
         "@tanstack/react-query-devtools": "^5.91.3",

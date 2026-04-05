@@ -15,7 +15,7 @@ export async function getWeeklyGrowthStats() {
 
     const stats: Record<string, number> = {};
 
-    votesSnapshot.docs.forEach(doc => {
+    votesSnapshot.docs.forEach((doc: any) => {
         const data = doc.data();
         const authorId = data.authorId;
         if (authorId) {

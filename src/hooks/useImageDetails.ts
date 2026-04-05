@@ -22,6 +22,11 @@ export function useImageDetails(
     const [newImageTag, setNewImageTag] = useState('');
     const [isUpdatingTags, setIsUpdatingTags] = useState(false);
 
+    // Title State
+    const [isEditingTitle, setIsEditingTitle] = useState(false);
+    const [editingTitle, setEditingTitle] = useState('');
+    const [isSavingTitle, setIsSavingTitle] = useState(false);
+
     // Community State
     const [publishingId, setPublishingId] = useState<string | null>(null);
     const [showUnpublishConfirm, setShowUnpublishConfirm] = useState(false);
@@ -72,7 +77,40 @@ export function useImageDetails(
     useEffect(() => {
         setEditingPromptSetID(image.promptSetID || '');
         setNewImageTag('');
-    }, [image.id, image.promptSetID]);
+        setEditingTitle(image.title || '');
+    }, [image.id, image.promptSetID, image.title]);
+
+    const updateTitle = async () => {
+        if (!user) return;
+
+        setIsSavingTitle(true);
+        try {
+            const cleanTitle = editingTitle.trim();
+            const imageRef = doc(db, 'users', user.uid, 'images', image.id);
+
+            await updateDoc(imageRef, {
+                title: cleanTitle || deleteField()
+            });
+
+            // Sync to community if published
+            if ((image.publishedToCommunity || image.publishedToLeague) && (image.communityEntryId || image.leagueEntryId)) {
+                const entryId = image.communityEntryId || image.leagueEntryId;
+                const communityRef = doc(db, 'leagueEntries', entryId!);
+                await updateDoc(communityRef, {
+                    title: cleanTitle || deleteField()
+                }).catch(err => console.error('[ImageDetails] Failed to sync Title to community:', err));
+            }
+
+            onUpdate({ ...image, title: cleanTitle || undefined });
+            setIsEditingTitle(false);
+            showToast('Title updated', 'success');
+        } catch (error) {
+            console.error('Error updating title:', error);
+            showToast('Failed to update title', 'error');
+        } finally {
+            setIsSavingTitle(false);
+        }
+    };
 
     const updatePromptSetID = async () => {
         if (!user) return;
@@ -302,6 +340,11 @@ export function useImageDetails(
         showUnpublishConfirm,
         setShowUnpublishConfirm,
         isAdmin,
+        isEditingTitle,
+        setIsEditingTitle,
+        editingTitle,
+        setEditingTitle,
+        isSavingTitle,
 
         // Actions
         updatePromptSetID,
@@ -312,6 +355,7 @@ export function useImageDetails(
         toggleCollection,
         createCollection,
         downloadImage,
-        toggleExemplar
+        toggleExemplar,
+        updateTitle
     };
 }

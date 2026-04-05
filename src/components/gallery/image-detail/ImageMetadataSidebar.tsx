@@ -6,6 +6,7 @@ import PromptSetIDManager from './PromptSetIDManager';
 import ActionsBar from './ActionsBar';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
+import { cn } from '@/lib/utils';
 
 interface ImageMetadataSidebarProps {
     image: GeneratedImage;
@@ -40,6 +41,15 @@ interface ImageMetadataSidebarProps {
     onDelete: () => void;
     isAdmin?: boolean;
     onToggleExemplar?: () => void;
+    onEditPrompt: () => void;
+    // Title
+    isEditingTitle: boolean;
+    editingTitle: string;
+    isSavingTitle: boolean;
+    onStartEditingTitle: () => void;
+    onCancelEditingTitle: () => void;
+    onChangeTitle: (val: string) => void;
+    onSaveTitle: () => void;
 }
 
 export default function ImageMetadataSidebar({
@@ -71,7 +81,15 @@ export default function ImageMetadataSidebar({
     onDownload,
     onDelete,
     isAdmin,
-    onToggleExemplar
+    onToggleExemplar,
+    onEditPrompt,
+    isEditingTitle,
+    editingTitle,
+    isSavingTitle,
+    onStartEditingTitle,
+    onCancelEditingTitle,
+    onChangeTitle,
+    onSaveTitle
 }: ImageMetadataSidebarProps) {
     return (
         <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-border flex flex-col min-h-0">
@@ -89,6 +107,69 @@ export default function ImageMetadataSidebar({
                 </div>
 
                 <div className="space-y-4">
+                    <div className="mb-4">
+                        <div className="flex justify-between items-center mb-1">
+                            <label className="text-xs text-foreground-muted uppercase tracking-wide">Title</label>
+                            {!isEditingTitle && (
+                                <button
+                                    onClick={onStartEditingTitle}
+                                    className="text-[10px] font-black uppercase tracking-widest text-primary hover:text-primary/80"
+                                >
+                                    Edit Title
+                                </button>
+                            )}
+                        </div>
+                        {isEditingTitle ? (
+                            <div className="space-y-2">
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    value={editingTitle}
+                                    onChange={(e) => onChangeTitle(e.target.value)}
+                                    placeholder="Enter image title..."
+                                    className="w-full bg-background-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') onSaveTitle();
+                                        if (e.key === 'Escape') onCancelEditingTitle();
+                                    }}
+                                />
+                                <div className="flex gap-2">
+                                    <Button
+                                        size="sm"
+                                        className="h-8 text-[10px] uppercase font-black"
+                                        onClick={onSaveTitle}
+                                        disabled={isSavingTitle}
+                                    >
+                                        {isSavingTitle ? <Icons.spinner size={12} className="animate-spin" /> : 'Save'}
+                                    </Button>
+                                    <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        className="h-8 text-[10px] uppercase font-black"
+                                        onClick={onCancelEditingTitle}
+                                        disabled={isSavingTitle}
+                                    >
+                                        Cancel
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                <p className={cn("text-sm font-black uppercase tracking-widest", !image.title && "text-foreground-muted italic text-xs")}>
+                                    {image.title || '<no title>'}
+                                </p>
+                                {image.publishedToCommunity && (
+                                    <button 
+                                        onClick={() => window.location.href = `/community?entryId=${image.communityEntryId || ''}`}
+                                        className="text-[9px] font-black uppercase tracking-wider text-primary hover:text-primary/80 transition-all underline underline-offset-2 shrink-0 text-left"
+                                    >
+                                        [ View in Community Hub ]
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
                     <div className="group/prompt relative">
                         <div className="flex justify-between items-center mb-1">
                             <label className="text-xs text-foreground-muted uppercase tracking-wide">Prompt</label>
@@ -101,15 +182,26 @@ export default function ImageMetadataSidebar({
                         </div>
                         <p className="text-sm leading-relaxed">{image.prompt}</p>
 
-                        <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={onGenerateVariation}
-                            className="w-full mt-3 text-[10px] uppercase font-black tracking-widest h-9"
-                        >
-                            <Icons.wand size={14} className="mr-2" />
-                            New Version
-                        </Button>
+                        <div className="grid grid-cols-2 gap-2 mt-3">
+                            <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={onGenerateVariation}
+                                className="w-full text-[10px] uppercase font-black tracking-widest h-9"
+                            >
+                                <Icons.wand size={14} className="mr-2" />
+                                New Version
+                            </Button>
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={onEditPrompt}
+                                className="w-full text-[10px] uppercase font-black tracking-widest h-9"
+                            >
+                                <Icons.text size={14} className="mr-2" />
+                                Edit Prompt
+                            </Button>
+                        </div>
                     </div>
 
                     <div className="pt-4 border-t border-border/50">
@@ -139,11 +231,11 @@ export default function ImageMetadataSidebar({
                     <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border/50">
                         <div>
                             <label className="text-xs text-foreground-muted uppercase tracking-wide">Quality</label>
-                            <p className="text-sm mt-1 capitalize">{image.settings.quality}</p>
+                            <p className="text-sm mt-1 capitalize">{image.settings?.quality || 'Standard'}</p>
                         </div>
                         <div>
                             <label className="text-xs text-foreground-muted uppercase tracking-wide">Aspect</label>
-                            <p className="text-sm mt-1">{image.settings.aspectRatio}</p>
+                            <p className="text-sm mt-1">{image.settings?.aspectRatio || '1:1'}</p>
                         </div>
                     </div>
 

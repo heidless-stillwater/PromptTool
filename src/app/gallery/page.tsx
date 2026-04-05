@@ -37,10 +37,16 @@ function GalleryContent() {
     } = gallery;
 
     useEffect(() => {
+        let unsubscribeCollections: (() => void) | undefined;
+        
         if (user) {
             fetchImages();
-            fetchCollections();
+            unsubscribeCollections = fetchCollections();
         }
+        
+        return () => {
+            if (unsubscribeCollections) unsubscribeCollections();
+        };
     }, [user, fetchImages, fetchCollections]);
 
     // Handle deep-linking to a specific variation set
@@ -156,42 +162,26 @@ function GalleryContent() {
                             selectionMode={gallery.selectionMode}
                             onToggleSelectionMode={() => gallery.setSelectionMode(!gallery.selectionMode)}
                             onClearSelection={() => gallery.setSelectedImageIds(new Set())}
-                            filterTag={gallery.filterTag}
-                            onFilterTagChange={gallery.setFilterTag}
                             filterExemplar={gallery.filterExemplar}
                             onFilterExemplarChange={gallery.setFilterExemplar}
-                            filterQuality={gallery.filterQuality}
-                            onFilterQualityChange={gallery.setFilterQuality}
-                            filterAspectRatio={gallery.filterAspectRatio}
-                            onFilterAspectRatioChange={gallery.setFilterAspectRatio}
+                            filterCommunity={gallery.filterCommunity}
+                            onFilterCommunityChange={gallery.setFilterCommunity}
+                            selectedCollectionId={gallery.selectedCollectionId}
+                            onSelectCollection={gallery.setSelectedCollectionId}
                             collections={gallery.collections}
-                            showAdvancedFilters={gallery.showAdvancedFilters}
-                            onToggleAdvancedFilters={() => gallery.setShowAdvancedFilters(!gallery.showAdvancedFilters)}
-                            filterSeed={gallery.filterSeed}
-                            onFilterSeedChange={gallery.setFilterSeed}
-                            filterGuidanceMin={gallery.filterGuidanceMin}
-                            onFilterGuidanceMinChange={gallery.setFilterGuidanceMin}
-                            filterGuidanceMax={gallery.filterGuidanceMax}
-                            onFilterGuidanceMaxChange={gallery.setFilterGuidanceMax}
-                            filterHasNegativePrompt={gallery.filterHasNegativePrompt}
-                            onFilterHasNegativePromptChange={gallery.setFilterHasNegativePrompt}
-                            onClearAdvancedFilters={() => {
-                                gallery.setFilterSeed('');
-                                gallery.setFilterGuidanceMin('');
-                                gallery.setFilterGuidanceMax('');
-                                gallery.setFilterHasNegativePrompt('all');
-                            }}
+                            sortMode={gallery.sortMode}
+                            onSortChange={gallery.setSortMode}
                         />
 
                         {/* Batch Action Bar */}
                         {gallery.selectionMode && gallery.selectedImageIds.size > 0 && (
                             <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-bottom-8 duration-500">
-                                <Card className="flex items-center gap-6 px-6 py-4 shadow-2xl border-primary/30 bg-background/95 backdrop-blur-md ring-1 ring-white/5" variant="glass">
-                                    <div className="flex items-center gap-3 pr-6 border-r border-border/50">
+                                <div className="flex items-center gap-6 px-6 py-4 shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/10 bg-[#0a0a0e] rounded-2xl ring-1 ring-black/50">
+                                    <div className="flex items-center gap-3 pr-6 border-r border-white/10">
                                         <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-white font-black text-sm shadow-lg shadow-primary/20 animate-in zoom-in duration-300">
                                             {gallery.selectedImageIds.size}
                                         </div>
-                                        <span className="text-sm font-black uppercase tracking-widest text-foreground opacity-80">Selected</span>
+                                        <span className="text-sm font-black uppercase tracking-widest text-white opacity-80">Selected</span>
                                     </div>
                                     <div className="flex items-center gap-4">
                                         <Button
@@ -201,7 +191,7 @@ function GalleryContent() {
                                                 const allIds = new Set(gallery.images.map(img => img.id));
                                                 gallery.setSelectedImageIds(allIds);
                                             }}
-                                            className="h-9 px-4 text-[10px] font-black uppercase tracking-widest bg-background-secondary hover:bg-background-secondary/80"
+                                            className="h-9 px-4 text-[10px] font-black uppercase tracking-widest bg-white/5 hover:bg-white/10 text-white border-white/10 border"
                                         >
                                             Select All
                                         </Button>
@@ -209,24 +199,24 @@ function GalleryContent() {
                                             variant="secondary"
                                             size="sm"
                                             onClick={() => gallery.setSelectedImageIds(new Set())}
-                                            className="h-9 px-4 text-[10px] font-black uppercase tracking-widest bg-background-secondary hover:bg-background-secondary/80"
+                                            className="h-9 px-4 text-[10px] font-black uppercase tracking-widest bg-white/5 hover:bg-white/10 text-white border-white/10 border"
                                         >
                                             Clear
                                         </Button>
-                                        <div className="w-px h-6 bg-border/50 mx-1" />
+                                        <div className="w-px h-6 bg-white/10 mx-1" />
                                         <Button
-                                            variant="primary"
+                                            variant="danger"
                                             size="sm"
                                             onClick={gallery.handleBatchDelete}
                                             disabled={gallery.batchDeleting}
                                             isLoading={gallery.batchDeleting}
-                                            className="!bg-error hover:!bg-error-hover h-9 px-6 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-error/20 border-0"
+                                            className="!bg-error hover:!bg-error/80 text-white h-9 px-6 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-error/20 border-0"
                                         >
                                             <Icons.delete size={14} className="mr-2" />
                                             Delete
                                         </Button>
                                     </div>
-                                </Card>
+                                </div>
                             </div>
                         )}
 
@@ -269,10 +259,9 @@ function GalleryContent() {
                                 gallery.setFilterAspectRatio('all');
                                 gallery.setFilterTag('all');
                                 gallery.setSelectedCollectionId(null);
-                                gallery.setFilterSeed('');
-                                gallery.setFilterGuidanceMin('');
-                                gallery.setFilterGuidanceMax('');
-                                gallery.setFilterHasNegativePrompt('all');
+                                gallery.setFilterExemplar(false);
+                                gallery.setFilterCommunity(false);
+                                gallery.setSortMode('newest');
                             }}
                         />
                     </div>
@@ -298,6 +287,7 @@ function GalleryContent() {
                     selectedGroup={selectedGroup}
                     onClose={() => {
                         gallery.setSelectedGroup(null);
+                        gallery.setSelectedImageIds(new Set()); // Reset selection on close
                         if (searchParams.get('set')) {
                             router.replace('/gallery', { scroll: false });
                         }
@@ -313,6 +303,33 @@ function GalleryContent() {
                     creatingCollection={gallery.creatingCollection}
                     collectionError={gallery.collectionError}
                     setCollectionError={gallery.setCollectionError}
+                    // Variation Management
+                    selectedImageIds={gallery.selectedImageIds}
+                    onToggleImageSelection={(id: string) => {
+                        gallery.setSelectedImageIds(prev => {
+                            const newSet = new Set(prev);
+                            if (newSet.has(id)) newSet.delete(id);
+                            else newSet.add(id);
+                            return newSet;
+                        });
+                    }}
+                    onToggleAll={() => {
+                        const allIds = selectedGroup.map(img => img.id);
+                        const isAllSelected = allIds.every(id => gallery.selectedImageIds.has(id));
+                        
+                        gallery.setSelectedImageIds(prev => {
+                            const newSet = new Set(prev);
+                            if (isAllSelected) {
+                                allIds.forEach(id => newSet.delete(id));
+                            } else {
+                                allIds.forEach(id => newSet.add(id));
+                            }
+                            return newSet;
+                        });
+                    }}
+                    onBatchDelete={gallery.handleBatchDelete}
+                    onDeleteSingle={(id: string) => gallery.handleDelete(id)}
+                    onBatchUpdateTitle={gallery.handleBatchUpdateTitle}
                 />
             )}
 

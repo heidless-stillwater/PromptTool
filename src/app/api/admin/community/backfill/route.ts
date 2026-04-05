@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
         // Collect unique user IDs and image references
         const userIds = new Set<string>();
-        const entries = entriesSnapshot.docs.map(doc => {
+        const entries = entriesSnapshot.docs.map((doc: any) => {
             const data = doc.data();
             userIds.add(data.originalUserId);
             return { id: doc.id, data };
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
             const batch = userIdArray.slice(i, i + 100);
             const refs = batch.map(uid => adminDb.collection('users').doc(uid));
             const docs = await adminDb.getAll(...refs);
-            docs.forEach(doc => {
+            docs.forEach((doc: any) => {
                 if (doc.exists) {
                     profileMap[doc.id] = doc.data();
                 }

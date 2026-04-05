@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
         if (creditsChange !== undefined && typeof creditsChange === 'number' && creditsChange !== 0) {
             const creditsRef = adminDb.collection('users').doc(userId).collection('data').doc('credits');
 
-            await adminDb.runTransaction(async (t) => {
+            await adminDb.runTransaction(async (t: any) => {
                 const doc = await t.get(creditsRef);
                 if (!doc.exists) {
                     // Create if doesn't exist (unlikely for active users but possible)

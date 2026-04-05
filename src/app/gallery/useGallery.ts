@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { collection, query, orderBy, limit, getDocs, deleteDoc, doc, updateDoc, increment, startAfter, QueryDocumentSnapshot, addDoc, serverTimestamp, deleteField, arrayUnion, arrayRemove, collectionGroup, where } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, deleteDoc, doc, updateDoc, increment, startAfter, QueryDocumentSnapshot, addDoc, serverTimestamp, deleteField, arrayUnion, arrayRemove, collectionGroup, where, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { GeneratedImage, Collection, ADMIN_EMAILS } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
@@ -30,8 +30,10 @@ export function useGallery() {
     const [filterAspectRatio, setFilterAspectRatio] = useState<string>('all');
     const [filterTag, setFilterTag] = useState<string>('all');
     const [filterExemplar, setFilterExemplar] = useState(false);
+    const [filterCommunity, setFilterCommunity] = useState(false);
     const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'personal' | 'admin' | 'global'>('personal');
+    const [sortMode, setSortMode] = useState<'newest' | 'oldest' | 'az' | 'za' | 'recent_update' | 'old_update'>('newest');
 
     // Advanced Filter State
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -74,30 +76,34 @@ export function useGallery() {
             const isGlobal = viewMode === 'global' && isSu;
             const isAdminView = viewMode === 'admin' && isSu;
 
+            // Firestore query always uses createdAt for broad compatibility (prevents filtering images missing updatedAt)
+            const sortField = 'createdAt';
+            const sortOrder = (sortMode === 'oldest') ? 'asc' : 'desc';
+
             if (isPersonal) {
                 const imagesRef = collection(db, 'users', user.uid, 'images');
-                q = query(imagesRef, orderBy('createdAt', 'desc'), limit(48));
+                q = query(imagesRef, orderBy(sortField, sortOrder), limit(48));
                 if (isLoadMore && lastVisibleRef.current) {
-                    q = query(imagesRef, orderBy('createdAt', 'desc'), startAfter(lastVisibleRef.current), limit(48));
+                    q = query(imagesRef, orderBy(sortField, sortOrder), startAfter(lastVisibleRef.current), limit(48));
                 }
             } else if (isGlobal) {
                 const imagesRef = collectionGroup(db, 'images');
-                q = query(imagesRef, orderBy('createdAt', 'desc'), limit(48));
+                q = query(imagesRef, orderBy(sortField, sortOrder), limit(48));
                 if (isLoadMore && lastVisibleRef.current) {
-                    q = query(imagesRef, orderBy('createdAt', 'desc'), startAfter(lastVisibleRef.current), limit(48));
+                    q = query(imagesRef, orderBy(sortField, sortOrder), startAfter(lastVisibleRef.current), limit(48));
                 }
             } else if (isAdminView) {
                 const imagesRef = collectionGroup(db, 'images');
-                q = query(imagesRef, where('userId', 'in', ADMIN_EMAILS), orderBy('createdAt', 'desc'), limit(48));
+                q = query(imagesRef, where('userId', 'in', ADMIN_EMAILS), orderBy(sortField, sortOrder), limit(48));
                 if (isLoadMore && lastVisibleRef.current) {
-                    q = query(imagesRef, where('userId', 'in', ADMIN_EMAILS), orderBy('createdAt', 'desc'), startAfter(lastVisibleRef.current), limit(48));
+                    q = query(imagesRef, where('userId', 'in', ADMIN_EMAILS), orderBy(sortField, sortOrder), startAfter(lastVisibleRef.current), limit(48));
                 }
             } else {
                 // Fallback to personal if not su but trying to access admin/global
                 const imagesRef = collection(db, 'users', user.uid, 'images');
-                q = query(imagesRef, orderBy('createdAt', 'desc'), limit(48));
+                q = query(imagesRef, orderBy(sortField, sortOrder), limit(48));
                 if (isLoadMore && lastVisibleRef.current) {
-                    q = query(imagesRef, orderBy('createdAt', 'desc'), startAfter(lastVisibleRef.current), limit(48));
+                    q = query(imagesRef, orderBy(sortField, sortOrder), startAfter(lastVisibleRef.current), limit(48));
                 }
             }
 
@@ -121,22 +127,30 @@ export function useGallery() {
             setLoadingImages(false);
             setLoadingMore(false);
         }
-    }, [user, viewMode, isSu]);
+    }, [user, viewMode, isSu, sortMode]);
 
     // Fetch Collections
-    const fetchCollections = useCallback(async () => {
-        if (!user) return;
+    const fetchCollections = useCallback(() => {
+        if (!user) return () => {};
+        
         try {
             const colRef = collection(db, 'users', user.uid, 'collections');
             const q = query(colRef, orderBy('createdAt', 'desc'));
-            const snapshot = await getDocs(q);
-            const fetched = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            } as Collection));
-            setCollections(fetched);
+            
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+                const fetched = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                } as Collection));
+                setCollections(fetched);
+            }, (error) => {
+                console.error('Error fetching collections stream:', error);
+            });
+            
+            return unsubscribe;
         } catch (error) {
-            console.error('Error fetching collections:', error);
+            console.error('Error setting up collections listener:', error);
+            return () => {};
         }
     }, [user]);
 
@@ -151,9 +165,18 @@ export function useGallery() {
         try {
             await deleteDoc(doc(db, 'users', user.uid, 'images', imageId));
             setImages(prev => prev.filter(img => img.id !== imageId));
+            
+            // Sync with selectedImage
             if (selectedImage?.id === imageId) {
                 setSelectedImage(null);
             }
+
+            // Sync with selectedGroup (Variation Modal)
+            if (selectedGroup) {
+                const updatedGroup = selectedGroup.filter(img => img.id !== imageId);
+                setSelectedGroup(updatedGroup.length > 0 ? updatedGroup : null);
+            }
+
             showToast('Image deleted successfully', 'success');
         } catch (error) {
             console.error('Delete error:', error);
@@ -171,7 +194,15 @@ export function useGallery() {
             await Promise.all(Array.from(selectedImageIds).map(id =>
                 deleteDoc(doc(db, 'users', user.uid, 'images', id))
             ));
+            
             setImages(prev => prev.filter(img => !selectedImageIds.has(img.id)));
+
+            // Sync with selectedGroup
+            if (selectedGroup) {
+                const updatedGroup = selectedGroup.filter(img => !selectedImageIds.has(img.id));
+                setSelectedGroup(updatedGroup.length > 0 ? updatedGroup : null);
+            }
+
             setSelectedImageIds(new Set());
             setSelectionMode(false);
             showToast('Batch delete complete!', 'success');
@@ -222,17 +253,6 @@ export function useGallery() {
             };
             const docRef = await addDoc(colRef, newColData);
 
-            const localCol: Collection = {
-                id: docRef.id,
-                userId: user.uid,
-                name: newCollectionName.trim(),
-                imageCount: 0,
-                privacy: 'private',
-                createdAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 } as any,
-                updatedAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 } as any,
-            };
-
-            setCollections(prev => [localCol, ...prev]);
             setNewCollectionName('');
             setShowCreateCollection(false);
             showToast(`Collection "${newColData.name}" created`, 'success');
@@ -590,6 +610,58 @@ export function useGallery() {
         return groups;
     }, []);
 
+    const handleBatchUpdateTitle = async (batchImages: GeneratedImage[], newTitle: string) => {
+        if (!user || !batchImages.length) return false;
+
+        try {
+            const cleanTitle = newTitle.trim();
+            const batchPromises = batchImages.map(img => {
+                const imageRef = doc(db, 'users', user.uid, 'images', img.id);
+                return updateDoc(imageRef, {
+                    title: cleanTitle || deleteField()
+                });
+            });
+
+            await Promise.all(batchPromises);
+
+            const communityPromises = batchImages
+                .filter(img => (img.publishedToCommunity || img.publishedToLeague) && (img.communityEntryId || img.leagueEntryId))
+                .map(img => {
+                    const entryId = img.communityEntryId || img.leagueEntryId;
+                    const communityRef = doc(db, 'leagueEntries', entryId!);
+                    return updateDoc(communityRef, {
+                        title: cleanTitle || deleteField()
+                    }).catch(err => console.error('[useGallery] Failed to sync Title to community:', err));
+                });
+            
+            if (communityPromises.length > 0) {
+                await Promise.all(communityPromises);
+            }
+
+            setImages(prev => prev.map(img => {
+                const isInBatch = batchImages.some(b => b.id === img.id);
+                if (!isInBatch) return img;
+                return { ...img, title: cleanTitle || undefined };
+            }));
+
+            setSelectedGroup(prev => {
+                if (!prev) return null;
+                return prev.map(img => {
+                    const isInBatch = batchImages.some(b => b.id === img.id);
+                    if (!isInBatch) return img;
+                    return { ...img, title: cleanTitle || undefined };
+                });
+            });
+
+            showToast(`Updated title for ${batchImages.length} images`, 'success');
+            return true;
+        } catch (error) {
+            console.error('Error batch updating titles:', error);
+            showToast('Failed to update titles', 'error');
+            return false;
+        }
+    };
+
     const handleUpdateImage = (updatedImage: GeneratedImage) => {
         setImages(prev => prev.map(img => img.id === updatedImage.id ? updatedImage : img));
         if (selectedImage?.id === updatedImage.id) {
@@ -604,7 +676,7 @@ export function useGallery() {
     const filteredImages = images.filter(img => {
         const matchesSearch = img.prompt.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesQuality = filterQuality === 'all' || img.settings.quality === filterQuality;
-        const matchesAspect = filterAspectRatio === 'all' || img.settings.aspectRatio === filterAspectRatio;
+        const matchesAspectRatio = filterAspectRatio === 'all' || img.settings.aspectRatio === filterAspectRatio;
 
         const matchesCollection = !selectedCollectionId ||
             (img.collectionIds ? img.collectionIds.includes(selectedCollectionId) : (img.collectionId === selectedCollectionId));
@@ -622,8 +694,38 @@ export function useGallery() {
             (filterHasNegativePrompt === 'yes' && !!img.settings?.negativePrompt?.trim()) ||
             (filterHasNegativePrompt === 'no' && !img.settings?.negativePrompt?.trim());
         const matchesExemplar = !filterExemplar || !!img.isExemplar;
+        const matchesCommunity = !filterCommunity || !!img.publishedToCommunity;
 
-        return matchesSearch && matchesQuality && matchesAspect && matchesCollection && matchesTag && matchesSeed && matchesGuidanceMin && matchesGuidanceMax && matchesNegPrompt && matchesExemplar;
+        return matchesSearch && matchesQuality && matchesAspectRatio && matchesCollection && matchesTag && matchesSeed && matchesGuidanceMin && matchesGuidanceMax && matchesNegPrompt && matchesExemplar && matchesCommunity;
+    }).sort((a, b) => {
+        if (sortMode === 'az') {
+            return (a.title || a.prompt).localeCompare(b.title || b.prompt);
+        }
+        if (sortMode === 'za') {
+            return (b.title || b.prompt).localeCompare(a.title || a.prompt);
+        }
+        // Date sorting is primarily handled by Firestore, but we sort here for safety/filtered results
+        if (sortMode === 'newest') {
+            const timeA = a.createdAt?.seconds || 0;
+            const timeB = b.createdAt?.seconds || 0;
+            return timeB - timeA;
+        }
+        if (sortMode === 'oldest') {
+            const timeA = a.createdAt?.seconds || 0;
+            const timeB = b.createdAt?.seconds || 0;
+            return timeA - timeB;
+        }
+        if (sortMode === 'recent_update') {
+            const timeA = a.updatedAt?.seconds || a.createdAt?.seconds || 0;
+            const timeB = b.updatedAt?.seconds || b.createdAt?.seconds || 0;
+            return timeB - timeA;
+        }
+        if (sortMode === 'old_update') {
+            const timeA = a.updatedAt?.seconds || a.createdAt?.seconds || 0;
+            const timeB = b.updatedAt?.seconds || b.createdAt?.seconds || 0;
+            return timeA - timeB;
+        }
+        return 0;
     });
 
     // Navigation
@@ -655,11 +757,13 @@ export function useGallery() {
         filterAspectRatio, setFilterAspectRatio,
         filterTag, setFilterTag,
         filterExemplar, setFilterExemplar,
+        filterCommunity, setFilterCommunity,
         showAdvancedFilters, setShowAdvancedFilters,
         filterSeed, setFilterSeed,
         filterGuidanceMin, setFilterGuidanceMin,
         filterGuidanceMax, setFilterGuidanceMax,
         filterHasNegativePrompt, setFilterHasNegativePrompt,
+        sortMode, setSortMode,
         isGrouped, setIsGrouped,
         showCreateCollection, setShowCreateCollection,
         newCollectionName, setNewCollectionName,
@@ -681,7 +785,7 @@ export function useGallery() {
         groupImagesByPromptSet,
         setImages,
         handleAddImageTag, handleRemoveImageTag,
-        handleUpdatePromptSetID, handleToggleExemplar, handleToggleCollection, handleBatchToggleCollection,
+        handleUpdatePromptSetID, handleToggleExemplar, handleToggleCollection, handleBatchToggleCollection, handleBatchUpdateTitle,
         handleDownload, handleNextImage, handlePrevImage, handleUpdateImage,
         confirmationState, confirmDelete, cancelDelete
     };

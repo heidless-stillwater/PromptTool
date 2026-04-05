@@ -60,11 +60,19 @@ import {
     Rows,
     Tag,
     Play,
-    Award
+    Award,
+    Edit3,
+    Lock,
+    Unlock,
+    Calendar,
+    RefreshCcw,
+    SortAsc,
+    SortDesc
 } from "lucide-react"
 
 export const Icons = {
     play: Play,
+    edit: Edit3,
     tag: Tag,
     instagram: Instagram,
 
@@ -126,5 +134,11 @@ export const Icons = {
     list: List,
     feed: LayoutList,
     rows: Rows,
-    exemplar: Award
+    exemplar: Award,
+    lock: Lock,
+    unlock: Unlock,
+    calendar: Calendar,
+    refresh: RefreshCcw,
+    sortAsc: SortAsc,
+    sortDesc: SortDesc
 }

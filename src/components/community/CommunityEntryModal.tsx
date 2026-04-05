@@ -51,6 +51,7 @@ interface CommunityEntryModalProps {
     onUpdatePromptSetID?: (newId: string) => Promise<void>;
     isAdmin?: boolean;
     onToggleExemplar?: () => Promise<void>;
+    onUpdateTitle?: (newTitle: string) => Promise<void>;
 }
 
 export default function CommunityEntryModal({
@@ -83,7 +84,8 @@ export default function CommunityEntryModal({
     onRemoveTag,
     onUpdatePromptSetID,
     isAdmin,
-    onToggleExemplar
+    onToggleExemplar,
+    onUpdateTitle
 }: CommunityEntryModalProps) {
     const router = useRouter();
     const { showToast } = useToast();
@@ -96,6 +98,20 @@ export default function CommunityEntryModal({
     const [isUpdatingPromptSetID, setIsUpdatingPromptSetID] = useState(false);
     const [isEditingBatch, setIsEditingBatch] = useState(false);
     const [batchValue, setBatchValue] = useState('');
+    const [isEditingTitle, setIsEditingTitle] = useState(false);
+    const [titleValue, setTitleValue] = useState(entry.title || '');
+    const [isSavingTitle, setIsSavingTitle] = useState(false);
+
+    const handleSaveTitle = async () => {
+        if (!titleValue.trim() || !onUpdateTitle) return;
+        setIsSavingTitle(true);
+        try {
+            await onUpdateTitle(titleValue.trim());
+            setIsEditingTitle(false);
+        } finally {
+            setIsSavingTitle(false);
+        }
+    };
 
     const handleConfirmReport = async () => {
         setIsReporting(true);
@@ -268,6 +284,59 @@ export default function CommunityEntryModal({
 
                         {/* Scrollable content */}
                         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
+                            {/* Title */}
+                            <div className="space-y-1 pb-2 border-b border-white/5 group/title">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-[10px] text-primary/60 uppercase tracking-[0.2em] font-black">Neural Identity</label>
+                                    {onUpdateTitle && (user?.uid === entry.originalUserId || isAdmin) && !isEditingTitle && (
+                                        <button
+                                            onClick={() => { setTitleValue(entry.title || ''); setIsEditingTitle(true); }}
+                                            className="opacity-0 group-hover/title:opacity-100 text-[10px] font-black uppercase tracking-widest text-primary transition-opacity"
+                                        >
+                                            Edit
+                                        </button>
+                                    )}
+                                </div>
+                                {isEditingTitle ? (
+                                    <div className="flex flex-col gap-2">
+                                        <input
+                                            type="text"
+                                            value={titleValue}
+                                            onChange={(e) => setTitleValue(e.target.value)}
+                                            placeholder="Enter neural identity..."
+                                            className="w-full bg-background-secondary border border-border rounded-lg px-3 py-2 text-sm font-black uppercase focus:outline-none focus:ring-1 focus:ring-primary text-white"
+                                            autoFocus
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') handleSaveTitle();
+                                                if (e.key === 'Escape') setIsEditingTitle(false);
+                                            }}
+                                        />
+                                        <div className="flex gap-2">
+                                            <Button
+                                                size="sm"
+                                                onClick={handleSaveTitle}
+                                                isLoading={isSavingTitle}
+                                                className="h-8 text-[9px] font-black uppercase tracking-widest"
+                                            >
+                                                Save
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => setIsEditingTitle(false)}
+                                                className="h-8 text-[9px] font-black uppercase tracking-widest"
+                                            >
+                                                Cancel
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <h3 className="text-lg font-black text-white uppercase tracking-wider truncate">
+                                        {entry.title || '<no title>'}
+                                    </h3>
+                                )}
+                            </div>
+
                             {/* Prompt */}
                             <div className="space-y-1 group/prompt relative">
                                 <div className="flex justify-between items-center">
@@ -406,7 +475,7 @@ export default function CommunityEntryModal({
                                 </div>
                             ) : (entry.collectionNames && entry.collectionNames.length > 0) ? (
                                 <div className="space-y-2 pt-2 border-t border-border/50">
-                                    <label className="text-[10px] text-foreground-muted uppercase tracking-widest font-black block">Author's Collections</label>
+                                    <label className="text-[10px] text-foreground-muted uppercase tracking-widest font-black block">Author&apos;s Collections</label>
                                     <div className="flex flex-wrap gap-1.5">
                                         {entry.collectionNames.map(name => (
                                             <Badge key={name} variant="outline" className="text-[10px] py-0 px-2 h-5 border-primary/20 bg-primary/5 text-primary">

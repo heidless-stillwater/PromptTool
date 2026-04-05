@@ -1,7 +1,9 @@
 'use client';
 
+import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
+import { cn } from '@/lib/utils';
 
 export type SortMode = 'trending' | 'newest' | 'alltime' | 'liked' | 'shared' | 'variations' | 'recent' | 'creations' | 'influence' | 'images' | 'followed';
 export type ViewMode = 'grid' | 'feed' | 'compact' | 'creators';
@@ -17,6 +19,7 @@ interface CommunityHeaderProps {
     onToggleGroupedByUser: () => void;
     filterUserName: string | null;
     onClearFilter: () => void;
+    onRefresh?: () => Promise<unknown> | void;
 }
 
 export default function CommunityHeader({
@@ -29,8 +32,21 @@ export default function CommunityHeader({
     isGroupedByUser,
     onToggleGroupedByUser,
     filterUserName,
-    onClearFilter
+    onClearFilter,
+    onRefresh
 }: CommunityHeaderProps) {
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const handleRefresh = useCallback(async () => {
+        if (!onRefresh || isRefreshing) return;
+        setIsRefreshing(true);
+        try {
+            await onRefresh();
+        } finally {
+            // Keep the spinner briefly so the user can see feedback
+            setTimeout(() => setIsRefreshing(false), 600);
+        }
+    }, [onRefresh, isRefreshing]);
     const tabs = [
         { key: 'trending', label: 'Trending', icon: <Icons.zap size={16} className="text-orange-400" /> },
         { key: 'newest', label: 'Newest', icon: <Icons.sparkles size={16} className="text-blue-400" /> },
@@ -130,6 +146,24 @@ export default function CommunityHeader({
                             <Icons.user size={16} />
                             <span className="hidden sm:inline">User Stack</span>
                         </Button>
+
+                        {/* Refresh */}
+                        {onRefresh && (
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={handleRefresh}
+                                disabled={isRefreshing}
+                                className="rounded-xl gap-2 font-black uppercase tracking-widest text-[10px] h-10 px-3 sm:px-4 text-foreground-muted hover:text-foreground bg-background-secondary border-border/50 disabled:opacity-50"
+                                title="Refresh community entries"
+                            >
+                                <Icons.variation
+                                    size={16}
+                                    className={cn('transition-transform duration-500', isRefreshing && 'animate-spin')}
+                                />
+                                <span className="hidden sm:inline">{isRefreshing ? 'Refreshing…' : 'Refresh'}</span>
+                            </Button>
+                        )}
                     </div>
                 </div>
             </div>

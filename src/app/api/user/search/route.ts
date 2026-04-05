@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
             .limit(5)
             .get();
 
-        const users = snapshot.docs.map(doc => {
+        const users = snapshot.docs.map((doc: any) => {
             const data = doc.data();
             return {
                 uid: doc.id,

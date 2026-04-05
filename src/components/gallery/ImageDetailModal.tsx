@@ -51,7 +51,13 @@ export default function ImageDetailModal({
         toggleExemplar,
         showUnpublishConfirm,
         setShowUnpublishConfirm,
-        confirmUnpublish
+        confirmUnpublish,
+        isEditingTitle,
+        setIsEditingTitle,
+        editingTitle,
+        setEditingTitle,
+        isSavingTitle,
+        updateTitle
     } = useImageDetails(selectedImage, onUpdate);
 
     const handleCopyPrompt = () => {
@@ -118,6 +124,18 @@ export default function ImageDetailModal({
                         onDelete={() => onDelete(selectedImage.id)}
                         isAdmin={isAdmin}
                         onToggleExemplar={toggleExemplar}
+                        // Title
+                        isEditingTitle={isEditingTitle}
+                        editingTitle={editingTitle}
+                        isSavingTitle={isSavingTitle}
+                        onStartEditingTitle={() => setIsEditingTitle(true)}
+                        onCancelEditingTitle={() => {
+                            setIsEditingTitle(false);
+                            setEditingTitle(selectedImage.title || '');
+                        }}
+                        onChangeTitle={setEditingTitle}
+                        onSaveTitle={updateTitle}
+                        onEditPrompt={() => window.location.href = `/generate?ref=${selectedImage.id}&edit=1`}
                     />
                 </div>
             </div>

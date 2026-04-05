@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
         const influenceMap: Record<string, number> = {};
         const publicationsMap: Record<string, number> = {};
 
-        snapshot.docs.forEach(doc => {
+        snapshot.docs.forEach((doc: any) => {
             const data = doc.data();
             const userId = data.originalUserId;
             const votes = data.voteCount || 0;

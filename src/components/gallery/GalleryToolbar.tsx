@@ -16,47 +16,28 @@ interface GalleryToolbarProps {
     selectionMode: boolean;
     onToggleSelectionMode: () => void;
     onClearSelection: () => void;
-    filterTag: string;
-    onFilterTagChange: (value: string) => void;
     filterExemplar: boolean;
     onFilterExemplarChange: (value: boolean) => void;
-    filterQuality: string;
-    onFilterQualityChange: (value: any) => void;
-    filterAspectRatio: string;
-    onFilterAspectRatioChange: (value: string) => void;
+    filterCommunity: boolean;
+    onFilterCommunityChange: (value: boolean) => void;
+    selectedCollectionId: string | null;
+    onSelectCollection: (id: string | null) => void;
     collections: Collection[];
-    showAdvancedFilters: boolean;
-    onToggleAdvancedFilters: () => void;
-
-    // Advanced Filter Props
-    filterSeed: string;
-    onFilterSeedChange: (value: string) => void;
-    filterGuidanceMin: string;
-    onFilterGuidanceMinChange: (value: string) => void;
-    filterGuidanceMax: string;
-    onFilterGuidanceMaxChange: (value: string) => void;
-    filterHasNegativePrompt: string;
-    onFilterHasNegativePromptChange: (value: any) => void;
-    onClearAdvancedFilters: () => void;
+    sortMode: 'newest' | 'oldest' | 'az' | 'za' | 'recent_update' | 'old_update';
+    onSortChange: (mode: 'newest' | 'oldest' | 'az' | 'za' | 'recent_update' | 'old_update') => void;
 }
 
 export default function GalleryToolbar({
     viewMode, setViewMode, isSu,
     isGrouped, onToggleGrouped,
     selectionMode, onToggleSelectionMode, onClearSelection,
-    filterTag, onFilterTagChange,
     filterExemplar, onFilterExemplarChange,
-    filterQuality, onFilterQualityChange,
-    filterAspectRatio, onFilterAspectRatioChange,
+    filterCommunity, onFilterCommunityChange,
+    selectedCollectionId, onSelectCollection,
     collections,
-    showAdvancedFilters, onToggleAdvancedFilters,
-    filterSeed, onFilterSeedChange,
-    filterGuidanceMin, onFilterGuidanceMinChange,
-    filterGuidanceMax, onFilterGuidanceMaxChange,
-    filterHasNegativePrompt, onFilterHasNegativePromptChange,
-    onClearAdvancedFilters
+    sortMode, onSortChange
 }: GalleryToolbarProps) {
-    const hasActiveAdvanced = filterSeed || filterGuidanceMin || filterGuidanceMax || filterHasNegativePrompt !== 'all';
+
 
     return (
         <div className="space-y-6">
@@ -125,60 +106,60 @@ export default function GalleryToolbar({
 
                     <div className="h-6 w-px bg-border/50 mx-1 hidden md:block" />
 
-                    <div className="flex gap-2 items-center flex-1 md:flex-none min-w-[300px]">
+                    <Button
+                        variant={filterCommunity ? 'primary' : 'secondary'}
+                        size="sm"
+                        onClick={() => onFilterCommunityChange(!filterCommunity)}
+                        className={cn(
+                            "h-10 px-4 text-[10px] font-black tracking-widest uppercase gap-2 transition-all",
+                            filterCommunity ? "bg-gradient-to-r from-blue-500 to-indigo-600 shadow-lg shadow-indigo-500/20 text-white border-indigo-400" : "bg-background-secondary/50"
+                        )}
+                    >
+                        <Icons.users size={14} className={filterCommunity ? "fill-current" : ""} />
+                        Community
+                    </Button>
+
+                    <div className="h-6 w-px bg-border/50 mx-1 hidden md:block" />
+
+                    <div className="flex gap-2 items-center flex-1 md:flex-none">
                         <Select
-                            value={filterTag}
-                            onChange={(e) => onFilterTagChange(e.target.value)}
-                            className="h-10 text-[10px] font-black uppercase tracking-widest bg-zinc-900 text-white border-zinc-800"
+                            value={selectedCollectionId || 'all'}
+                            onChange={(e) => onSelectCollection(e.target.value === 'all' ? null : e.target.value)}
+                            className="h-10 text-[10px] font-black uppercase tracking-widest bg-zinc-900 text-white border-zinc-800 min-w-[160px]"
                         >
-                            <option value="all">Tags: All</option>
-                            {Array.from(new Set(collections.flatMap(c => c.tags || []))).sort().map(tag => (
-                                <option key={tag} value={tag}>#{tag.toUpperCase()}</option>
+                            <option value="all">Collections: All</option>
+                            {collections.map(col => (
+                                <option key={col.id} value={col.id}>{col.name.toUpperCase()}</option>
                             ))}
-                        </Select>
-
-                        <Select
-                            value={filterQuality}
-                            onChange={(e) => onFilterQualityChange(e.target.value as any)}
-                            className="h-10 text-[10px] font-black uppercase tracking-widest bg-zinc-900 text-white border-zinc-800"
-                        >
-                            <option value="all">Quality: All</option>
-                            <option value="standard">Standard</option>
-                            <option value="high">High Def</option>
-                            <option value="ultra">Ultra 4K</option>
-                        </Select>
-
-                        <Select
-                            value={filterAspectRatio}
-                            onChange={(e) => onFilterAspectRatioChange(e.target.value)}
-                            className="h-10 text-[10px] font-black uppercase tracking-widest bg-zinc-900 text-white border-zinc-800"
-                        >
-                            <option value="all">Aspect: All</option>
-                            <option value="1:1">1:1 Square</option>
-                            <option value="16:9">16:9 Wide</option>
-                            <option value="9:16">9:16 Tall</option>
-                            <option value="4:3">4:3 Photo</option>
-                            <option value="3:4">3:4 Portrait</option>
                         </Select>
                     </div>
 
                     <div className="h-6 w-px bg-border/50 mx-1 hidden md:block" />
 
-                    <Button
-                        variant={(showAdvancedFilters || hasActiveAdvanced) ? 'primary' : 'secondary'}
-                        size="sm"
-                        onClick={onToggleAdvancedFilters}
-                        className={cn(
-                            "h-10 px-4 text-[10px] font-black tracking-widest uppercase gap-2 transition-all relative",
-                            (showAdvancedFilters || hasActiveAdvanced) ? "shadow-lg shadow-primary/20" : "bg-background-secondary/50"
-                        )}
-                    >
-                        <Icons.filter size={14} />
-                        Advanced
-                        {hasActiveAdvanced && (
-                            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-accent rounded-full border-2 border-background animate-pulse" />
-                        )}
-                    </Button>
+                    <div className="flex gap-2 items-center">
+                        <Select
+                            value={sortMode}
+                            onChange={(e) => onSortChange(e.target.value as any)}
+                            className="h-10 text-[10px] font-black uppercase tracking-widest bg-zinc-900 text-white border-zinc-800 min-w-[200px]"
+                        >
+                            <optgroup label="ALPHABETICAL" className="bg-zinc-950 text-zinc-500 text-[10px] uppercase font-black tracking-widest">
+                                <option value="az">A to Z</option>
+                                <option value="za">Z to A</option>
+                            </optgroup>
+                            <optgroup label="GENERATION DATE" className="bg-zinc-950 text-zinc-500 text-[10px] uppercase font-black tracking-widest">
+                                <option value="newest">Newest First</option>
+                                <option value="oldest">Oldest First</option>
+                            </optgroup>
+                            <optgroup label="LAST MODIFIED" className="bg-zinc-950 text-zinc-500 text-[10px] uppercase font-black tracking-widest">
+                                <option value="recent_update">Recently Updated</option>
+                                <option value="old_update">Least Recently Updated</option>
+                            </optgroup>
+                        </Select>
+                    </div>
+
+                    <div className="h-6 w-px bg-border/50 mx-1 hidden md:block" />
+
+
 
                     {isSu && (
                         <>
@@ -223,87 +204,7 @@ export default function GalleryToolbar({
                 </div>
             </Card>
 
-            {/* Advanced Filters Panel */}
-            {showAdvancedFilters && (
-                <Card variant="glass" className="p-6 border-primary/20 bg-primary/[0.03] animate-in fade-in slide-in-from-top-4 duration-300">
-                    <div className="flex items-center justify-between mb-6">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                                <Icons.filter size={16} />
-                            </div>
-                            <div>
-                                <h3 className="text-[10px] font-black uppercase tracking-widest text-foreground">Deep Filtering</h3>
-                                <p className="text-[8px] font-black uppercase tracking-[0.2em] text-foreground-muted mt-0.5">Filter by generation parameters</p>
-                            </div>
-                        </div>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={onClearAdvancedFilters}
-                            className="h-8 text-[9px] font-black uppercase tracking-widest text-primary hover:text-primary-hover px-3 bg-primary/5 hover:bg-primary/10"
-                        >
-                            Clear Parameters
-                        </Button>
-                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                        <Input
-                            label="Specific Seed"
-                            placeholder="e.g. 198234"
-                            value={filterSeed}
-                            onChange={(e) => onFilterSeedChange(e.target.value)}
-                            className="h-10 text-sm bg-background/50"
-                        />
-
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-foreground-muted ml-1 mb-1 block">Guidance Range</label>
-                            <div className="flex items-center gap-3">
-                                <Input
-                                    type="number"
-                                    placeholder="Min"
-                                    value={filterGuidanceMin}
-                                    onChange={(e) => onFilterGuidanceMinChange(e.target.value)}
-                                    step="0.5"
-                                    min="0"
-                                    max="20"
-                                    className="h-10 text-xs bg-background/50"
-                                />
-                                <span className="text-foreground-muted/30 font-black">—</span>
-                                <Input
-                                    type="number"
-                                    placeholder="Max"
-                                    value={filterGuidanceMax}
-                                    onChange={(e) => onFilterGuidanceMaxChange(e.target.value)}
-                                    step="0.5"
-                                    min="0"
-                                    max="20"
-                                    className="h-10 text-xs bg-background/50"
-                                />
-                            </div>
-                        </div>
-
-                        <Select
-                            label="Negative Prompt"
-                            value={filterHasNegativePrompt}
-                            onChange={(e) => onFilterHasNegativePromptChange(e.target.value as any)}
-                            className="h-10 text-[10px] font-black uppercase tracking-widest bg-zinc-900 text-white border-zinc-800"
-                        >
-                            <option value="all">Ignore Filter</option>
-                            <option value="yes">Only with Negatives</option>
-                            <option value="no">Only without Negatives</option>
-                        </Select>
-
-                        <div className="flex items-end">
-                            <div className="p-4 rounded-xl bg-background/40 border border-border/50 w-full">
-                                <p className="text-[9px] font-bold text-foreground-muted leading-tight">
-                                    <Icons.info size={10} className="inline mr-1 opacity-50 mb-0.5" />
-                                    Advanced filters help you find specific generations within large collections.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </Card>
-            )}
         </div>
     );
 }

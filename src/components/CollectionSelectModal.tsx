@@ -39,7 +39,7 @@ export default function CollectionSelectModal({
                 className="absolute inset-0 bg-background/80 backdrop-blur-sm"
                 onClick={onClose}
             />
-            <Card variant="glass" className="relative w-full max-w-md p-6 shadow-2xl border-primary/20 animate-in fade-in zoom-in duration-200">
+            <Card className="relative w-full max-w-md p-6 shadow-2xl bg-background rounded-3xl border border-border animate-in fade-in zoom-in duration-200">
                 <div className="flex items-center justify-between mb-6">
                     <h2 className="text-xl font-bold">{title}</h2>
                     <Button

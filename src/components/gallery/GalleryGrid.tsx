@@ -114,11 +114,17 @@ export default function GalleryGrid({
                         const firstImage = groupImages[0];
                         const groupIds = groupImages.map(img => img.id);
                         const isAnySelected = groupIds.some(id => selectedImageIds.has(id));
+                        const isAnyPublished = groupImages.some(img => img.publishedToCommunity || img.publishedToLeague);
+                        
+                        const displayImage = {
+                            ...firstImage,
+                            publishedToCommunity: firstImage.publishedToCommunity || isAnyPublished
+                        };
 
                         return (
                             <motion.div key={key} variants={cardFadeIn}>
                                 <ImageCard
-                                    image={firstImage}
+                                    image={displayImage}
                                     count={groupImages.length}
                                     variant="gallery"
                                     selectionMode={selectionMode}

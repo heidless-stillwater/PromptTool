@@ -10,31 +10,51 @@ import { cn } from '@/lib/utils';
 interface GenerateHeaderProps {
     availableCredits: number;
     onHistoryOpen: () => void;
+    onGalleryClick: () => void;
+    onDashboardClick: () => void;
     isAdmin: boolean;
 }
 
 export default function GenerateHeader({
     availableCredits,
     onHistoryOpen,
+    onGalleryClick,
+    onDashboardClick,
     isAdmin
 }: GenerateHeaderProps) {
     return (
         <Card variant="glass" className="sticky top-0 z-50 border-x-0 border-t-0 rounded-none border-b border-border p-0">
             <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <Link href="/dashboard">
-                        <Button variant="secondary" size="icon" className="w-9 h-9">
-                            <Icons.arrowLeft size={18} />
-                        </Button>
-                    </Link>
+                    <Button
+                        variant="secondary"
+                        size="icon"
+                        className="w-9 h-9"
+                        onClick={onDashboardClick}
+                    >
+                        <Icons.arrowLeft size={18} />
+                    </Button>
                     <div className="hidden sm:block">
-                        <Link href="/dashboard" className="text-xl font-black tracking-tighter gradient-text hover:opacity-80 transition-opacity">
+                        <button
+                            onClick={onDashboardClick}
+                            className="text-xl font-black tracking-tighter gradient-text hover:opacity-80 transition-opacity"
+                        >
                             STILLWATER<span className="text-foreground"> STUDIO</span>
-                        </Link>
+                        </button>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-3">
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={onGalleryClick}
+                        className="h-9 gap-2 font-bold px-4"
+                    >
+                        <Icons.grid size={16} />
+                        <span className="hidden md:inline">Registry</span>
+                    </Button>
+
                     <Button
                         variant="secondary"
                         size="sm"

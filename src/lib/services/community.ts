@@ -43,7 +43,7 @@ export class CommunityService {
             const collectionsSnap = await adminDb.collection('users').doc(userId).collection('collections')
                 .where('__name__', 'in', collectionIds.slice(0, 10)) // Max 10 collections
                 .get();
-            collectionsSnap.forEach(doc => {
+            collectionsSnap.forEach((doc: any) => {
                 collectionNames.push(doc.data().name);
             });
         }
@@ -72,6 +72,7 @@ export class CommunityService {
             tags: imageData.tags || [],
             promptSetID: imageData.promptSetID || null,
             isExemplar: imageData.isExemplar || false,
+            title: imageData.title || null,
         };
 
         const communityEntryRef = adminDb.collection('leagueEntries').doc();
@@ -145,7 +146,7 @@ export class CommunityService {
         const batch = adminDb.batch();
 
         // 1. Delete comments
-        commentsSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+        commentsSnapshot.docs.forEach((doc: any) => batch.delete(doc.ref));
 
         // 2. Delete entry
         batch.delete(communityEntryRef);

@@ -34,6 +34,9 @@ export interface MediaSaveOptions {
     requestedModality: MediaModality;
     modality: MediaModality;
     initialImageUrl?: string;
+    targetVariationId?: string;
+    title?: string;
+    rawPrompt?: string;
 }
 
 export class GenerationService {
@@ -161,7 +164,7 @@ export class GenerationService {
      */
     static async saveMedia(userId: string, media: { data: string, mimeType: string }, options: MediaSaveOptions) {
         const bucket = adminStorage.bucket();
-        const { modality, quality, aspectRatio, prompt, promptType, madlibsData, seed, negativePrompt, guidanceScale, sourceImageId, promptSetID, collectionIds, requestedModality, initialImageUrl } = options;
+        const { modality, quality, aspectRatio, prompt, promptType, madlibsData, seed, negativePrompt, guidanceScale, sourceImageId, promptSetID, collectionIds, requestedModality, initialImageUrl, targetVariationId, title, rawPrompt } = options;
 
         const isVideo = media.mimeType.startsWith('video/');
         const extension = media.mimeType.split('/')[1] || (isVideo ? 'mp4' : 'png');
@@ -186,6 +189,7 @@ export class GenerationService {
             prompt,
             promptType,
             requestedModality,
+            rawTemplate: rawPrompt || prompt
         };
 
         if (madlibsData) settings.madlibsData = madlibsData;
@@ -195,20 +199,33 @@ export class GenerationService {
 
         const mediaData: any = {
             userId,
-            prompt,
+            prompt: rawPrompt || prompt,
             settings,
-            imageUrl: (actualModality === 'video' && initialImageUrl) ? initialImageUrl : mediaUrl,
+            imageUrl: (actualModality === 'video' && initialImageUrl && !initialImageUrl.includes('dicebear')) ? initialImageUrl : mediaUrl,
             storagePath: filename,
             creditsCost: isVideo ? CREDIT_COSTS.video : CREDIT_COSTS[quality as ImageQuality],
             createdAt: Timestamp.now(),
             downloadCount: 0,
+            isDraft: false,
             ...(actualModality === 'video' && { videoUrl: mediaUrl }),
             ...(sourceImageId && { sourceImageId }),
             ...(promptSetID && { promptSetID }),
             ...(collectionIds && { collectionIds }),
+            ...(title && { title }),
         };
 
-        const mediaDoc = await adminDb.collection('users').doc(userId).collection('images').add(mediaData);
+        let mediaDoc;
+        if (targetVariationId) {
+            // DEFINITIVE OVERWRITE: Update existing variation or create it if it's a virtual placeholder
+            const variationRef = adminDb.collection('users').doc(userId).collection('images').doc(targetVariationId);
+            await variationRef.set({
+                ...mediaData,
+                updatedAt: Timestamp.now()
+            }, { merge: true });
+            mediaDoc = { id: targetVariationId };
+        } else {
+            mediaDoc = await adminDb.collection('users').doc(userId).collection('images').add(mediaData);
+        }
 
         // Increment variation counts if applicable
         if (sourceImageId) {

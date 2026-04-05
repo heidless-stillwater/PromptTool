@@ -58,8 +58,7 @@ export default function ConfirmationModal({
 
             {/* Modal Content */}
             <Card
-                variant="glass"
-                className={`relative p-6 max-w-sm w-full shadow-2xl border-border transition-all duration-300 ${isOpen ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'}`}
+                className={`relative p-6 max-w-sm w-full shadow-2xl bg-background rounded-3xl border border-border transition-all duration-300 ${isOpen ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'}`}
             >
                 <div className="mb-4">
                     <h3 className="text-xl font-bold">{title}</h3>

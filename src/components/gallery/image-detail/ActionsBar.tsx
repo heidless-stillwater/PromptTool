@@ -63,16 +63,26 @@ export default function ActionsBar({
                     Edit Image
                 </Button>
             </Tooltip>
-            <Tooltip content={image.publishedToCommunity ? 'Remove from community' : 'Share your work with the community library!'} className="col-span-2">
+            <Tooltip 
+                content={
+                    !image.title 
+                        ? 'Set an architectural title to enable community publishing' 
+                        : image.publishedToCommunity 
+                            ? 'Remove this fragment from the community hub' 
+                            : 'Share your work with the community library'
+                } 
+                className="col-span-2"
+            >
                 <Button
                     onClick={onCommunityToggle}
-                    disabled={publishingId === image.id}
+                    disabled={publishingId === image.id || (!image.title && !image.publishedToCommunity)}
                     isLoading={publishingId === image.id}
                     className={cn(
                         "w-full py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2",
                         image.publishedToCommunity
                             ? 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20 border border-yellow-500/20'
-                            : 'bg-background-secondary hover:bg-background-tertiary text-foreground border border-border'
+                            : 'bg-background-secondary hover:bg-background-tertiary text-foreground border border-border',
+                        !image.title && !image.publishedToCommunity && 'opacity-50 grayscale cursor-not-allowed'
                     )}
                 >
                     {!publishingId && (

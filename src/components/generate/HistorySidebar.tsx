@@ -103,6 +103,9 @@ export default function HistorySidebar({
                                         </div>
                                     </div>
                                     <div className="px-1">
+                                        <h4 className={cn("text-[11px] font-black uppercase tracking-tight mb-1 line-clamp-1", !img.title ? "text-foreground-muted italic" : "text-foreground")}>
+                                            {img.title || '<no title>'}
+                                        </h4>
                                         <p className="text-[10px] text-foreground-muted line-clamp-2 italic mb-2 leading-relaxed">
                                             &quot;{img.prompt}&quot;
                                         </p>

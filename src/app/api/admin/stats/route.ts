@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
         // Fetch all users
         const usersSnap = await adminDb.collection('users').get();
         const totalUsers = usersSnap.size;
-        const proUsers = usersSnap.docs.filter(d => d.data().subscription === 'pro').length;
+        const proUsers = usersSnap.docs.filter((d: any) => d.data().subscription === 'pro').length;
 
         // Platform-wide counts
         const imagesSnap = await adminDb.collectionGroup('images').count().get();
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
         let totalComments = 0;
         const tagsMap: Record<string, number> = {};
 
-        communitySnap.docs.forEach(doc => {
+        communitySnap.docs.forEach((doc: any) => {
             const data = doc.data();
             totalVotes += data.voteCount || 0;
             totalComments += data.commentCount || 0;
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
         let totalCreditsHeld = 0;
         let totalLifetimeUsed = 0;
 
-        await Promise.all(usersSnap.docs.map(async (userDoc) => {
+        await Promise.all(usersSnap.docs.map(async (userDoc: any) => {
             try {
                 const creditDoc = await adminDb.collection('users').doc(userDoc.id).collection('data').doc('credits').get();
                 if (creditDoc.exists) {

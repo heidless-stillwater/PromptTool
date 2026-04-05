@@ -61,6 +61,7 @@ export const CommunityEntrySchema = z.object({
     variationCount: z.number().default(0),
     tags: z.array(z.string()).default([]),
     promptSetID: z.string().nullish(),
+    title: z.string().nullish(),
     isStack: z.boolean().nullish(),
     stackSize: z.number().nullish(),
 });

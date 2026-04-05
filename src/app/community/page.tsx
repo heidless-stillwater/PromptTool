@@ -102,6 +102,7 @@ function CommunityContent() {
                     onToggleGroupedByUser={community.handleToggleGroupedByUser}
                     filterUserName={community.filterUserName}
                     onClearFilter={() => community.handleFilterUser(null, null)}
+                    onRefresh={community.refetchEntries}
                 />
 
                 {/* Entries Grid */}
@@ -161,6 +162,7 @@ function CommunityContent() {
                         onUpdatePromptSetID={community.handleUpdatePromptSetID}
                         isAdmin={community.isAdmin}
                         onToggleExemplar={community.handleToggleExemplar}
+                        onUpdateTitle={community.handleUpdateTitle}
                     />
                 )}
             </AnimatePresence>

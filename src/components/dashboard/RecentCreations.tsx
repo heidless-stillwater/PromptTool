@@ -123,11 +123,17 @@ export default function RecentCreations({
                         const firstImage = groupImages[0];
                         const groupIds = groupImages.map(img => img.id);
                         const isAnySelected = groupIds.some(id => selectedIds.has(id));
+                        const isAnyPublished = groupImages.some(img => img.publishedToCommunity || img.publishedToLeague);
+                        
+                        const displayImage = {
+                            ...firstImage,
+                            publishedToCommunity: firstImage.publishedToCommunity || isAnyPublished
+                        };
 
                         return (
                             <ImageCard
                                 key={key}
-                                image={firstImage}
+                                image={displayImage}
                                 count={groupImages.length}
                                 variant={dense ? 'gallery' : 'dashboard'}
                                 dense={dense}

@@ -7,6 +7,7 @@ import SmartImage from '@/components/SmartImage';
 import SmartVideo from '@/components/SmartVideo';
 import ShareButtons from '@/components/ShareButtons';
 import { cn } from '@/lib/utils';
+import { Icons } from '@/components/ui/Icons';
 
 export interface ImageCardProps {
     image: GeneratedImage;
@@ -161,8 +162,9 @@ export default function ImageCard({
 
                         {/* Variation Badge (Single Item Only) */}
                         {!isStack && image.sourceImageId && (
-                            <div className="px-1.5 py-0.5 bg-accent/90 text-white text-[10px] font-bold rounded uppercase shadow-sm backdrop-blur-sm w-fit">
-                                Variation
+                            <div className="px-1.5 py-0.5 bg-accent text-white text-[10px] font-bold rounded-lg uppercase shadow-sm backdrop-blur-sm w-fit flex items-center gap-1 border border-accent-hover/40">
+                                <Icons.variation size={10} />
+                                <span>Variation</span>
                             </div>
                         )}
                     </div>
@@ -192,11 +194,14 @@ export default function ImageCard({
 
                 {/* Gallery Hover Overlay */}
                 {variant === 'gallery' && (
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none flex flex-col justify-end p-3">
-                        <p className="text-white text-sm line-clamp-2 drop-shadow-md">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none flex flex-col justify-end p-3">
+                        <p className={cn("text-sm font-semibold text-white", !image.title && "text-white/60 italic text-xs")}>
+                            {image.title || '<no title>'}
+                        </p>
+                        <p className="text-white/90 text-xs line-clamp-2 drop-shadow-md leading-relaxed">
                             {image.prompt}
                         </p>
-                        <p className="text-white/70 text-xs mt-1 drop-shadow-md">
+                        <p className="text-white/60 text-[10px] font-medium mt-1.5 drop-shadow-md uppercase tracking-wider">
                             {isStack ? `${count} Variations` : `${image.settings?.quality || 'standard'} • ${image.settings?.aspectRatio || '1:1'}`}
                         </p>
                     </div>
@@ -227,12 +232,33 @@ export default function ImageCard({
                 )}
             </div>
 
-            {/* Dashboard Footer Logic */}
-            {showCardFooter && (
-                <div className="p-4 rounded-b-2xl bg-background-secondary border-t border-white/5 relative z-10">
-                    <p className="text-sm line-clamp-2 mb-2 text-foreground-primary group-hover:text-primary transition-colors">{image.prompt}</p>
+            {/* Footer Logic (Both Gallery & Dashboard) */}
+            {(showCardFooter || (variant === 'gallery' && image.title)) && (
+                <div className={cn(
+                    "p-3 bg-background-secondary border-t border-white/5 relative z-10",
+                    variant === 'gallery' ? "rounded-b-xl" : "p-4 rounded-b-2xl border-white/5"
+                )}>
+                    {image.title && (
+                        <h3 className={cn(
+                            "font-bold text-foreground-primary truncate leading-tight",
+                            variant === 'gallery' ? "text-[11px] mb-0.5" : "text-sm mb-1"
+                        )}>
+                            {image.title}
+                        </h3>
+                    )}
+                    {variant === 'dashboard' && (
+                        <p className={cn(
+                            "text-xs line-clamp-2 mb-3 text-foreground-muted group-hover:text-primary/80 transition-colors leading-relaxed",
+                            !image.title && "text-sm text-foreground-primary"
+                        )}>
+                            {image.prompt}
+                        </p>
+                    )}
                     <div className="flex items-center justify-between">
-                        <p className="text-xs text-foreground-muted font-sans">
+                        <p className={cn(
+                            "text-foreground-muted font-sans",
+                            variant === 'gallery' ? "text-[9px] opacity-60" : "text-xs"
+                        )}>
                             {image.settings?.quality || 'standard'} • {image.settings?.aspectRatio || '1:1'}
                         </p>
                         {!selectionMode && <ShareButtons entryId={image.communityEntryId} imageUrl={image.imageUrl} prompt={image.prompt} className="scale-75 origin-right" />}

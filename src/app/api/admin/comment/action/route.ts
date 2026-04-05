@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: true, message: 'Reports dismissed' });
         } else if (action === 'delete') {
             // Delete comment and decrement comment count on entry
-            await adminDb.runTransaction(async (t) => {
+            await adminDb.runTransaction(async (t: any) => {
                 t.delete(commentRef);
                 t.update(entryRef, {
                     commentCount: FieldValue.increment(-1)

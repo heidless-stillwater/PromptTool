@@ -31,3 +31,10 @@ yarn-error.log*
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# Stillwater Environment
+.env
+.firebase/
+SCRATCH
+test-key.js
+test_fix.mjs

@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
 
             // Delete all report details
             const reportsSnapshot = await entryRef.collection('reports').get();
-            reportsSnapshot.docs.forEach(doc => {
+            reportsSnapshot.docs.forEach((doc: any) => {
                 batch.delete(doc.ref);
             });
 

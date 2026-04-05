@@ -14,6 +14,7 @@ interface SaveEditRequest {
     promptSetID?: string;     // Group ID
     settings: any;            // Original settings
     collectionIds?: string[]; // Collections
+    title?: string;           // Optional title
 }
 
 export async function POST(request: NextRequest) {
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
         }
 
         const body: SaveEditRequest = await request.json();
-        const { imageData, mimeType, originalImageId, saveAsNew, prompt, promptSetID, settings, collectionIds } = body;
+        const { imageData, mimeType, originalImageId, saveAsNew, prompt, promptSetID, settings, collectionIds, title } = body;
 
         if (!imageData || !originalImageId) {
             return NextResponse.json({ error: 'Image data and original image ID are required' }, { status: 400 });
@@ -65,6 +66,7 @@ export async function POST(request: NextRequest) {
             const newImageData = {
                 userId,
                 prompt: `[Edited] ${prompt}`,
+                title: title || originalDoc.data()?.title || null,
                 settings: {
                     ...settings,
                     editedFrom: originalImageId,

@@ -6,6 +6,7 @@ import { z } from 'zod';
  */
 export const generationSchema = z.object({
     prompt: z.string().min(1, "Prompt is required").max(2000, "Prompt is too long (max 2000 characters)"),
+    rawPrompt: z.string().optional(),
     quality: z.enum(['standard', 'high', 'ultra', 'video']),
     aspectRatio: z.enum(['1:1', '4:3', '16:9', '9:16', '3:4']),
     promptType: z.enum(['freeform', 'madlibs']),
@@ -27,6 +28,8 @@ export const generationSchema = z.object({
     promptSetID: z.string().optional(),
     collectionIds: z.array(z.string()).optional(),
     modality: z.enum(['image', 'video']).default('image'),
+    targetVariationId: z.string().optional(),
+    title: z.string().max(100).optional(),
 });
 
 export type GenerationInput = z.infer<typeof generationSchema>;

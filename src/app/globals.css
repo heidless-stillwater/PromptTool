@@ -117,3 +117,17 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Vision Editor textarea — hide scrollbar so its text layout width
+   matches the highlight overlay div at all times. Without this, when
+   content overflows the scrollbar steals ~15px of content width from
+   the textarea but NOT from the highlight div, causing a growing
+   character-level cursor position offset on every click. */
+.vision-textarea::-webkit-scrollbar {
+  display: none;
+}
+
+.vision-textarea {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

@@ -114,10 +114,18 @@ export default function GalleryPickerModal({ isOpen, onClose, onSelect, mode = '
                                                 <img
                                                     src={image.imageUrl}
                                                     alt={image.prompt}
-                                                    className="w-full h-full object-cover"
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                                 />
-                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                    <Badge className="bg-primary text-white font-black text-[10px] uppercase">Select</Badge>
+                                                
+                                                {/* Title Overlay */}
+                                                <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+                                                    <p className="text-[9px] font-black text-white uppercase tracking-wider truncate leading-tight">
+                                                        {image.title || '<no title>'}
+                                                    </p>
+                                                </div>
+
+                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-20">
+                                                    <Badge className="bg-primary text-white font-black text-[10px] uppercase shadow-lg shadow-primary/30">Select</Badge>
                                                 </div>
                                             </motion.button>
                                         ))}

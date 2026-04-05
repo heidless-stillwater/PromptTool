@@ -3,8 +3,7 @@
 import { useAuth } from '@/lib/auth-context';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense, useCallback, useRef } from 'react';
-import { PROMPT_CATEGORIES, buildPromptFromMadLibs, FEATURED_PROMPTS } from '@/lib/prompt-templates';
-import { ImageQuality, AspectRatio, MadLibsSelection, CREDIT_COSTS, SUBSCRIPTION_PLANS, GeneratedImage, MediaModality } from '@/lib/types';
+import { ImageQuality, AspectRatio, CREDIT_COSTS, SUBSCRIPTION_PLANS, GeneratedImage, MediaModality } from '@/lib/types';
 import { normalizeImageData } from '@/lib/image-utils';
 import Link from 'next/link';
 import TextOverlayEditor from '@/components/TextOverlayEditor';
@@ -29,7 +28,7 @@ import PreviewSection from '@/components/generate/PreviewSection';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import GalleryPickerModal from '@/components/generate/GalleryPickerModal';
 
-type PromptMode = 'freeform' | 'madlibs' | 'featured';
+type PromptMode = 'freeform' | 'customize';
 
 // Helper to generate a unique 15-character alphanumeric ID
 const generatePromptSetID = () => {
@@ -57,15 +56,30 @@ function GeneratePageContent() {
     const { user, profile, credits, loading, refreshCredits } = useAuth();
 
     // State
-    const [promptMode, setPromptMode] = useState<PromptMode>(profile?.audienceMode === 'professional' ? 'freeform' : 'madlibs');
-    const [prompt, setPrompt] = useState('');
-    const [madLibs, setMadLibs] = useState<MadLibsSelection>({
-        subject: '',
-        action: '',
-        style: '',
-        mood: '',
-        setting: '',
-    });
+    const [promptMode, setPromptMode] = useState<PromptMode>('customize');
+    const [prompt, setPromptInternal] = useState('');
+    const [rawTemplateInternal, setRawTemplateState] = useState('');
+    const [isVisionEditEnabled, setIsVisionEditEnabled] = useState(false);
+
+    const setPrompt = (val: string | any) => {
+        const v = typeof val === 'function' ? val(prompt) : val;
+        setPromptInternal(v);
+        setRawTemplateState(v);
+    };
+
+    const setRawTemplate = (val: string | any) => {
+        const v = typeof val === 'function' ? val(rawTemplateInternal) : val;
+        setRawTemplateState(v);
+        setPromptInternal(v);
+    };
+
+    const rawTemplate = rawTemplateInternal;
+    // State for Customize mode
+    const [selectedBlueprint, setSelectedBlueprint] = useState<any>(null);
+    const [variables, setVariables] = useState<Record<string, { value: string, default: string }>>({});
+    const [resultantPrompt, setResultantPrompt] = useState('');
+    const [isSavingBlueprint, setIsSavingBlueprint] = useState(false);
+
     const [quality, setQuality] = useState<ImageQuality | 'video'>('standard');
     const [aspectRatio, setAspectRatio] = useState<AspectRatio>('4:3');
     const [modality, setModality] = useState<MediaModality>('image');
@@ -84,7 +98,10 @@ function GeneratePageContent() {
     const [enhancing, setEnhancing] = useState(false);
     const [generationProgress, setGenerationProgress] = useState<{ current: number; total: number; message: string } | null>(null);
     const [promptSetID, setPromptSetID] = useState<string>('');
+    const [isNewImageSet, setIsNewImageSet] = useState<boolean>(false);
     const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
+    const [title, setTitle] = useState('');
+    const [lastBakedState, setLastBakedState] = useState<string>('');
 
     // History & Remix state
     const [historyImages, setHistoryImages] = useState<GeneratedImage[]>([]);
@@ -94,11 +111,40 @@ function GeneratePageContent() {
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [isGalleryPickerOpen, setIsGalleryPickerOpen] = useState(false);
     const [galleryPickerMode, setGalleryPickerMode] = useState<'reference' | 'prompt'>('reference');
+    const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+    const [pendingRoute, setPendingRoute] = useState<string | null>(null);
 
     const router = useRouter();
     const searchParams = useSearchParams();
+    const lastSavedStateRef = useRef<string | null>(null);
 
-    // Initialize promptSetID on mount and hydrate state
+    // Unsaved changes guardian
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            const currentState = JSON.stringify({ rawTemplate, variables, title });
+            const savedState = localStorage.getItem('generation_session_v1');
+            
+            if (savedState) {
+                const parsed = JSON.parse(savedState);
+                const relevantSaved = JSON.stringify({ 
+                    rawTemplate: parsed.rawTemplate, 
+                    variables: parsed.variables, 
+                    title: parsed.title 
+                });
+                
+                if (currentState !== relevantSaved) {
+                    e.preventDefault();
+                    e.returnValue = '';
+                    return '';
+                }
+            }
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [rawTemplate, variables, title]);
+
+    // Initial session hydration
     useEffect(() => {
         const initSession = async () => {
             // If ?newset=1 is present, start a fresh set and clean the URL
@@ -107,6 +153,7 @@ function GeneratePageContent() {
                 const freshId = generatePromptSetID();
                 setPromptSetID(freshId);
                 setSelectedCollectionIds([]);
+                setPromptMode('customize');
                 // Wipe any cached promptSetID from local draft so it doesn't re-load
                 try {
                     const savedState = localStorage.getItem('generation_session_v1');
@@ -114,6 +161,7 @@ function GeneratePageContent() {
                         const parsed = JSON.parse(savedState);
                         parsed.promptSetID = freshId;
                         parsed.selectedCollectionIds = [];
+                        parsed.promptMode = 'customize';
                         localStorage.setItem('generation_session_v1', JSON.stringify(parsed));
                     }
                 } catch (_) { }
@@ -130,21 +178,34 @@ function GeneratePageContent() {
                     localTimestamp = localState.updatedAt || 0;
 
                     // Hydrate from local immediately
-                    if (localState.prompt) setPrompt(localState.prompt);
+                    const initialPrompt = localState.prompt || '';
+                    const initialTemplate = localState.rawTemplate || initialPrompt; // Fallback to prompt if template is empty
+                    
+                    setPrompt(initialPrompt);
+                    setRawTemplate(initialTemplate);
+                    
                     if (localState.quality) setQuality(localState.quality as ImageQuality);
                     if (localState.aspectRatio) setAspectRatio(localState.aspectRatio as AspectRatio);
                     if (localState.batchSize) setBatchSize(localState.batchSize);
                     if (localState.negativePrompt) setNegativePrompt(localState.negativePrompt);
                     if (localState.seed !== undefined) setSeed(localState.seed);
                     if (localState.guidanceScale) setGuidanceScale(localState.guidanceScale);
-                    if (localState.promptMode) setPromptMode(localState.promptMode as PromptMode);
-                    if (localState.madLibs) setMadLibs(localState.madLibs);
+                    setPromptMode('customize'); // FORCE DEFAULT: Always start in customize mode
+                    if (localState.title) setTitle(localState.title);
                     if (localState.modality) setModality(localState.modality as MediaModality);
                     if (localState.promptSetID) setPromptSetID(localState.promptSetID);
                     else setPromptSetID(generatePromptSetID());
                     if (localState.selectedCollectionIds) setSelectedCollectionIds(localState.selectedCollectionIds);
+                    
+                    const localInitialState = JSON.stringify({ 
+                        rawTemplate: initialTemplate, 
+                        variables: localState.variables || {}, 
+                        title: localState.title || ''
+                    });
+                    setLastBakedState(localInitialState);
                 } else {
                     setPromptSetID(generatePromptSetID());
+                    setPromptMode('customize'); // FORCE DEFAULT
                 }
             } catch (e) {
                 console.warn('Failed to hydrate local session state', e);
@@ -172,16 +233,26 @@ function GeneratePageContent() {
                             if (cloudData.negativePrompt) setNegativePrompt(cloudData.negativePrompt);
                             if (cloudData.seed !== undefined) setSeed(cloudData.seed);
                             if (cloudData.guidanceScale) setGuidanceScale(cloudData.guidanceScale);
-                            if (cloudData.promptMode) setPromptMode(cloudData.promptMode as PromptMode);
-                            if (cloudData.madLibs) setMadLibs(cloudData.madLibs);
+                            setPromptMode('customize'); // FORCE DEFAULT: Even if cloud says freeform
+                            if (cloudData.variables) setVariables(cloudData.variables);
+                            if (cloudData.rawTemplate) setRawTemplate(cloudData.rawTemplate);
+                            if (cloudData.selectedBlueprint) setSelectedBlueprint(cloudData.selectedBlueprint);
                             if (cloudData.modality) setModality(cloudData.modality as MediaModality);
                             if (cloudData.promptSetID) setPromptSetID(cloudData.promptSetID);
                             if (cloudData.selectedCollectionIds) setSelectedCollectionIds(cloudData.selectedCollectionIds);
 
+                            const cloudState = JSON.stringify({ 
+                                rawTemplate: cloudData.rawTemplate, 
+                                variables: cloudData.variables, 
+                                title: cloudData.title || ''
+                            });
+                            setLastBakedState(cloudState);
+
                             // Update local storage to match cloud
                             localStorage.setItem('generation_session_v1', JSON.stringify({
                                 ...cloudData,
-                                updatedAt: cloudTimestamp // Keep consistent timeframe
+                                promptMode: 'customize',
+                                updatedAt: cloudTimestamp
                             }));
                         }
                     }
@@ -192,10 +263,12 @@ function GeneratePageContent() {
         };
 
         initSession();
-    }, [user, searchParams, router]); // Re-run when user logs in to sync their draft
+    }, [user, searchParams, router]);
 
     // Persist state changes (Local + Cloud)
     useEffect(() => {
+        if (!user && !promptSetID) return;
+        
         const timestamp = Date.now();
         const stateToSave = {
             prompt,
@@ -206,10 +279,13 @@ function GeneratePageContent() {
             seed,
             guidanceScale,
             promptMode,
-            madLibs,
+            variables,
+            rawTemplate,
+            selectedBlueprint,
             modality,
             promptSetID,
             selectedCollectionIds,
+            title,
             updatedAt: timestamp,
         };
 
@@ -224,14 +300,13 @@ function GeneratePageContent() {
                     const { db } = await import('@/lib/firebase');
                     const draftRef = doc(db, 'users', user.uid, 'settings', 'draft');
 
-                    // Filter out undefined values as Firestore doesn't support them
                     const cleanedState = Object.fromEntries(
                         Object.entries(stateToSave).map(([k, v]) => [k, v === undefined ? null : v])
                     );
 
                     await setDoc(draftRef, {
                         ...cleanedState,
-                        updatedAt: serverTimestamp(), // Use server time for truth
+                        updatedAt: serverTimestamp(),
                     }, { merge: true });
                 } catch (e) {
                     console.warn('Failed to save draft to cloud', e);
@@ -241,23 +316,105 @@ function GeneratePageContent() {
             return () => clearTimeout(saveToCloud);
         }
     }, [
-        prompt,
-        quality,
-        aspectRatio,
-        batchSize,
-        negativePrompt,
-        seed,
-        guidanceScale,
-        promptMode,
-        madLibs,
-        modality,
-        promptSetID,
-        selectedCollectionIds,
-        user,
+        prompt, quality, aspectRatio, batchSize, negativePrompt, seed,
+        guidanceScale, promptMode, variables, rawTemplate, selectedBlueprint,
+        modality, promptSetID, selectedCollectionIds, title, user,
     ]);
 
     // Reference image for Img2Img variations
     const refImageId = searchParams.get('ref');
+    const isEditing = searchParams.get('edit') === '1';
+
+    const extractVariables = useCallback((template: string) => {
+        // Match anything inside {{ ... }}
+        const regex = /{{\s*(.*?)\s*}}/g;
+        const matches = Array.from(template.matchAll(regex));
+        
+        const foundTags = matches.map(m => {
+            const inner = m[1];
+            // Split by FIRST colon only to support defaults with colons if needed
+            const firstColon = inner.indexOf(':');
+            const key = (firstColon !== -1 ? inner.substring(0, firstColon) : inner).trim();
+            const def = firstColon !== -1 ? inner.substring(firstColon + 1).trim() : '<undefined>';
+            return { key, default: def };
+        });
+
+        if (foundTags.length === 0) {
+            setVariables({});
+            return;
+        }
+
+        setVariables(prev => {
+            const newVars: Record<string, { value: string, default: string }> = {};
+            let hasChanges = false;
+            
+            foundTags.forEach(tag => {
+                const existing = prev[tag.key];
+                
+                // If it's a new tag, or the default in the template has changed
+                if (!existing) {
+                    newVars[tag.key] = { 
+                        value: tag.default !== '<undefined>' ? tag.default : '', 
+                        default: tag.default 
+                    };
+                    hasChanges = true;
+                } else if (existing.default !== tag.default) {
+                    // Update both the default reference AND the current input value to the new default
+                    newVars[tag.key] = { 
+                        value: tag.default !== '<undefined>' ? tag.default : existing.value, 
+                        default: tag.default 
+                    };
+                    hasChanges = true;
+                } else {
+                    newVars[tag.key] = existing;
+                }
+            });
+
+            // Only trigger a state update if the actual variable structure or defaults changed
+            if (!hasChanges && Object.keys(newVars).length === Object.keys(prev).length) {
+                return prev;
+            }
+            return newVars;
+        });
+    }, []);
+
+    useEffect(() => {
+        // Debounce: only re-extract variables after user pauses typing
+        // Without this, setVariables fires on every keystroke → parent re-render → cursor reset
+        const timer = setTimeout(() => {
+            extractVariables(rawTemplate || '');
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [rawTemplate, extractVariables]);
+
+    useEffect(() => {
+        // compilation result
+        let result = rawTemplate || '';
+        const entries = Object.entries(variables);
+        
+        if (entries.length > 0) {
+            const sortedKeys = entries.sort((a, b) => b[0].length - a[0].length);
+            
+            sortedKeys.forEach(([key, data]) => {
+                const isActuallyDefault = !data.value || data.value === data.default || data.default === '<undefined>';
+                const displayValue = data.value || (data.default !== '<undefined>' ? data.default : `[${key}]`);
+                
+                const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const wrapped = isActuallyDefault ? `__DEF__${displayValue}__DEF__` : `__VAL__${displayValue}__VAL__`;
+                
+                const tagRegex = new RegExp(`{{\\s*${escapedKey}\\s*(?::[^{}]*)?}}`, 'g');
+                result = result.replace(tagRegex, wrapped);
+            });
+        }
+        
+        setResultantPrompt(result);
+        
+        // Sync the main 'prompt' state used for generation (cleaned version)
+        if (result) {
+            const cleanFinal = result.replace(/__DEF__(.*?)__DEF__/g, '$1').replace(/__VAL__(.*?)__VAL__/g, '$1');
+            setPromptInternal(cleanFinal);
+        }
+    }, [variables, rawTemplate]);
     const sidParam = searchParams.get('sid');
     const [referenceImage, setReferenceImage] = useState<{
         id: string;
@@ -288,9 +445,9 @@ function GeneratePageContent() {
             video.playsInline = true;
 
             // Wait for video metadata with timeout
-            await new Promise((resolve, reject) => {
+            await new Promise<void>((resolve, reject) => {
                 const timeout = setTimeout(() => reject(new Error('Video load timed out')), 15000);
-                video.onloadeddata = () => { clearTimeout(timeout); resolve(undefined); };
+                video.onloadeddata = () => { clearTimeout(timeout); resolve(); };
                 video.onerror = () => { clearTimeout(timeout); reject(new Error('Video load error')); };
                 video.load();
             });
@@ -372,8 +529,8 @@ function GeneratePageContent() {
             newParams.delete('prompt');
             router.replace(`/generate?${newParams.toString()}`, { scroll: false });
         } else if (styleParam) {
-            // Future logic for style lookup if needed
-            setPromptMode('featured');
+            // Future logic for style lookup — default to customize
+            setPromptMode('customize');
         }
     }, [searchParams, router]);
 
@@ -407,6 +564,7 @@ function GeneratePageContent() {
                 if (data) {
                     // Pre-fill all settings from the reference image
                     if (data.prompt) setPrompt(data.prompt);
+                    if (data.title) setTitle(data.title);
                     setPromptMode('freeform'); // Variations should default to freeform for precision
 
                     if (data.settings) {
@@ -425,21 +583,24 @@ function GeneratePageContent() {
                         if (data.settings.negativePrompt) setNegativePrompt(data.settings.negativePrompt);
                         if (data.settings.seed !== undefined) setSeed(data.settings.seed);
                         if (data.settings.guidanceScale !== undefined) setGuidanceScale(data.settings.guidanceScale);
-
-                        // Open advanced settings if we have complex settings
-                        if (data.settings.negativePrompt || data.settings.seed !== undefined) {
-                            setIsAdvancedOpen(true);
-                        }
                     }
 
                     // Use provided 'sid' if available (e.g. from "Your Gallery" variations)
-                    // otherwise generate a new promptSetID (e.g. from "Community Hub" variations)
+                    // otherwise MAINTAIN current promptSetID or use the one from reference data
+                    // only generate a fresh one if absolutely none exist
                     if (sidParam) {
                         setPromptSetID(sidParam);
-                    } else {
+                    } else if (data.promptSetID) {
+                        setPromptSetID(data.promptSetID);
+                    } else if (!promptSetID) {
                         setPromptSetID(generatePromptSetID());
                     }
                     setSelectedCollectionIds([]);
+
+                    if (isEditing) {
+                        setLoadingReference(false);
+                        return;
+                    }
 
                     // Convert to base64 for the API
                     // For videos: if imageUrl is a video file, extract a still frame via canvas proxy
@@ -457,9 +618,9 @@ function GeneratePageContent() {
                             video.muted = true;
                             video.playsInline = true;
 
-                            await new Promise((resolve, reject) => {
+                            await new Promise<void>((resolve, reject) => {
                                 const timeout = setTimeout(() => reject(new Error('Video load timeout')), 15000);
-                                video.onloadeddata = () => { clearTimeout(timeout); resolve(undefined); };
+                                video.onloadeddata = () => { clearTimeout(timeout); resolve(); };
                                 video.onerror = () => { clearTimeout(timeout); reject(new Error('Video load error')); };
                                 video.load();
                             });
@@ -544,7 +705,7 @@ function GeneratePageContent() {
     // Sync prompt mode when profile loads
     useEffect(() => {
         if (profile && !refImageId) {
-            setPromptMode(profile.audienceMode === 'professional' ? 'freeform' : 'madlibs');
+            setPromptMode(profile.audienceMode === 'professional' ? 'freeform' : 'customize');
         }
     }, [profile?.audienceMode, refImageId]);
 
@@ -669,9 +830,9 @@ function GeneratePageContent() {
                     video.muted = true;
                     video.playsInline = true;
 
-                    await new Promise((resolve, reject) => {
+                    await new Promise<void>((resolve, reject) => {
                         const timeout = setTimeout(() => reject(new Error('Video load timeout')), 15000);
-                        video.onloadeddata = () => { clearTimeout(timeout); resolve(undefined); };
+                        video.onloadeddata = () => { clearTimeout(timeout); resolve(); };
                         video.onerror = () => { clearTimeout(timeout); reject(new Error('Video load error')); };
                         video.load();
                     });
@@ -811,31 +972,64 @@ function GeneratePageContent() {
 
     // Check if quality is allowed for subscription
     const allowedQualities = profile
-        ? (isAdmin ? ['standard', 'high', 'ultra'] : SUBSCRIPTION_PLANS[profile.subscription].allowedQualities)
+        ? (isAdmin ? ['standard', 'high', 'ultra'] : SUBSCRIPTION_PLANS[profile.subscription as keyof typeof SUBSCRIPTION_PLANS].allowedQualities)
         : ['standard'];
+
+    // Bake current variable values into the raw template as new defaults
+    const getBakedTemplate = useCallback((template: string, vars: Record<string, { value: string, default: string }>): string => {
+        let baked = template;
+        Object.entries(vars).forEach(([key, data]) => {
+            if (!data.value) return;
+            
+            // Match the tag specifically with its key, regardless of current default
+            const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`{{(\\s*${escapedKey}\\s*)(?::[^{}]*)?}}`, 'g');
+            
+            // Rewrite it as {{key:currentValue}}
+            baked = baked.replace(regex, `{{$1:${data.value}}}`);
+        });
+        return baked;
+    }, []);
+
+    // Save blueprint changes from Customize mode back to Firestore
+    const handleSaveBlueprint = async () => {
+        if (!user || !selectedBlueprint) return;
+        setIsSavingBlueprint(true);
+        try {
+            const bakedTemplate = getBakedTemplate(rawTemplate, variables);
+            
+            const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+            const { db } = await import('@/lib/firebase');
+            const blueprintRef = doc(db, 'blueprints', selectedBlueprint.id);
+            await setDoc(blueprintRef, {
+                title: selectedBlueprint.title,
+                prompts: [bakedTemplate],
+                template: bakedTemplate, // sync both legacy and new fields
+                updatedAt: serverTimestamp(),
+            }, { merge: true });
+            
+            setRawTemplate(bakedTemplate); // Locally update the editor too
+            setLastBakedState(JSON.stringify({ rawTemplate: bakedTemplate, variables, title }));
+            setWarning('Architectural template baked with latest settings.');
+        } catch (err: any) {
+            console.error('Failed to save blueprint:', err);
+            setError('Failed to save architectural changes');
+        } finally {
+            setIsSavingBlueprint(false);
+        }
+    };
 
     // Get final prompt based on mode
     const getFinalPrompt = useCallback((): string => {
-        let finalPrompt = '';
-
-        if (promptMode === 'freeform') {
-            finalPrompt = prompt;
-        } else if (promptMode === 'madlibs') {
-            finalPrompt = buildPromptFromMadLibs(madLibs);
-            return finalPrompt; // buildPromptFromMadLibs already includes style/mood
-        } else {
-            finalPrompt = prompt; // Featured prompt
+        if (promptMode === 'customize') {
+            return resultantPrompt
+                .replace(/__DEF__(.*?)__DEF__/g, '$1')
+                .replace(/__VAL__(.*?)__VAL__/g, '$1')
+                .trim();
         }
-
-        // Append Style and Mood for Freeform and Featured modes
-        if (madLibs.style) {
-            finalPrompt += `, ${madLibs.style} style`;
-        }
-        if (madLibs.mood) {
-            finalPrompt += `, ${madLibs.mood.toLowerCase()} mood`;
-        }
-        return finalPrompt;
-    }, [prompt, promptMode, madLibs]);
+        // freeform
+        return prompt;
+    }, [prompt, promptMode, resultantPrompt]);
 
     // Handle prompt enhancement
     const handleEnhancePrompt = async () => {
@@ -854,8 +1048,6 @@ function GeneratePageContent() {
                 },
                 body: JSON.stringify({
                     prompt,
-                    style: madLibs.style,
-                    mood: madLibs.mood
                 }),
             });
 
@@ -873,10 +1065,156 @@ function GeneratePageContent() {
         }
     };
 
+    // Bakes current variable 'values' back into the rawTemplate as new 'defaults'.
+    // This allows the user to "keep" their current inputs as the baseline for future generations.
+    const bakeVariablesIntoTemplate = useCallback(() => {
+        setRawTemplate((prev: string) => getBakedTemplate(prev, variables));
+    }, [variables]);
+
+    const handleSaveDraftPrompt = async (forcedSetID?: string, forcedPrompt?: string) => {
+        const finalPrompt = getFinalPrompt();
+        if (!finalPrompt.trim()) {
+            setError('Please enter a prompt to save');
+            return;
+        }
+
+        const activeID = forcedSetID || promptSetID;
+
+        try {
+            setGenerating(true);
+            const { collection, addDoc, doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+            const { db } = await import('@/lib/firebase');
+
+            // Set default seed if missing
+            const currentSeed = seed !== undefined ? seed : Math.floor(Math.random() * 2147483647);
+            const placeholderUrl = `https://api.dicebear.com/7.x/shapes/svg?seed=${Date.now()}`;
+
+            const dataToSave: any = {
+                prompt: (forcedPrompt || rawTemplate).trim() || finalPrompt,
+                title: title.trim() || undefined,
+                variables: variables,
+                settings: {
+                    quality,
+                    aspectRatio,
+                    seed: currentSeed,
+                    guidanceScale: guidanceScale || 7.0,
+                    modality,
+                    rawTemplate: (forcedPrompt || rawTemplate)
+                },
+                collectionIds: selectedCollectionIds.length > 0 ? selectedCollectionIds : [],
+                isDraft: true,
+                updatedAt: serverTimestamp()
+            };
+
+            if (negativePrompt.trim()) {
+                dataToSave.settings.negativePrompt = negativePrompt.trim();
+            }
+            if (activeID.trim()) {
+                dataToSave.promptSetID = activeID.trim();
+            }
+
+            let finalImageId = refImageId;
+
+            if (refImageId) {
+                // UPDATE existing
+                const docRef = doc(db, 'users', user!.uid, 'images', refImageId);
+                await setDoc(docRef, dataToSave, { merge: true });
+            } else {
+                // CREATE new
+                const newData = {
+                    ...dataToSave,
+                    userId: user!.uid,
+                    imageUrl: placeholderUrl,
+                    createdAt: serverTimestamp(),
+                    creditsCost: 0
+                };
+                const docRef = await addDoc(collection(db, 'users', user!.uid, 'images'), newData);
+                finalImageId = docRef.id;
+                setWarning('Saved as New Architectural Draft.');
+                
+                if (!promptSetID) {
+                    setPromptSetID(dataToSave.promptSetID);
+                }
+
+                // Transition natively into edit mode so immediate generation targets this exact placeholder!
+                const newParams = new URLSearchParams(searchParams.toString());
+                newParams.set('ref', finalImageId);
+                newParams.set('edit', '1');
+                router.replace(`/generate?${newParams.toString()}`, { scroll: false });
+            }
+
+            const savedImage: GeneratedImage = {
+                id: finalImageId,
+                ...dataToSave,
+                createdAt: Date.now()
+            } as any;
+
+            setGeneratedImages(prev => [savedImage, ...prev]);
+            setSelectedImageIndex(0);
+            setWarning('Prompt Architecture saved to registry successfully.');
+            bakeVariablesIntoTemplate();
+            await fetchHistory();
+        } catch (err: any) {
+            setError('Failed to save prompt: ' + err.message);
+        } finally {
+            setGenerating(false);
+        }
+    };
+
     // Actual generation logic
     const executeGeneration = useCallback(async () => {
         setShowConfirmModal(false);
+        let activePromptSetID = promptSetID;
+        if (isNewImageSet) {
+            activePromptSetID = generatePromptSetID();
+            setPromptSetID(activePromptSetID);
+            setIsNewImageSet(false);
+        }
+
         const finalPrompt = getFinalPrompt();
+        
+        // Bake current variable values into the template as new defaults,
+        // then silently persist to Firestore before generation starts.
+        let bakedTemplate = rawTemplate;
+        if (promptMode === 'customize' && user) {
+            bakedTemplate = getBakedTemplate(rawTemplate, variables);
+            setRawTemplate(bakedTemplate); // Update local editor state
+            
+            // Silent Firestore update — does NOT navigate, does NOT setGenerating
+            try {
+                const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+                const { db } = await import('@/lib/firebase');
+                const dataToUpdate: any = {
+                    prompt: bakedTemplate.trim() || finalPrompt,
+                    variables,
+                    settings: {
+                        quality,
+                        aspectRatio,
+                        guidanceScale: guidanceScale || 7.0,
+                        modality,
+                        rawTemplate: bakedTemplate,
+                    },
+                    promptSetID: activePromptSetID,
+                    isDraft: true,
+                    updatedAt: serverTimestamp(),
+                };
+                if (negativePrompt.trim()) dataToUpdate.settings.negativePrompt = negativePrompt.trim();
+                if (title.trim()) dataToUpdate.title = title.trim();
+
+                if (refImageId) {
+                    // Update existing placeholder/draft
+                    const docRef = doc(db, 'users', user.uid, 'images', refImageId);
+                    await setDoc(docRef, dataToUpdate, { merge: true });
+                } else {
+                    // Upsert using the promptSetID as a stable key to avoid spurious new doc creation
+                    const docRef = doc(db, 'users', user.uid, 'drafts', activePromptSetID);
+                    await setDoc(docRef, { ...dataToUpdate, userId: user.uid }, { merge: true });
+                }
+            } catch (e) {
+                // Non-fatal — generation can still proceed
+                console.warn('[pre-gen save] Failed to persist baked template:', e);
+            }
+        }
 
         setError('');
         setWarning('');
@@ -901,10 +1239,10 @@ function GeneratePageContent() {
                 },
                 body: JSON.stringify({
                     prompt: finalPrompt,
+                    rawPrompt: promptMode === 'customize' ? getBakedTemplate(rawTemplate, variables) : undefined,
                     quality: (modality === 'image' && quality === 'video') ? 'standard' : quality,
                     aspectRatio,
-                    promptType: promptMode === 'madlibs' ? 'madlibs' : 'freeform',
-                    madlibsData: madLibs, // Always send current madLibs for metadata/style/vibe
+                    promptType: 'freeform',
                     count: batchSize,
                     ...(isPro && {
                         seed: seed ?? undefined,
@@ -914,10 +1252,14 @@ function GeneratePageContent() {
                     referenceImage: referenceImage?.base64,
                     referenceMimeType: referenceImage?.mimeType,
                     sourceImageId: referenceImage?.id,
-                    promptSetID: promptSetID.trim() || undefined,
+                    promptSetID: activePromptSetID.trim() || undefined,
                     collectionIds: selectedCollectionIds.length > 0 ? selectedCollectionIds : undefined,
                     modality,
                     referenceImageUrl: referenceImage?.url,
+                    // Only overwrite the original when explicitly in "Edit Prompt" mode (?edit=1)
+                    // "New Version" (?ref= without edit=1) creates a new sibling in the same promptSetID
+                    targetVariationId: (isEditing && refImageId) ? refImageId : undefined,
+                    title: title.trim() || undefined,
                 }),
             });
 
@@ -935,16 +1277,21 @@ function GeneratePageContent() {
             }
 
             let done = false;
+            let hasReceivedData = false;
+            let hasError = false;
             while (!done) {
                 const { value, done: readerDone } = await reader.read();
                 done = readerDone;
                 if (value) {
                     const chunk = decoder.decode(value, { stream: true });
-                    const messages = chunk.split('data: ').filter(m => m.trim());
+                    // Handle potential multiple data: prefixes in one chunk
+                    const messages = chunk.split('\n').filter(line => line.startsWith('data: '));
 
                     for (const message of messages) {
                         try {
-                            const data = JSON.parse(message.trim());
+                            const jsonStr = message.replace('data: ', '').trim();
+                            if (!jsonStr) continue;
+                            const data = JSON.parse(jsonStr);
 
                             if (data.type === 'progress') {
                                 setGenerationProgress({
@@ -953,25 +1300,96 @@ function GeneratePageContent() {
                                     message: data.message
                                 });
                             } else if (data.type === 'image_ready') {
-                                setGeneratedImages(prev => [...prev, data.image]);
-                                if (data.image.settings?.modality === 'video' || data.image.videoUrl) {
-                                    createVideoThumbnail(data.image.id, data.image.videoUrl || data.image.imageUrl);
+                                hasReceivedData = true;
+                                const newImg = { ...data.image, title: data.image.title || undefined };
+                                setGeneratedImages(prev => [...prev, newImg]);
+                                
+                                // Ensure promptSetID is locally tracked if sent from backend
+                                if (newImg.promptSetID && !promptSetID) {
+                                    setPromptSetID(newImg.promptSetID);
+                                }
+
+                                if (newImg.settings?.modality === 'video' || newImg.videoUrl) {
+                                    createVideoThumbnail(newImg.id, newImg.videoUrl || newImg.imageUrl);
                                 }
                             } else if (data.type === 'complete') {
-                                setGeneratedImages(data.images || []);
+                                hasReceivedData = true;
+                                if (data.images && data.images.length > 0) {
+                                    // 1. First image of the batch becomes the DEFINITIVE image for this session
+                                    const masterImage = data.images[0];
+                                    const processedImages = data.images.map((img: any) => ({ ...img, title: img.title || undefined }));
+                                    setGeneratedImages(processedImages);
+                                    setSelectedImageIndex(0);
+
+                                    // 2. EXPLICIT CACHE BUST: Update the local Firebase Web SDK cache so it knows the placeholder was replaced
+                                    if (refImageId && user) {
+                                        try {
+                                            const { doc, updateDoc } = await import('firebase/firestore');
+                                            const { db } = await import('@/lib/firebase');
+                                            const docRef = doc(db, 'users', user.uid, 'images', refImageId);
+                                            await updateDoc(docRef, { 
+                                                imageUrl: masterImage.imageUrl, 
+                                                isDraft: false,
+                                                prompt: finalPrompt,
+                                                updatedAt: new Date()
+                                            }).catch(() => { /* Ignore failure if doc absent */ });
+                                        } catch (e) { console.error("Cache bust failed", e); }
+                                    }
+
+                                    // 3. Prevent duplicate UI overwrites by breaking out of 'edit' mode natively
+                                    if (searchParams?.get('ref')) {
+                                        const newParams = new URLSearchParams(searchParams.toString());
+                                        newParams.delete('ref');
+                                        newParams.delete('edit');
+                                        router.replace(`/generate?${newParams.toString()}`, { scroll: false });
+                                    }
+                                }
+
                                 if (data.warning) {
                                     setWarning(data.warning);
                                 }
+
+                                // Note: We already baked variables into template defaults at the START of executeGeneration
+                                // as per the new "save raw prompt first" requirement.
+                                
+                                // FORCE PERSISTENCE: Architectural State Save-on-Complete
+                                const finalState = {
+                                    prompt: getFinalPrompt(),
+                                    quality,
+                                    aspectRatio,
+                                    batchSize,
+                                    negativePrompt,
+                                    seed,
+                                    guidanceScale,
+                                    promptMode,
+                                    variables,
+                                    rawTemplate,
+                                    selectedBlueprint,
+                                    modality,
+                                    promptSetID,
+                                    selectedCollectionIds,
+                                    title,
+                                    updatedAt: Date.now(),
+                                };
+                                localStorage.setItem('generation_session_v1', JSON.stringify(finalState));
+                                setLastBakedState(JSON.stringify({ rawTemplate, variables, title }));
+
                                 await refreshCredits();
                                 await fetchHistory();
                             } else if (data.type === 'error') {
+                                hasError = true;
                                 setError(data.error);
                             }
                         } catch (e) {
-                            console.warn('Failed to parse SSE message:', message, e);
+                            console.warn('Failed to parse SSE message chunk:', message, e);
                         }
                     }
                 }
+            }
+            
+            // Final check for silent network failure
+            if (!hasReceivedData && !hasError) {
+                setError('Generation stream closed prematurely. No image data was received from the server.');
             }
         } catch (err: any) {
             setError(err.message);
@@ -983,7 +1401,6 @@ function GeneratePageContent() {
         user,
         profile,
         prompt,
-        madLibs,
         quality,
         aspectRatio,
         batchSize,
@@ -998,11 +1415,40 @@ function GeneratePageContent() {
         fetchHistory,
         getFinalPrompt,
         modality,
-        selectedCollectionIds
+        selectedCollectionIds,
+        refImageId,
+        rawTemplate,
+        variables,
+        getBakedTemplate,
+        title,
+        isEditing,
+        isPro,
+        isAdmin,
+        searchParams,
+        router,
+        isNewImageSet
     ]);
 
     // Handle Generation Trigger (Shows modal first)
     const handleGenerate = useCallback(() => {
+        // Lineage Anchor Protocol: Ensure current variable values are committed as new defaults in "Your Vision"
+        // This ensures the generated image and the saved prompt architecture are perfectly in sync
+        if (promptMode === 'customize') {
+            const baked = getBakedTemplate(rawTemplate, variables);
+            
+            // Forced Architectural Anchor: We always set the baked template and new variable defaults,
+            // even if the rawTemplate string itself hasn't changed structurally.
+            // This ensures that current inputs (Blue) instantly become the new defaults (Gray).
+            setRawTemplate(baked);
+            
+            const newVariables: Record<string, { value: string, default: string }> = {};
+            Object.entries(variables).forEach(([key, data]) => {
+                // committed current value becomes BOTH the value and the new default reference
+                newVariables[key] = { value: data.value, default: data.value };
+            });
+            setVariables(newVariables);
+        }
+
         const finalPrompt = getFinalPrompt();
 
         if (!finalPrompt.trim()) {
@@ -1019,9 +1465,7 @@ function GeneratePageContent() {
         }
 
         setShowConfirmModal(true);
-    }, [getFinalPrompt, quality, batchSize, modality, availableCredits]);
-
-    // Redirect if not logged in
+    }, [getFinalPrompt, quality, batchSize, modality, availableCredits, rawTemplate, variables, promptMode, getBakedTemplate, setRawTemplate, setVariables]);
     useEffect(() => {
         if (!loading && !user) {
             router.push('/');
@@ -1123,7 +1567,110 @@ function GeneratePageContent() {
 
     const handleSaveOverlay = (dataUrl: string) => {
         setEditedImage(dataUrl);
+        setWarning('Overlay applied. Download or Save as a new variation to preserve.');
         setShowTextEditor(false);
+    };
+
+    const handleSaveVariation = async () => {
+        if (!editedImage || !user || generatedImages.length === 0) return;
+        
+        try {
+            setGenerating(true);
+            setGenerationProgress({ current: 1, total: 1, message: 'Preserving Architecture...' });
+            
+            const currentImg = generatedImages[selectedImageIndex];
+            const token = await user.getIdToken();
+            
+            const base64Data = editedImage.split(',')[1];
+            const mimeType = editedImage.split(';')[0].split(':')[1] || 'image/png';
+
+            const response = await fetch('/api/edit/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    imageData: base64Data,
+                    mimeType,
+                    originalImageId: currentImg.id,
+                    saveAsNew: true,
+                    prompt: currentImg.prompt,
+                    promptSetID: currentImg.promptSetID,
+                    settings: currentImg.settings,
+                    collectionIds: currentImg.collectionIds || (currentImg.collectionId ? [currentImg.collectionId] : []),
+                    title: currentImg.title
+                })
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to preserve variation');
+            }
+
+            const data = await response.json();
+            
+            const newImageObj = {
+                id: data.imageId,
+                imageUrl: data.imageUrl,
+                title: currentImg.title || undefined,
+                prompt: `[Edited] ${currentImg.prompt}`,
+                settings: { ...currentImg.settings, editedFrom: currentImg.id },
+                promptSetID: currentImg.promptSetID,
+                collectionIds: currentImg.collectionIds,
+                createdAt: Date.now()
+            } as unknown as GeneratedImage;
+            
+            setGeneratedImages(prev => [...prev, newImageObj]);
+            setSelectedImageIndex(generatedImages.length);
+            setEditedImage(null);
+            setWarning('Variation successfully conserved to Registry.');
+            await fetchHistory();
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setGenerating(false);
+            setGenerationProgress(null);
+        }
+    };
+
+
+    const handleSaveNewSet = async () => {
+        const newID = generatePromptSetID();
+        setPromptSetID(newID);
+        setIsNewImageSet(false);
+        await handleSaveDraftPrompt(newID);
+    };
+
+    const handleDeleteImage = async (id: string) => {
+        try {
+            // local state remove first for speed
+            const index = generatedImages.findIndex(img => img.id === id);
+            if (index === -1) return;
+
+            const newImages = [...generatedImages];
+            newImages.splice(index, 1);
+            setGeneratedImages(newImages);
+            
+            // Adjust selection index if needed
+            if (selectedImageIndex >= newImages.length) {
+                setSelectedImageIndex(Math.max(0, newImages.length - 1));
+            }
+
+            // check if it's a real db image (not just a local batch one)
+            const { deleteDoc, doc } = await import('firebase/firestore');
+            const { db } = await import('@/lib/firebase');
+            try {
+                const imgDocRef = doc(db, 'users', user!.uid, 'images', id);
+                await deleteDoc(imgDocRef);
+                setWarning('Variation purged from registry.');
+            } catch (firestoreErr) {
+                // If it wasn't in DB yet (unsaved batch), just ignore
+                console.log('Local variation removed.');
+            }
+        } catch (err: any) {
+            console.error('Failed to delete image:', err);
+        }
     };
 
     if (loading) {
@@ -1141,11 +1688,26 @@ function GeneratePageContent() {
     const isCasual = profile.audienceMode === 'casual';
     const isProInUI = profile.subscription === 'pro' || profile.role === 'admin' || profile.role === 'su';
 
+    // Calculate unsaved changes for navigation prompts
+    const currentStateStr = JSON.stringify({ rawTemplate, variables, title });
+    const hasUnsavedChanges = lastBakedState !== '' && currentStateStr !== lastBakedState;
+
+    const handleSafeNavigation = (route: string) => {
+        if (hasUnsavedChanges) {
+            setPendingRoute(route);
+            setShowUnsavedModal(true);
+        } else {
+            window.location.href = route;
+        }
+    };
+
     return (
         <div className="min-h-screen bg-background">
             <GenerateHeader
                 availableCredits={availableCredits}
                 onHistoryOpen={() => setIsHistoryOpen(true)}
+                onGalleryClick={() => handleSafeNavigation('/gallery')}
+                onDashboardClick={() => handleSafeNavigation('/dashboard')}
                 isAdmin={profile.role === 'admin' || profile.role === 'su'}
             />
 
@@ -1157,11 +1719,31 @@ function GeneratePageContent() {
                     {/* Left: Controls */}
                     <div className="space-y-8 animate-in slide-in-from-left-4 duration-700">
                         <section>
+                            {isEditing && refImageId && (
+                                <div className="mb-4 flex items-center justify-between gap-4 px-4 py-3 bg-primary/5 border border-primary/20 rounded-2xl">
+                                    <div className="flex items-center gap-3">
+                                        <Icons.text size={14} className="text-primary shrink-0" />
+                                        <div>
+                                            <p className="text-[10px] font-black text-primary uppercase tracking-widest">Editing Prompt</p>
+                                            <p className="text-[10px] text-foreground-muted">Modify the settings and manifest to create a new version.</p>
+                                        </div>
+                                    </div>
+                                    <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        className="shrink-0 h-8 px-4 text-[10px] font-black uppercase tracking-widest border-border/50 hover:border-error/50 hover:text-error transition-all"
+                                        onClick={() => router.back()}
+                                    >
+                                        <Icons.close size={12} className="mr-1.5" />
+                                        Cancel Edit
+                                    </Button>
+                                </div>
+                            )}
                             <h1 className={cn(
                                 "font-black tracking-tighter mb-2 text-foreground",
                                 isCasual ? "text-5xl" : "text-4xl"
                             )}>
-                                {isCasual ? 'CREATE MAGIC' : 'STUDIO GENERATOR'}
+                                {isCasual ? 'CREATE MAGIC' : 'GENERATE VARIATIONS'}
                             </h1>
                             <p className="text-foreground-muted text-sm font-medium uppercase tracking-widest opacity-60">
                                 {isCasual ? 'Turn your wildest ideas into reality in seconds.' : 'Professional precision for high-end AI production.'}
@@ -1173,8 +1755,16 @@ function GeneratePageContent() {
                             setPromptMode={setPromptMode}
                             prompt={prompt}
                             setPrompt={setPrompt}
-                            madLibs={madLibs}
-                            setMadLibs={setMadLibs}
+                            title={title}
+                            setTitle={setTitle}
+                            selectedBlueprint={selectedBlueprint}
+                            setSelectedBlueprint={setSelectedBlueprint}
+                            variables={variables}
+                            setVariables={setVariables}
+                            rawTemplate={rawTemplate}
+                            setRawTemplate={setRawTemplate}
+                            onSaveBlueprint={handleSaveBlueprint}
+                            isSavingBlueprint={isSavingBlueprint}
                             handleEnhancePrompt={handleEnhancePrompt}
                             enhancing={enhancing}
                             isCasual={isCasual}
@@ -1182,7 +1772,6 @@ function GeneratePageContent() {
                             loadingReference={loadingReference}
                             onRemoveReference={() => {
                                 setReferenceImage(null);
-                                // If there's a ref in the URL, clear it
                                 if (searchParams.get('ref')) {
                                     const newParams = new URLSearchParams(searchParams.toString());
                                     newParams.delete('ref');
@@ -1198,6 +1787,10 @@ function GeneratePageContent() {
                                 setGalleryPickerMode('prompt');
                                 setIsGalleryPickerOpen(true);
                             }}
+                            onGalleryRequest={() => handleSafeNavigation('/gallery')}
+                            hasUnsavedChanges={hasUnsavedChanges}
+                            isVisionEditEnabled={isVisionEditEnabled}
+                            setIsVisionEditEnabled={setIsVisionEditEnabled}
                         />
 
                         <SettingsSection
@@ -1214,18 +1807,6 @@ function GeneratePageContent() {
                             onGenerateSetID={() => setPromptSetID(generatePromptSetID())}
                             allowedQualities={allowedQualities}
                             isPro={isProInUI}
-                            isCasual={isCasual}
-                        />
-
-                        <AdvancedControls
-                            isOpen={isAdvancedOpen}
-                            setIsOpen={setIsAdvancedOpen}
-                            negativePrompt={negativePrompt}
-                            setNegativePrompt={setNegativePrompt}
-                            seed={seed}
-                            setSeed={setSeed}
-                            guidanceScale={guidanceScale}
-                            setGuidanceScale={setGuidanceScale}
                             isCasual={isCasual}
                         />
 
@@ -1247,29 +1828,7 @@ function GeneratePageContent() {
                             </div>
                         )}
 
-                        {/* Generation Action */}
-                        <Button
-                            id="manifest-button"
-                            onClick={handleGenerate}
-                            disabled={generating || loadingReference || availableCredits < currentCost}
-                            variant="primary"
-                            className="w-full h-16 text-lg font-black uppercase tracking-[0.2em] shadow-2xl shadow-primary/20 group relative overflow-hidden"
-                        >
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer" />
-                            {generating ? (
-                                <div className="flex items-center justify-center gap-3">
-                                    <Icons.spinner className="w-6 h-6 animate-spin" />
-                                    <span>{modality === 'video' ? 'Synthesizing...' : 'Generating...'}</span>
-                                </div>
-                            ) : (
-                                <div className="flex items-center justify-center gap-3">
-                                    <span>Manifest {modality === 'video' ? 'Video' : (batchSize > 1 ? `Batch of ${batchSize}` : 'Creation')}</span>
-                                    <Badge variant="glass" size="sm" className="bg-white/20 ml-2">
-                                        {currentCost} <Icons.zap size={8} className="ml-1 inline" />
-                                    </Badge>
-                                </div>
-                            )}
-                        </Button>
+
                     </div>
 
                     {/* Right: Preview */}
@@ -1287,7 +1846,63 @@ function GeneratePageContent() {
                             onShowTextEditor={() => setShowTextEditor(true)}
                             onDownload={handleDownload}
                             promptSetID={promptSetID}
+                            onSaveVariation={handleSaveVariation}
+                            onDeleteImage={handleDeleteImage}
+                            onGenerate={handleGenerate}
+                            compiledPrompt={resultantPrompt}
+                            isNewImageSet={isNewImageSet}
+                            setIsNewImageSet={setIsNewImageSet}
+                            onSaveDraftPrompt={handleSaveNewSet}
+                            onSaveArchitecturalDraft={handleSaveDraftPrompt}
+                            availableCredits={credits?.balance}
+                            currentCost={currentCost}
                         />
+
+                        {/* Spawned Variation Grid - Relocated for Better Focus */}
+                        {generatedImages.length > 0 && !generating && (
+                            <div className="mt-4 animate-in fade-in slide-in-from-bottom-2 duration-700">
+                                <div className="flex items-center justify-between mb-3 px-1">
+                                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted">Variation Manifest</h4>
+                                    <span className="text-[10px] font-mono text-primary/60">{generatedImages.length} Spawned</span>
+                                </div>
+                                <div className="flex gap-3 overflow-x-auto pt-2 px-2 pb-4 -mx-2 scrollbar-hide snap-x relative group/thumbnails">
+                                    {generatedImages.map((img, idx) => (
+                                        <div key={img.id} className="relative flex-shrink-0 snap-start">
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedImageIndex(idx);
+                                                    setEditedImage(null);
+                                                }}
+                                                className={cn(
+                                                    "w-16 h-16 rounded-xl overflow-hidden transition-all shadow-sm",
+                                                    selectedImageIndex === idx
+                                                        ? "ring-2 ring-primary ring-offset-2 ring-offset-background scale-105 opacity-100 shadow-md"
+                                                        : "opacity-60 hover:opacity-100 grayscale hover:grayscale-0 scale-95 hover:scale-100"
+                                                )}
+                                            >
+                                                <img src={img.imageUrl} alt={img.title || `Variation ${idx + 1}`} className="w-full h-full object-cover" />
+                                                <div className="absolute inset-x-0 bottom-0 p-1 bg-black/60 backdrop-blur-sm z-20">
+                                                    <p className="text-[7px] font-black uppercase text-white truncate text-center">
+                                                        {img.title || '<no title>'}
+                                                    </p>
+                                                </div>
+                                            </button>
+
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeleteImage(img.id);
+                                                }}
+                                                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-error text-white rounded-full flex items-center justify-center border-2 border-background opacity-0 group-hover/thumbnails:opacity-100 hover:scale-110 transition-all shadow-sm z-10"
+                                                title="Delete Variation"
+                                            >
+                                                <Icons.close size={10} strokeWidth={3} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -1334,6 +1949,55 @@ function GeneratePageContent() {
                 onSelect={handleSelectGalleryImage}
                 mode={galleryPickerMode}
             />
+
+            <ConfirmationModal
+                isOpen={showUnsavedModal}
+                title="Bake Architecture & Leave?"
+                onConfirm={async () => {
+                    await handleSaveBlueprint();
+                    if (pendingRoute) window.location.href = pendingRoute;
+                }}
+                onCancel={() => setShowUnsavedModal(false)}
+                confirmLabel="Bake & Leave"
+                cancelLabel="Stay"
+                type="info"
+            >
+                <div className="space-y-6">
+                    <div className="space-y-3">
+                        <p className="text-sm leading-relaxed text-foreground-muted">You have modified your vision template or variables but haven't **baked** them into the Registry yet.</p>
+                        <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
+                            <p className="text-[10px] font-black text-primary uppercase tracking-[0.1em]">Recommended: Bake your changes to keep this configuration as the new baseline for future generations.</p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col gap-3 py-2 border-t border-border/40 pt-6">
+                        <p className="text-[10px] font-bold text-foreground-muted uppercase tracking-widest text-center mb-1">Select an exit strategy:</p>
+                        
+                        <Button 
+                            variant="secondary" 
+                            className="w-full h-11 font-black uppercase tracking-widest text-[10px] bg-background-secondary border-border/50 hover:border-primary/30 transition-all flex items-center justify-center gap-2"
+                            onClick={async () => {
+                                await handleSaveDraftPrompt();
+                                if (pendingRoute) window.location.href = pendingRoute;
+                            }}
+                        >
+                            <Icons.database size={14} className="opacity-70" />
+                            Save Draft & Leave
+                        </Button>
+                        
+                        <Button 
+                            variant="secondary" 
+                            className="w-full h-11 text-[10px] uppercase font-black tracking-widest text-error/70 border-error/20 hover:bg-error/5 group flex items-center justify-center gap-2"
+                            onClick={() => {
+                                if (pendingRoute) window.location.href = pendingRoute;
+                            }}
+                        >
+                            <Icons.close size={14} className="opacity-50 group-hover:opacity-100" />
+                            Discard Changes & Leave
+                        </Button>
+                    </div>
+                </div>
+            </ConfirmationModal>
         </div>
     );
 }

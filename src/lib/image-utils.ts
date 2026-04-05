@@ -23,5 +23,8 @@ export function normalizeImageData(data: any, docId: string): GeneratedImage {
         imageData.communityEntryId = imageData.leagueEntryId;
     }
 
+    // 3. Title is left as-is (undefined if not set).
+    // Display fallback '<no title>' should ONLY be applied in the UI/JSX layer.
+
     return imageData as GeneratedImage;
 }

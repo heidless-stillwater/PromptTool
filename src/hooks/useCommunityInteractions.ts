@@ -365,6 +365,18 @@ export function useCommunityInteractions(
         });
     }, [user, selectedEntry, updateEntryMutation, showToast]);
 
+    const handleUpdateTitle = useCallback(async (newTitle: string) => {
+        if (!user || !selectedEntry) return;
+
+        return updateEntryMutation.mutateAsync({
+            entryId: selectedEntry.id,
+            originalImageId: selectedEntry.originalImageId,
+            data: { title: newTitle.trim() || null }
+        }, {
+            onSuccess: () => showToast('Neural Identity updated', 'success')
+        });
+    }, [user, selectedEntry, updateEntryMutation, showToast]);
+
     const handleToggleExemplar = useCallback(async () => {
         if (!user || !selectedEntry || !isAdmin) return;
 
@@ -407,6 +419,7 @@ export function useCommunityInteractions(
         handleAddTag,
         handleRemoveTag,
         handleUpdatePromptSetID,
+        handleUpdateTitle,
         handleToggleExemplar,
         viewerCollectionIds,
         loadingViewerCollections,

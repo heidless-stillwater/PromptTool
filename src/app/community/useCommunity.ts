@@ -149,6 +149,7 @@ export function useCommunity() {
         handleAddTag,
         handleRemoveTag,
         handleUpdatePromptSetID,
+        handleUpdateTitle,
         isAdmin,
         handleToggleExemplar,
         handleUnpublishRequest,
@@ -329,10 +330,12 @@ export function useCommunity() {
         handleAddTag,
         handleRemoveTag,
         handleUpdatePromptSetID,
+        handleUpdateTitle,
         isAdmin,
         handleToggleExemplar,
         handleUnpublishRequest,
         showUnpublishConfirm,
         setShowUnpublishConfirm,
+        refetchEntries,
     };
 }

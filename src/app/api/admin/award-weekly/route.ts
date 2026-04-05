@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
             .get();
 
         const authorStats: Record<string, number> = {};
-        votesSnapshot.docs.forEach(doc => {
+        votesSnapshot.docs.forEach((doc: any) => {
             const data = doc.data();
             if (data.authorId) {
                 authorStats[data.authorId] = (authorStats[data.authorId] || 0) + 1;

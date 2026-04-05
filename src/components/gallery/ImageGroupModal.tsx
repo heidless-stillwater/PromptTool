@@ -4,7 +4,10 @@ import React, { useRef, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SmartVideo from '@/components/SmartVideo';
 import SmartImage from '@/components/SmartImage';
+import Link from 'next/link';
 import { Icons } from '@/components/ui/Icons';
+import { Button } from '@/components/ui/Button';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/components/Toast';
 import Tooltip from '@/components/Tooltip';
 
@@ -23,6 +26,13 @@ interface ImageGroupModalProps {
     creatingCollection: boolean;
     collectionError: string;
     setCollectionError: (value: string) => void;
+    // New Variation Management Props
+    selectedImageIds?: Set<string>;
+    onToggleImageSelection?: (id: string, e: React.MouseEvent) => void;
+    onToggleAll?: () => void;
+    onBatchDelete?: () => void;
+    onDeleteSingle?: (id: string) => void;
+    onBatchUpdateTitle?: (batchImages: GeneratedImage[], newTitle: string) => Promise<boolean>;
 }
 
 export default function ImageGroupModal({
@@ -38,14 +48,47 @@ export default function ImageGroupModal({
     onCreateCollection,
     creatingCollection,
     collectionError,
-    setCollectionError
+    setCollectionError,
+    selectedImageIds = new Set(),
+    onToggleImageSelection,
+    onToggleAll,
+    onBatchDelete,
+    onDeleteSingle,
+    onBatchUpdateTitle
 }: ImageGroupModalProps) {
     const router = useRouter();
     const inputRef = useRef<HTMLInputElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const titleInputRef = useRef<HTMLInputElement>(null);
+    
     const [isCollectionDropdownOpen, setIsCollectionDropdownOpen] = useState(false);
+    const [elapsed, setElapsed] = useState(0);
     const [copied, setCopied] = useState(false);
+    const [viewMode, setViewMode] = useState<'grid-2' | 'grid-3' | 'grid-4' | 'grid-6' | 'grid-8'>('grid-4');
+    
+    const [isEditingTitle, setIsEditingTitle] = useState(false);
+    const [editingTitle, setEditingTitle] = useState('');
+    const [isSavingTitle, setIsSavingTitle] = useState(false);
+
     const { showToast } = useToast();
+    const firstImage = selectedGroup[0];
+
+    useEffect(() => {
+        setEditingTitle(firstImage?.title || '');
+    }, [firstImage?.title]);
+
+    const handleSaveTitle = async () => {
+        if (!onBatchUpdateTitle) return;
+        setIsSavingTitle(true);
+        try {
+            const success = await onBatchUpdateTitle(selectedGroup, editingTitle);
+            if (success) {
+                setIsEditingTitle(false);
+            }
+        } finally {
+            setIsSavingTitle(false);
+        }
+    };
 
     useEffect(() => {
         if (showCreateCollection && inputRef.current) {
@@ -71,8 +114,6 @@ export default function ImageGroupModal({
 
     if (!selectedGroup || selectedGroup.length === 0) return null;
 
-    const firstImage = selectedGroup[0];
-
     const commonCollectionIds = collections.filter(col =>
         selectedGroup.every(img =>
             (img.collectionIds || (img.collectionId ? [img.collectionId] : [])).includes(col.id)
@@ -85,13 +126,74 @@ export default function ImageGroupModal({
             onClick={onClose}
         >
             <div
-                className="bg-background rounded-2xl max-w-5xl w-full max-h-[90vh] flex flex-col overflow-hidden relative"
+                className="bg-background rounded-2xl max-w-5xl w-full min-h-[28rem] max-h-[90vh] flex flex-col overflow-hidden relative"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="p-4 border-b border-border flex items-center justify-between bg-background z-10">
-                    <div>
-                        <h2 className="text-lg font-bold">Image Variations</h2>
+                <div className="relative z-50 p-4 border-b border-border flex items-center justify-between bg-background">
+                    <div className="flex-1 min-w-0 pr-4">
+                        <div className="flex items-center gap-2 group/title">
+                            <span className="text-primary/60 text-sm font-black uppercase tracking-widest shrink-0 mt-0.5">Title:</span>
+                            {!isEditingTitle ? (
+                                <h2 className="text-xl font-black uppercase tracking-widest truncate flex items-center gap-2">
+                                    <span className={cn(
+                                        "truncate", 
+                                        !firstImage.title && "opacity-50 italic"
+                                    )}>
+                                        {firstImage.title || 'Untitled Variation Group'}
+                                    </span>
+                                    {onBatchUpdateTitle && (
+                                        <button
+                                            onClick={() => {
+                                                setIsEditingTitle(true);
+                                                setTimeout(() => titleInputRef.current?.focus(), 50);
+                                            }}
+                                            className="opacity-0 group-hover/title:opacity-100 p-1 hover:bg-background-secondary rounded-lg transition-alltext-foreground-muted hover:text-primary shrink-0"
+                                            title="Edit Title"
+                                        >
+                                            <Icons.edit size={14} />
+                                        </button>
+                                    )}
+                                </h2>
+                            ) : (
+                                <div className="flex items-center gap-2 flex-1 max-w-md">
+                                    <input
+                                        ref={titleInputRef}
+                                        value={editingTitle}
+                                        onChange={(e) => setEditingTitle(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleSaveTitle();
+                                            if (e.key === 'Escape') {
+                                                setIsEditingTitle(false);
+                                                setEditingTitle(firstImage?.title || '');
+                                            }
+                                        }}
+                                        disabled={isSavingTitle}
+                                        placeholder="Variation group title..."
+                                        className="flex-1 px-3 py-1 bg-background-secondary border border-border text-foreground rounded-lg focus:outline-none focus:border-primary/50 text-sm font-bold disabled:opacity-50"
+                                    />
+                                    <div className="flex items-center gap-1 shrink-0">
+                                        <button
+                                            onClick={handleSaveTitle}
+                                            disabled={isSavingTitle || editingTitle.trim() === (firstImage?.title || '')}
+                                            className="p-1.5 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-lg transition-colors disabled:opacity-50"
+                                        >
+                                            {isSavingTitle ? <Icons.spinner size={14} className="animate-spin" /> : <Icons.check size={14} strokeWidth={3} />}
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setIsEditingTitle(false);
+                                                setEditingTitle(firstImage?.title || '');
+                                            }}
+                                            disabled={isSavingTitle}
+                                            className="p-1.5 hover:bg-error/10 text-error rounded-lg transition-colors disabled:opacity-50"
+                                        >
+                                            <Icons.close size={14} strokeWidth={3} />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                         <div className="flex items-center gap-2 mt-1">
                             <p className="text-sm text-foreground-muted">
                                 {selectedGroup.length} images • {formatDate(firstImage.createdAt)}
@@ -101,79 +203,92 @@ export default function ImageGroupModal({
                                     {col.name}
                                 </span>
                             ))}
-                            {firstImage.isExemplar && (
-                                <span className="px-2 py-0.5 bg-gradient-to-r from-amber-400/20 to-yellow-500/20 text-yellow-500 text-[10px] font-bold rounded-full border border-yellow-500/30 flex items-center gap-1">
-                                    <Icons.exemplar size={12} className="fill-current" />
-                                    Exemplar
-                                </span>
-                            )}
-                            {firstImage.publishedToCommunity && (
-                                <span className="px-2 py-0.5 bg-yellow-500/10 text-yellow-500 text-[10px] font-bold rounded-full border border-yellow-500/20 flex items-center gap-1">
-                                    🏆 Community
-                                </span>
-                            )}
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
+                        {onToggleAll && (
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={onToggleAll}
+                                className="h-9 px-4 text-[10px] font-black uppercase tracking-widest bg-background-secondary hover:bg-background-tertiary"
+                            >
+                                {selectedImageIds.size === selectedGroup.length ? 'Clear All' : 'Select All'}
+                            </Button>
+                        )}
+
+                        {selectedImageIds.size > 0 && onBatchDelete && (
+                            <div className="flex items-center gap-2 pr-4 border-r border-border animate-in fade-in slide-in-from-right-4">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-primary">
+                                    {selectedImageIds.size} Selected
+                                </span>
+                                <Button
+                                    variant="danger"
+                                    onClick={onBatchDelete}
+                                    className="h-9 px-4 text-[10px] font-black uppercase tracking-widest !bg-error hover:!bg-error/80 text-white border-0 shadow-lg shadow-error/20"
+                                >
+                                    <Icons.delete size={14} className="mr-2 opacity-80" />
+                                    Delete Selected
+                                </Button>
+                            </div>
+                        )}
+
+                        <div className="flex items-center gap-1 bg-black/20 p-1 rounded-xl border border-border shadow-inner shrink-0 mr-2">
+                            <button 
+                                onClick={() => setViewMode('grid-2')} 
+                                className={`px-2 py-1 text-[9px] font-black rounded-lg transition-all ${viewMode === 'grid-2' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-foreground-muted hover:text-white hover:bg-background-secondary'}`}
+                            >2C</button>
+                            <button 
+                                onClick={() => setViewMode('grid-3')} 
+                                className={`px-2 py-1 text-[9px] font-black rounded-lg transition-all ${viewMode === 'grid-3' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-foreground-muted hover:text-white hover:bg-background-secondary'}`}
+                            >3C</button>
+                            <button 
+                                onClick={() => setViewMode('grid-4')} 
+                                className={`px-2 py-1 text-[9px] font-black rounded-lg transition-all ${viewMode === 'grid-4' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-foreground-muted hover:text-white hover:bg-background-secondary'}`}
+                            >4C</button>
+                            <button 
+                                onClick={() => setViewMode('grid-6')} 
+                                className={`px-2 py-1 text-[9px] font-black rounded-lg transition-all ${viewMode === 'grid-6' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-foreground-muted hover:text-white hover:bg-background-secondary'}`}
+                            >6C</button>
+                            <button 
+                                onClick={() => setViewMode('grid-8')} 
+                                className={`px-2 py-1 text-[9px] font-black rounded-lg transition-all ${viewMode === 'grid-8' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-foreground-muted hover:text-white hover:bg-background-secondary'}`}
+                            >8C</button>
+                        </div>
+
                         <div className="relative" ref={dropdownRef}>
                             <button
                                 onClick={() => setIsCollectionDropdownOpen(!isCollectionDropdownOpen)}
-                                className="px-3 py-1.5 bg-background-secondary hover:bg-background-tertiary rounded-lg text-xs font-bold transition-colors border border-border flex items-center gap-2"
+                                className="px-3 py-1.5 bg-background-secondary hover:bg-background-tertiary rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors border border-border flex items-center gap-2"
                             >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                                </svg>
-                                Manage Collections
+                                <Icons.database size={14} />
+                                Group to...
                             </button>
 
                             {isCollectionDropdownOpen && (
-                                <div className="absolute right-0 top-full mt-2 w-64 bg-[#12121a] border border-border rounded-xl shadow-2xl z-50 overflow-hidden backdrop-blur-xl ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-200">
-                                    <div className="p-2 border-b border-border bg-black/40">
-                                        <span className="text-xs font-bold text-foreground-muted uppercase tracking-wider block px-2 mb-1">
-                                            Add group to...
-                                        </span>
+                                <div className="absolute right-0 top-full mt-4 w-[22rem] bg-background border border-border rounded-3xl shadow-2xl z-50 p-6 animate-in fade-in zoom-in-95 duration-200">
+                                    <div className="mb-4">
+                                        <h3 className="text-xl font-bold">Add to Collection</h3>
+                                        <p className="text-foreground-muted text-sm mt-1">Select or create a collection to organize these images.</p>
                                     </div>
-                                    <div className="max-h-48 overflow-y-auto custom-scrollbar p-1">
-                                        {collections.map(col => {
-                                            const isSelected = commonCollectionIds.includes(col.id);
-                                            return (
-                                                <label
-                                                    key={col.id}
-                                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-primary/10 text-primary' : 'hover:bg-background-secondary'}`}
-                                                >
-                                                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-primary border-primary text-white' : 'border-foreground-muted'}`}>
-                                                        {isSelected && <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                                                    </div>
-                                                    <span className="text-sm truncate flex-1">{col.name}</span>
-                                                    <input
-                                                        type="checkbox"
-                                                        className="hidden"
-                                                        checked={isSelected}
-                                                        onChange={() => onBatchToggleCollection(selectedGroup, col.id)}
-                                                    />
-                                                </label>
-                                            );
-                                        })}
-                                        {collections.length === 0 && !showCreateCollection && (
-                                            <div className="p-4 text-center text-xs text-foreground-muted italic">
-                                                No collections yet
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="p-2 border-t border-border bg-black/20">
+                                    
+                                    <div className="max-h-56 overflow-y-auto custom-scrollbar -mx-2 px-2 space-y-1">
+                                        {/* ── Sticky Create Row — always first ── */}
                                         {!showCreateCollection ? (
                                             <button
-                                                onClick={() => setShowCreateCollection(true)}
-                                                className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-primary hover:bg-primary/10 rounded-lg transition-colors font-bold"
+                                                onClick={() => {
+                                                    setShowCreateCollection(true);
+                                                    setTimeout(() => inputRef.current?.focus(), 50);
+                                                }}
+                                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-dashed border-primary/40 bg-primary/5 hover:bg-primary/10 hover:border-primary/70 text-primary transition-all duration-200 group mb-1"
                                             >
-                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                                </svg>
-                                                Create New Collection
+                                                <div className="w-5 h-5 rounded border-2 border-primary/60 group-hover:border-primary flex items-center justify-center shrink-0 transition-colors">
+                                                    <Icons.plus size={12} strokeWidth={3} />
+                                                </div>
+                                                <span className="text-sm font-bold">New Collection</span>
                                             </button>
                                         ) : (
-                                            <div className="space-y-2">
+                                            <div className="space-y-2 mb-1 p-3 rounded-xl border border-primary/30 bg-primary/5">
                                                 <input
                                                     ref={inputRef}
                                                     type="text"
@@ -190,29 +305,62 @@ export default function ImageGroupModal({
                                                         }
                                                     }}
                                                     placeholder="Collection name..."
-                                                    className="w-full px-3 py-2 rounded-xl bg-background border border-border text-foreground text-xs transition-all duration-200 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 placeholder:text-foreground-muted"
+                                                    className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground text-sm transition-all duration-200 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 placeholder:text-foreground-muted"
                                                 />
                                                 {collectionError && (
-                                                    <p className="text-[10px] text-error px-1">{collectionError}</p>
+                                                    <p className="text-xs text-error px-1">{collectionError}</p>
                                                 )}
                                                 <div className="flex gap-2">
-                                                    <button
-                                                        onClick={onCreateCollection}
-                                                        disabled={creatingCollection || !newCollectionName.trim()}
-                                                        className="flex-1 bg-primary text-white text-[10px] font-black uppercase tracking-widest py-1.5 rounded-lg hover:bg-primary-hover disabled:opacity-50 transition-colors"
-                                                    >
-                                                        {creatingCollection ? '...' : 'Create'}
-                                                    </button>
                                                     <button
                                                         onClick={() => {
                                                             setShowCreateCollection(false);
                                                             setNewCollectionName('');
                                                         }}
-                                                        className="px-2 bg-background-tertiary text-foreground text-[10px] font-black uppercase tracking-widest py-1.5 rounded-lg hover:bg-background-secondary transition-colors"
+                                                        className="flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border border-border hover:bg-background-secondary text-foreground-muted transition-colors"
                                                     >
                                                         Cancel
                                                     </button>
+                                                    <button
+                                                        onClick={onCreateCollection}
+                                                        disabled={creatingCollection || !newCollectionName.trim()}
+                                                        className="flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-primary text-white border border-primary/20 hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    >
+                                                        {creatingCollection ? '...' : 'Create'}
+                                                    </button>
                                                 </div>
+                                            </div>
+                                        )}
+
+                                        {/* ── Existing Collections ── */}
+                                        {collections.map(col => {
+                                            const isSelected = commonCollectionIds.includes(col.id);
+                                            return (
+                                                <label
+                                                    key={col.id}
+                                                    className={cn(
+                                                        "flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors border",
+                                                        isSelected ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-background-secondary border-transparent hover:border-border'
+                                                    )}
+                                                >
+                                                    <div className={cn(
+                                                        "w-5 h-5 rounded border flex items-center justify-center transition-colors shrink-0",
+                                                        isSelected ? "bg-primary border-primary text-white" : "border-foreground-muted/50"
+                                                    )}>
+                                                        {isSelected && <Icons.check size={14} strokeWidth={3} />}
+                                                    </div>
+                                                    <span className="text-sm font-medium whitespace-normal break-words leading-tight flex-1">{col.name}</span>
+                                                    <input
+                                                        type="checkbox"
+                                                        className="hidden"
+                                                        checked={isSelected}
+                                                        onChange={() => onBatchToggleCollection(selectedGroup, col.id)}
+                                                    />
+                                                </label>
+                                            );
+                                        })}
+                                        {collections.length === 0 && !showCreateCollection && (
+                                            <div className="py-6 text-center text-sm text-foreground-muted italic bg-background-secondary/50 rounded-xl">
+                                                No collections yet — create one above!
                                             </div>
                                         )}
                                     </div>
@@ -225,125 +373,108 @@ export default function ImageGroupModal({
                                 const sid = firstImage.promptSetID || firstImage.settings?.promptSetID;
                                 router.push(`/generate?ref=${firstImage.id}${sid ? `&sid=${sid}` : ''}`);
                             }}
-                            className="px-3 py-1.5 bg-primary text-white hover:bg-primary-hover rounded-lg text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-primary/20 flex items-center gap-2 group"
+                            className="px-3 py-1.5 bg-primary text-white hover:bg-primary-hover rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-primary/20 flex items-center gap-2 group"
                         >
                             <Icons.wand size={14} className="group-hover:rotate-12 transition-transform" />
-                            Generate new variations
+                            Remix Set
                         </button>
 
                         <button
                             onClick={onClose}
-                            className="p-2 hover:bg-background-secondary rounded-lg"
+                            className="p-2 hover:bg-background-secondary rounded-xl text-foreground-muted"
                         >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
+                            <Icons.close size={20} />
                         </button>
                     </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                    <Tooltip content="Click to generate new variations with this prompt" className="w-full block mb-4" position="bottom">
-                        <div
-                            onClick={() => {
-                                const sid = firstImage.promptSetID || firstImage.settings?.promptSetID;
-                                router.push(`/generate?ref=${firstImage.id}${sid ? `&sid=${sid}` : ''}`);
-                            }}
-                            className="flex gap-4 p-3 bg-background-secondary rounded-lg border border-border/50 group cursor-pointer hover:border-primary/40 hover:bg-background-tertiary transition-all relative overflow-hidden shadow-sm hover:shadow-md"
-                        >
-                            {/* Subtle highlight effect on hover */}
-                            <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/[0.03] transition-colors pointer-events-none" />
 
-                            <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border border-border/50 shadow-sm relative z-10">
-                                {firstImage.videoUrl || firstImage.settings?.modality === 'video' ? (
-                                    <>
-                                        {/(\.(mp4|webm|mov)(\?|$))/i.test(firstImage.imageUrl || '') ? (
-                                            <video
-                                                src={`${firstImage.imageUrl}#t=0.1`}
-                                                className="w-full h-full object-cover"
-                                                preload="metadata"
-                                                muted
-                                                playsInline
-                                            />
-                                        ) : (
-                                            <SmartImage
-                                                src={firstImage.imageUrl}
-                                                alt="Group Preview"
-                                                className="w-full h-full object-cover"
-                                            />
-                                        )}
-                                        <SmartVideo
-                                            src={firstImage.videoUrl || firstImage.imageUrl}
-                                            className="absolute inset-0 w-full h-full object-cover z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                                            loop
-                                            muted
-                                            preload="metadata"
-                                            onMouseEnter={(e) => { if (e.currentTarget.paused) e.currentTarget.play().catch(() => { }); }}
-                                            onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
-                                        />
-                                    </>
-                                ) : (
-                                    <img
-                                        src={firstImage.imageUrl}
-                                        alt="Group Preview"
-                                        className="w-full h-full object-cover"
-                                    />
-                                )}
-                                {firstImage.isExemplar && (
-                                    <div className="absolute top-1 right-1 z-30 bg-gradient-to-r from-amber-400 to-yellow-500 text-white rounded-full p-0.5 shadow-lg border border-amber-300/30">
-                                        <Icons.exemplar size={10} className="fill-current" />
-                                    </div>
-                                )}
-                            </div>
-                            <div className="flex-1 min-w-0 group/prompt relative z-10">
-                                <p className="text-sm text-foreground font-mono line-clamp-3 leading-relaxed pr-10">
-                                    {firstImage.prompt}
-                                </p>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        navigator.clipboard.writeText(firstImage.prompt);
-                                        setCopied(true);
-                                        showToast('Prompt copied to clipboard', 'success');
-                                        setTimeout(() => setCopied(false), 2000);
-                                    }}
-                                    className="absolute right-0 top-0 p-2 hover:bg-background-secondary rounded-lg text-foreground-muted hover:text-primary transition-all flex items-center gap-2 group/copy z-20"
-                                    title="Copy full prompt"
-                                >
-                                    {copied ? (
-                                        <>
-                                            <span className="text-[10px] font-black uppercase tracking-wider hidden sm:inline">Copied!</span>
-                                            <Icons.check className="w-4 h-4 text-emerald-500" />
-                                        </>
-                                    ) : (
-                                        <Icons.copy className="w-4 h-4" />
-                                    )}
-                                </button>
+                    <div className={cn(
+                        "grid gap-4",
+                        viewMode === 'grid-2' ? 'grid-cols-2' :
+                        viewMode === 'grid-3' ? 'grid-cols-2 sm:grid-cols-3' :
+                        viewMode === 'grid-4' ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4' :
+                        viewMode === 'grid-6' ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6' :
+                        'grid-cols-4 sm:grid-cols-6 md:grid-cols-8'
+                    )}>
+                        {selectedGroup.map((img) => {
+                            const isVideo = !!(img.videoUrl || img.settings?.modality === 'video');
+                            const isSelected = selectedImageIds.has(img.id);
 
-                                <div className="mt-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-1">
-                                        <Icons.wand size={10} />
-                                        Generate new variations
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    </Tooltip>
-
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {selectedGroup.map((image) => {
-                            const isVideo = !!(image.videoUrl || image.settings?.modality === 'video');
                             return (
                                 <div
-                                    key={image.id}
-                                    onClick={() => onImageSelect(image)}
-                                    className="group relative aspect-square rounded-xl overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition-all bg-background-secondary"
+                                    key={img.id}
+                                    onClick={() => onImageSelect(img)}
+                                    className={cn(
+                                        "group relative aspect-square rounded-xl overflow-hidden cursor-pointer transition-all bg-background-secondary border-2",
+                                        isSelected ? "border-primary ring-4 ring-primary/10" : "border-transparent hover:border-primary/20"
+                                    )}
                                 >
+                                    {/* Selection Checkbox Overlay */}
+                                    <div 
+                                        className={cn(
+                                            "absolute top-2 left-2 z-[45] w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all bg-black/40 backdrop-blur-sm shadow-lg",
+                                            isSelected ? "bg-primary border-primary scale-110" : "border-white/30 opacity-0 group-hover:opacity-100 hover:border-white/60"
+                                        )}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onToggleImageSelection?.(img.id, e);
+                                        }}
+                                    >
+                                        {isSelected && <Icons.check size={14} className="text-white" />}
+                                    </div>
+                                    {/* Variation Badges */}
+                                    {/* Management Actions (Top Right) */}
+                                    <div className="absolute top-2 right-2 z-30">
+                                        {onDeleteSingle && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onDeleteSingle(img.id);
+                                                }}
+                                                className="w-6 h-6 rounded-lg bg-error/90 hover:bg-error text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg backdrop-blur-sm border border-white/20"
+                                                title="Delete Variation"
+                                            >
+                                                <Icons.delete size={12} />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* Variation Badges (Top Left, offset for checkbox) */}
+                                    <div className="absolute top-2 left-10 flex flex-col gap-1.5 z-30 pointer-events-none">
+                                        {img.isExemplar && (
+                                            <div className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-lg px-2 py-0.5 shadow-lg border border-indigo-400/40 flex items-center gap-1.5 w-fit" title="Quality Exemplar">
+                                                <Icons.exemplar size={10} className="fill-current" />
+                                                <span className="text-[8px] font-black uppercase tracking-widest">Exemplar</span>
+                                            </div>
+                                        )}
+                                        {img.publishedToCommunity && (
+                                            <div className="bg-yellow-500 text-white rounded-lg px-2 py-0.5 border border-yellow-400/40 shadow-lg shadow-yellow-500/10 flex items-center gap-1.5 w-fit" title="Published to Community Hub">
+                                                <Icons.trophy size={10} />
+                                                <span className="text-[8px] font-black uppercase tracking-widest">Community</span>
+                                            </div>
+                                        )}
+                                        {img.sourceImageId && (
+                                            <div className="px-2 py-0.5 bg-accent text-white rounded-lg flex items-center gap-1.5 w-fit shadow-md border border-white/10 shrink-0">
+                                                <Icons.variation size={10} />
+                                                <span className="text-[8px] font-black uppercase tracking-widest">Variant</span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Title Overlay */}
+                                    <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+                                        <p className="text-[9px] font-black text-white uppercase tracking-wider truncate leading-tight">
+                                            {img.title || '<no title>'}
+                                        </p>
+                                    </div>
+
                                     {isVideo ? (
                                         <>
-                                            {/(\.(mp4|webm|mov)(\?|$))/i.test(image.imageUrl || '') ? (
+                                            {/(\.(mp4|webm|mov)(\?|$))/i.test(img.imageUrl || '') ? (
                                                 <video
-                                                    src={`${image.imageUrl}#t=0.1`}
+                                                    src={`${img.imageUrl}#t=0.1`}
                                                     className="w-full h-full object-cover"
                                                     preload="metadata"
                                                     muted
@@ -351,14 +482,14 @@ export default function ImageGroupModal({
                                                 />
                                             ) : (
                                                 <SmartImage
-                                                    src={image.imageUrl}
-                                                    alt={image.prompt}
+                                                    src={img.imageUrl}
+                                                    alt={img.prompt}
                                                     className="w-full h-full object-cover"
                                                     loading="lazy"
                                                 />
                                             )}
                                             <SmartVideo
-                                                src={image.videoUrl || image.imageUrl}
+                                                src={img.videoUrl || img.imageUrl}
                                                 className="absolute inset-0 w-full h-full object-cover z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                                                 loop
                                                 muted
@@ -369,33 +500,37 @@ export default function ImageGroupModal({
                                         </>
                                     ) : (
                                         <img
-                                            src={image.imageUrl}
-                                            alt={image.prompt}
+                                            src={img.imageUrl}
+                                            alt={img.prompt}
                                             className="w-full h-full object-cover"
                                             loading="lazy"
                                         />
                                     )}
 
-                                    {image.sourceImageId && (
-                                        <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-accent/90 text-white text-[10px] font-bold rounded uppercase z-30">
-                                            Variation
-                                        </div>
-                                    )}
-                                    {image.publishedToCommunity && (
-                                        <div className="absolute bottom-2 right-2 z-30 bg-yellow-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1 shadow-lg backdrop-blur-sm w-fit">
-                                            🏆 Community
-                                        </div>
-                                    )}
-                                    {image.isExemplar && (
-                                        <div className="absolute top-2 right-2 z-30 bg-gradient-to-r from-amber-400 to-yellow-500 text-white text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded shadow-lg flex items-center gap-1 border border-amber-300/30">
-                                            <Icons.exemplar size={10} />
-                                            Exemplar
-                                        </div>
-                                    )}
-                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-40">
-                                        <span className="text-white text-sm font-bold bg-black/50 px-3 py-1.5 rounded-full backdrop-blur-sm border border-white/20">
+                                    
+                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-3 z-40">
+                                        <span className="text-white text-[10px] font-black uppercase tracking-widest bg-black/40 px-4 py-2 rounded-full backdrop-blur-md border border-white/20 scale-90 group-hover:scale-100 transition-transform">
                                             View Details
                                         </span>
+                                        
+                                        {img.publishedToCommunity && (
+                                            <Link
+                                                href={`/community?entry=${img.communityEntryId || img.leagueEntryId}`}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="text-primary text-[9px] font-black uppercase tracking-widest bg-primary/10 px-3 py-1.5 rounded-full backdrop-blur-md border border-primary/30 scale-90 group-hover:scale-100 transition-all hover:bg-primary/20 hover:scale-105 flex items-center gap-1.5"
+                                            >
+                                                <Icons.external size={10} strokeWidth={3} />
+                                                View on Hub
+                                            </Link>
+                                        )}
+                                    </div>
+
+                                    {/* Title Overlay - Always Visible */}
+                                    <div className="absolute inset-x-0 bottom-0 p-1 bg-black/60 backdrop-blur-sm z-20 flex items-center justify-center gap-1 overflow-hidden px-1">
+                                        <span className="text-[6px] font-black text-white/40 uppercase shrink-0">Title:</span>
+                                        <p className="text-[7px] font-black uppercase text-white truncate">
+                                            {img.title || '<no title>'}
+                                        </p>
                                     </div>
                                 </div>
                             );

@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
         const usersRef = adminDb.collection('users');
         const snapshot = await usersRef.where('username', '==', null).get(); // Technically might not be 'null', maybe undefined
         const allUsers = await usersRef.get();
-        const usersToMigrate = allUsers.docs.filter(doc => !doc.data().username);
+        const usersToMigrate = allUsers.docs.filter((doc: any) => !doc.data().username);
 
         console.log(`📊 Found ${usersToMigrate.length} users without usernames.`);
 
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
             const batch = adminDb.batch();
             const chunk = usersToMigrate.slice(i, i + batchSize);
 
-            chunk.forEach(doc => {
+            chunk.forEach((doc: any) => {
                 const data = doc.data();
                 const displayName = data.displayName || 'user';
                 const base = displayName.toLowerCase().replace(/\s+/g, '_');

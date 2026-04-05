@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
             .get();
 
         const authorStats: Record<string, number> = {};
-        votesSnapshot.docs.forEach(doc => {
+        votesSnapshot.docs.forEach((doc: any) => {
             const data = doc.data();
             if (data.authorId) {
                 authorStats[data.authorId] = (authorStats[data.authorId] || 0) + 1;
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
         // 4. Calculate total unique published creators
         const entriesSnapshot = await adminDb.collection('leagueEntries').get();
         const uniqueAuthors = new Set();
-        entriesSnapshot.docs.forEach(doc => {
+        entriesSnapshot.docs.forEach((doc: any) => {
             const userId = doc.data().originalUserId;
             if (userId) uniqueAuthors.add(userId);
         });

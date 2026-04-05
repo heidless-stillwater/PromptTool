@@ -158,25 +158,34 @@ export default function HomePage() {
                     </div>
 
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                        {[1, 2, 3, 4].map(i => (
-                            <div key={i} className="aspect-[3/4] rounded-3xl bg-white/[0.02] border border-white/10 overflow-hidden relative group cursor-pointer">
+                        {[
+                            { id: 1, title: 'Bioluminescent Canopy', prompt: 'Master-grade character lighting with NanoBanana...' },
+                            { id: 2, title: 'Iridescent Synthesis', prompt: 'Prismatic light refraction through structural glass...' },
+                            { id: 3, title: 'Cyber-Samurai 2.0', prompt: 'Highly detailed portrait with vibrant neon circuit...', },
+                            { id: 4, title: 'Ethereal Stillwater', prompt: 'Serene landscape of bioluminescent plants at twilight...' }
+                        ].map((card) => (
+                            <div key={card.id} className="aspect-[3/4] rounded-3xl bg-white/[0.02] border border-white/10 overflow-hidden relative group cursor-pointer">
                                 <Image
-                                    src={`/assets/landing/community-${i}.png`}
-                                    alt={`Exemplar ${i}`}
+                                    src={`/assets/landing/community-${card.id}.png`}
+                                    alt={card.title}
                                     fill
                                     className="object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700 grayscale group-hover:grayscale-0"
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-80 transition-opacity" />
                                 <div className="absolute bottom-6 left-6 right-6 opacity-0 group-hover:opacity-100 transition-all translate-y-4 group-hover:translate-y-0 duration-500">
                                     <div className="space-y-3">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-5 h-5 rounded-full bg-primary/20 border border-primary/40" />
-                                            <span className="text-[9px] font-black uppercase tracking-widest">Master Engineer</span>
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-0.5">Neural Identity</p>
+                                            <h4 className="text-sm font-black uppercase text-white truncate leading-tight">
+                                                {card.title}
+                                            </h4>
                                         </div>
-                                        <p className="text-[10px] font-medium text-white/70 line-clamp-2 italic">&quot;Master-grade character lighting with NanoBanana...&quot;</p>
+                                        <p className="text-[10px] font-medium text-white/50 line-clamp-2 italic leading-snug">
+                                            &quot;{card.prompt}&quot;
+                                        </p>
                                         <div className="flex gap-2">
-                                            <div className="px-2 py-1 rounded-md bg-white/10 text-[8px] font-black uppercase">Clone</div>
-                                            <div className="px-2 py-1 rounded-md bg-white/10 text-[8px] font-black uppercase">Inspect</div>
+                                            <div className="px-2 py-1 rounded-md bg-white/10 text-[8px] font-black uppercase hover:bg-primary transition-colors">Clone</div>
+                                            <div className="px-2 py-1 rounded-md bg-white/10 text-[8px] font-black uppercase hover:bg-white/20 transition-colors">Inspect</div>
                                         </div>
                                     </div>
                                 </div>

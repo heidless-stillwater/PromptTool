@@ -156,12 +156,13 @@ export interface GenerationSettings {
     quality: ImageQuality | 'video';
     aspectRatio: AspectRatio;
     prompt: string;
-    promptType: 'freeform' | 'madlibs';
+    promptType: 'freeform' | 'madlibs' | 'customize';
     madlibsData?: MadLibsSelection;
     promptSetID?: string;
     negativePrompt?: string;
     seed?: number;
     guidanceScale?: number;
+    editedFrom?: string;
 }
 
 export interface MadLibsSelection {
@@ -175,6 +176,7 @@ export interface MadLibsSelection {
 export interface GeneratedImage {
     id: string;
     userId: string;
+    title?: string;
     prompt: string;
     settings: GenerationSettings;
     imageUrl: string; // Used for thumbnails/images
@@ -183,6 +185,7 @@ export interface GeneratedImage {
     videoStoragePath?: string;
     creditsCost: number;
     createdAt: FirestoreTimestamp;
+    updatedAt?: FirestoreTimestamp;
     downloadCount: number;
     collectionId?: string;      // @deprecated use collectionIds instead
     collectionIds?: string[];   // For multi-collection support
@@ -233,6 +236,7 @@ export interface CommunityEntry {
     variationCount?: number;     // Count of variations generated from this entry
     tags?: string[];
     promptSetID?: string;       // Unique ID for the batch/generation set
+    title?: string;
     isStack?: boolean;          // UI-only: whether this card represents a stack of variations
     stackSize?: number;         // UI-only: number of variations in the stack
     isExemplar?: boolean;        // Whether this is an exemplar of high quality (admin set)

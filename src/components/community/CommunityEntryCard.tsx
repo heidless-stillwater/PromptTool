@@ -153,20 +153,37 @@ export default function CommunityEntryCard({
                     "absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent transition-opacity",
                     viewMode === 'compact' ? "opacity-0 group-hover:opacity-100" : "opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
                 )}>
-                    <div className="absolute bottom-0 left-0 right-0 p-4">
+                    <div className="absolute bottom-0 left-0 right-0 p-4 space-y-2">
+                        {/* Title on Hover */}
+                        <div className="pb-1 border-b border-white/10">
+                            <p className="text-[8px] font-black text-primary uppercase tracking-[0.2em] mb-0.5">Neural Identity</p>
+                            <p className="text-[10px] font-black text-white uppercase truncate">
+                                {entry.title || '<no title>'}
+                            </p>
+                        </div>
                         <p className={cn(
-                            "text-white leading-snug",
-                            viewMode === 'compact' ? "text-[10px] line-clamp-1" : "text-sm line-clamp-2"
+                            "text-white/80 leading-snug",
+                            viewMode === 'compact' ? "text-[10px] line-clamp-1" : "text-[11px] line-clamp-2"
                         )}>{entry.prompt}</p>
                     </div>
                 </div>
+
             </div>
 
             {/* Content Area */}
             <div className={cn(
-                "p-4 space-y-3",
+                "p-4 space-y-4",
                 viewMode === 'compact' && "p-2 space-y-1"
             )}>
+                {/* Title Display */}
+                {viewMode !== 'compact' && (
+                    <div className="space-y-1">
+                        <h3 className="text-sm font-black text-foreground group-hover:text-primary transition-colors truncate uppercase tracking-tight">
+                            {entry.title || '<no title>'}
+                        </h3>
+                    </div>
+                )}
+
                 {/* Author Info */}
                 <div className="flex items-center justify-between">
                     <Link

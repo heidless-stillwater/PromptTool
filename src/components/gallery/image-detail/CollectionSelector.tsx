@@ -62,7 +62,7 @@ export default function CollectionSelector({ collections, selectedIds, onToggle,
                     )}
                 </div>
             ) : (
-                <div className="bg-background-secondary/80 backdrop-blur-sm border border-border/50 rounded-xl p-2 space-y-2 max-h-64 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-1 duration-200">
+                <div className="bg-background border border-border rounded-xl p-3 shadow-xl space-y-2 max-h-64 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-1 duration-200">
                     {onCreate && (
                         <div className="space-y-2 mb-3">
                             <label className="text-[9px] font-black uppercase tracking-widest text-primary/70 px-1">Create New</label>
