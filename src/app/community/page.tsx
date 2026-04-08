@@ -47,8 +47,8 @@ function CommunityContent() {
     return (
         <div className="min-h-screen">
             {/* Header */}
-            <Card className="sticky top-0 z-50 rounded-none border-x-0 border-t-0 border-b border-border bg-black/90 backdrop-blur-md">
-                <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <Card className="sticky top-0 z-50 rounded-none border-x-0 border-t-0 border-b border-border bg-black/90 backdrop-blur-md h-[72px] flex items-center">
+                <div className="max-w-7xl w-full mx-auto px-4 flex items-center justify-between">
                     <Link href="/dashboard" className="text-xl font-bold gradient-text">
                         AI Image Studio
                     </Link>

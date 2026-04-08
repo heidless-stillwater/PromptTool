@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Outfit } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/lib/auth-context';
 import { ToastProvider } from '@/components/Toast';
@@ -8,29 +8,27 @@ import GuidedTour from '@/components/GuidedTour';
 import QueryProvider from '@/providers/QueryProvider';
 import { validateEnv } from '@/lib/schemas';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ 
+    subsets: ['latin'],
+    variable: '--font-inter',
+});
+
+const outfit = Outfit({
+    subsets: ['latin'],
+    variable: '--font-outfit',
+});
 
 // Validate environment variables on startup
 validateEnv();
 
 export const metadata: Metadata = {
     title: {
-        default: 'AI Image Studio - Transform Your Ideas Into Art',
-        template: '%s | AI Image Studio',
+        default: 'Stillwater Studio | Neural Generation',
+        template: '%s | Stillwater Studio',
     },
-    description: 'Create stunning AI-generated images from text prompts. Professional-quality results with multiple styles and resolutions.',
-    keywords: 'AI, image generation, art, prompts, creative, digital art',
-    openGraph: {
-        title: 'AI Image Studio - Transform Your Ideas Into Art',
-        description: 'Create stunning AI-generated images from text prompts. Professional-quality results with multiple styles and resolutions.',
-        siteName: 'AI Image Studio',
-        type: 'website',
-        locale: 'en_US',
-    },
-    twitter: {
-        card: 'summary',
-        title: 'AI Image Studio - Transform Your Ideas Into Art',
-        description: 'Create stunning AI-generated images from text prompts.',
+    description: 'Bespoke AI image generation and prompt architecting. Part of the Stillwater Ecosystem.',
+    icons: {
+        icon: '/favicon.svg',
     },
     robots: {
         index: true,
@@ -45,7 +43,7 @@ export default function RootLayout({
 }) {
     return (
         <html lang="en">
-            <body className={inter.className}>
+            <body className={`${inter.variable} ${outfit.variable} font-sans antialiased`}>
                 <QueryProvider>
                     <AuthProvider>
                         <ToastProvider>

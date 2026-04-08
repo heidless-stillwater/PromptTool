@@ -52,12 +52,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const existingProfile = userSnap.data() as UserProfile;
             // Update last login and any changed fields
             const isAdmin = ADMIN_EMAILS.includes(firebaseUser.email || '');
-            const updatedProfile: UserProfile = {
-                ...existingProfile,
-                // Only update if missing or invalid, otherwise respect user's custom changes
-                displayName: existingProfile.displayName || firebaseUser.displayName,
-                photoURL: (existingProfile.photoURL && existingProfile.photoURL !== 'null') ? existingProfile.photoURL : firebaseUser.photoURL,
-                subscription: existingProfile.subscription || 'free',
+        // --- Deep Sync Strategy for Avatars ---
+        const providerPhoto = firebaseUser.providerData.find(p => p.photoURL)?.photoURL;
+        const currentPhoto = (existingProfile.photoURL && !['null', 'undefined', ''].includes(existingProfile.photoURL)) 
+            ? existingProfile.photoURL 
+            : (firebaseUser.photoURL || providerPhoto);
+
+        const updatedProfile: UserProfile = {
+            ...existingProfile,
+            displayName: existingProfile.displayName || firebaseUser.displayName,
+            photoURL: currentPhoto || null,
+            subscription: existingProfile.subscription || 'free',
                 audienceMode: existingProfile.audienceMode || 'casual',
                 role: existingProfile.role || (isAdmin ? 'admin' : 'member'),
                 updatedAt: Timestamp.now(),

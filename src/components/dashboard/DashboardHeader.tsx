@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import UserAvatar from '@/components/UserAvatar';
 import GlobalSearch from '@/components/GlobalSearch';
 import NotificationBell from '@/components/NotificationBell';
 import { Button } from '@/components/ui/Button';
@@ -32,8 +33,8 @@ export default function DashboardHeader({
     signOut
 }: DashboardHeaderProps) {
     return (
-        <Card variant="glass" className="sticky top-0 z-50 border-x-0 border-t-0 rounded-none border-b border-border shadow-sm">
-            <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+        <Card variant="glass" className="sticky top-0 z-50 border-x-0 border-t-0 rounded-none border-b border-border shadow-sm h-[72px] flex items-center">
+            <div className="max-w-7xl w-full mx-auto px-4 flex items-center justify-between">
                 <Link href="/dashboard" className="text-xl font-bold gradient-text">
                     AI Image Studio
                 </Link>
@@ -81,17 +82,12 @@ export default function DashboardHeader({
 
                     <div className="flex items-center gap-3">
                         <Link href={`/profile/${user.uid}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                            {profile.photoURL && profile.photoURL !== 'null' ? (
-                                <img
-                                    src={profile.photoURL}
-                                    alt={profile.displayName || 'User'}
-                                    className="w-10 h-10 rounded-full border-2 border-primary shadow-sm"
-                                />
-                            ) : (
-                                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-lg font-bold text-primary border-2 border-primary/20">
-                                    {(profile.displayName || profile.username || 'A').charAt(0).toUpperCase()}
-                                </div>
-                            )}
+                            <UserAvatar 
+                                src={profile.photoURL} 
+                                name={profile.displayName || profile.username} 
+                                size="md"
+                                className="border-2 border-primary shadow-sm"
+                            />
                             <div className="hidden md:block">
                                 <p className="text-sm font-bold leading-tight">{profile.displayName || 'Creator'}</p>
                                 <p className="text-[10px] text-foreground-muted truncate max-w-[150px]">{user.email}</p>

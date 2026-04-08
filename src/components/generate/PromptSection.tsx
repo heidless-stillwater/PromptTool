@@ -43,6 +43,7 @@ interface PromptSectionProps {
     hasUnsavedChanges?: boolean;
     isVisionEditEnabled: boolean;
     setIsVisionEditEnabled: (val: boolean) => void;
+    hasStudioAccess?: boolean;
 }
 
 export default function PromptSection({
@@ -72,7 +73,8 @@ export default function PromptSection({
     onGalleryRequest,
     hasUnsavedChanges,
     isVisionEditEnabled,
-    setIsVisionEditEnabled
+    setIsVisionEditEnabled,
+    hasStudioAccess
 }: PromptSectionProps) {
     return (
         <div className="space-y-6">
@@ -138,10 +140,10 @@ export default function PromptSection({
                     onUploadReference={onUploadReference}
                     onOpenGalleryPicker={onOpenGalleryPicker}
                     onOpenPromptPicker={onOpenPromptPicker}
-                    onGalleryRequest={onGalleryRequest}
                     hasUnsavedChanges={hasUnsavedChanges}
                     isVisionEditEnabled={isVisionEditEnabled}
                     setIsVisionEditEnabled={setIsVisionEditEnabled}
+                    hasStudioAccess={hasStudioAccess}
                 />
             </Card>
         </div>
@@ -165,15 +167,17 @@ function CustomizeSection({
     onOpenGalleryPicker,
     onOpenPromptPicker,
     onGalleryRequest,
-    hasUnsavedChanges,
     isVisionEditEnabled,
-    setIsVisionEditEnabled
+    setIsVisionEditEnabled,
+    hasStudioAccess
 }: any) {
     const [blueprints, setBlueprints] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
+        if (!hasStudioAccess) return;
+        
         const fetchBlueprints = async () => {
             setLoading(true);
             try {
@@ -187,7 +191,7 @@ function CustomizeSection({
             }
         };
         fetchBlueprints();
-    }, []);
+    }, [hasStudioAccess]);
 
     const handleSelect = (bp: any) => {
         setSelectedBlueprint(bp);

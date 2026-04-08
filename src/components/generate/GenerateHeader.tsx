@@ -12,6 +12,8 @@ interface GenerateHeaderProps {
     onHistoryOpen: () => void;
     onGalleryClick: () => void;
     onDashboardClick: () => void;
+    onPricingClick: () => void;
+    onAdminClick: () => void;
     isAdmin: boolean;
 }
 
@@ -20,11 +22,13 @@ export default function GenerateHeader({
     onHistoryOpen,
     onGalleryClick,
     onDashboardClick,
+    onPricingClick,
+    onAdminClick,
     isAdmin
 }: GenerateHeaderProps) {
     return (
         <Card variant="glass" className="sticky top-0 z-50 border-x-0 border-t-0 rounded-none border-b border-border p-0">
-            <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+            <div className="max-w-7xl mx-auto px-4 h-[72px] flex items-center justify-between">
                 <div className="flex items-center gap-4">
                     <Button
                         variant="secondary"
@@ -67,7 +71,10 @@ export default function GenerateHeader({
 
                     <div className="h-6 w-px bg-border/50 mx-1 hidden sm:block" />
 
-                    <Link href="/pricing" className="group">
+                    <button 
+                        onClick={onPricingClick}
+                        className="group outline-none"
+                    >
                         <div className="flex items-center gap-2.5 px-3 py-1.5 bg-background-secondary border border-border rounded-xl group-hover:border-primary/50 transition-all shadow-sm">
                             <div className="relative">
                                 <Icons.zap size={14} className="text-primary fill-primary animate-pulse" />
@@ -78,14 +85,17 @@ export default function GenerateHeader({
                                 Credits
                             </Badge>
                         </div>
-                    </Link>
+                    </button>
 
                     {isAdmin && (
-                        <Link href="/admin">
-                            <Button variant="secondary" size="icon" className="w-9 h-9 border-primary/20 text-primary hover:bg-primary/10">
-                                <Icons.settings size={16} />
-                            </Button>
-                        </Link>
+                        <Button 
+                            variant="secondary" 
+                            size="icon" 
+                            onClick={onAdminClick}
+                            className="w-9 h-9 border-primary/20 text-primary hover:bg-primary/10"
+                        >
+                            <Icons.settings size={16} />
+                        </Button>
                     )}
                 </div>
             </div>

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { CommunityEntry, BADGES } from '@/lib/types';
+import UserAvatar from '@/components/UserAvatar';
 import ReactionPicker from '@/components/ReactionPicker';
 import ShareButtons from '@/components/ShareButtons';
 import { formatTimeAgo } from '@/lib/date-utils';
@@ -191,23 +192,12 @@ export default function CommunityEntryCard({
                         className="flex items-center gap-2 hover:opacity-80 transition-opacity group/author overflow-hidden"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        {entry.authorPhotoURL && entry.authorPhotoURL !== 'null' ? (
-                            <img
-                                src={entry.authorPhotoURL}
-                                alt={entry.authorName}
-                                className={cn(
-                                    "rounded-full border border-border group-hover/author:border-primary/50 transition-colors",
-                                    viewMode === 'compact' ? "w-5 h-5" : "w-7 h-7"
-                                )}
-                            />
-                        ) : (
-                            <div className={cn(
-                                "rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary border border-transparent group-hover/author:border-primary/50 transition-colors",
-                                viewMode === 'compact' ? "w-5 h-5 text-[10px]" : "w-7 h-7 text-xs"
-                            )}>
-                                {entry.authorName.charAt(0).toUpperCase()}
-                            </div>
-                        )}
+                        <UserAvatar 
+                            src={entry.authorPhotoURL} 
+                            name={entry.authorName} 
+                            size={viewMode === 'compact' ? 'sm' : 'md'}
+                            className="group-hover/author:border-primary/50 transition-colors"
+                        />
                         <span className={cn(
                             "font-medium truncate group-hover/author:text-primary transition-colors",
                             viewMode === 'compact' ? "text-[10px]" : "text-sm"

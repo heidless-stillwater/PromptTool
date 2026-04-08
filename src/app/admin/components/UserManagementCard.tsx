@@ -1,6 +1,7 @@
 'use client';
 
 import { UserProfile, BADGES } from '@/lib/types';
+import UserAvatar from '@/components/UserAvatar';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
@@ -32,24 +33,24 @@ export function UserManagementCard({
                 {/* Left: User Info */}
                 <div className="flex items-center gap-5 min-w-[280px]">
                     <div className="relative">
-                        {user.photoURL ? (
-                            <img src={user.photoURL} alt="" className="w-14 h-14 rounded-full border-2 border-border group-hover:border-primary/50 transition-colors object-cover" />
-                        ) : (
-                            <div className="w-14 h-14 rounded-full bg-background-secondary flex items-center justify-center text-xl font-bold border-2 border-border group-hover:border-primary/50 transition-colors">
-                                {user.displayName?.[0] || user.username?.[0] || '?'}
-                            </div>
-                        )}
+                        <UserAvatar 
+                            src={user.photoURL} 
+                            name={user.displayName || user.username} 
+                            size="lg"
+                            className="border-2 border-border group-hover:border-primary/50 transition-colors"
+                        />
                         <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-background-secondary ${user.subscription === 'pro' ? 'bg-accent' : 'bg-primary'}`} />
                     </div>
                     <div>
                         <p className="text-lg font-black tracking-tight">{user.displayName}</p>
                         <p className="text-xs text-foreground-muted uppercase tracking-widest font-black">@{user.username}</p>
+                        <p className="text-[10px] text-primary/60 font-medium mt-0.5 lowercase">{user.email}</p>
                         <div className="flex gap-2 mt-2">
-                            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
+                            <span className="badge badge-primary">
                                 {user.role}
                             </span>
                             {user.subscription === 'pro' && (
-                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-accent/10 text-accent border border-accent/20">
+                                <span className="badge badge-accent">
                                     PRO MEMBER
                                 </span>
                             )}

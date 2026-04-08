@@ -38,6 +38,15 @@ export async function POST(request: NextRequest) {
         if (!userId && body.uid) userId = body.uid;
         if (!userId) return NextResponse.json({ error: 'User ID required' }, { status: 401, headers: CORS_HEADERS });
 
+        // --- Entitlement Check ---
+        const { checkAppAccess } = await import('@/lib/entitlements');
+        const hasAccess = await checkAppAccess(userId, 'studio');
+        if (!hasAccess) {
+            return NextResponse.json({ 
+                error: 'Studio suite access required. Visit Stillwater Resources (Port 3002) to upgrade your account.' 
+            }, { status: 403, headers: CORS_HEADERS });
+        }
+
         const result = generationSchema.safeParse(body);
         if (!result.success) {
             return NextResponse.json({ error: result.error.issues[0].message }, { status: 400, headers: CORS_HEADERS });

@@ -116,11 +116,31 @@ function GeneratePageContent() {
 
     const router = useRouter();
     const searchParams = useSearchParams();
+    
+    // --- Subscription & Entitlements Gate ---
+    const isJustSubscribed = searchParams.get('subscribed') === 'true';
+    const isAdmin = profile?.role === 'admin' || profile?.role === 'su';
+    const activeSuites: string[] = (
+        profile?.suiteSubscription?.activeSuites ||
+        profile?.subscriptionMetadata?.activeSuites ||
+        []
+    );
+    const hasStudioAccess = isJustSubscribed ||
+                           activeSuites.includes('studio') ||
+                           activeSuites.includes('prompttool') ||
+                           activeSuites.includes('promptmaster') ||
+                           profile?.subscription === 'pro' || 
+                           profile?.subscription === 'standard' || 
+                           isAdmin;
     const lastSavedStateRef = useRef<string | null>(null);
+
+    const [isExiting, setIsExiting] = useState(false);
 
     // Unsaved changes guardian
     useEffect(() => {
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (isExiting) return;
+            
             const currentState = JSON.stringify({ rawTemplate, variables, title });
             const savedState = localStorage.getItem('generation_session_v1');
             
@@ -142,7 +162,7 @@ function GeneratePageContent() {
 
         window.addEventListener('beforeunload', handleBeforeUnload);
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }, [rawTemplate, variables, title]);
+    }, [rawTemplate, variables, title, isExiting]);
 
     // Initial session hydration
     useEffect(() => {
@@ -415,6 +435,8 @@ function GeneratePageContent() {
             setPromptInternal(cleanFinal);
         }
     }, [variables, rawTemplate]);
+
+    // --- Data Management & State Sync ---
     const sidParam = searchParams.get('sid');
     const [referenceImage, setReferenceImage] = useState<{
         id: string;
@@ -967,7 +989,7 @@ function GeneratePageContent() {
 
     const currentCost = modality === 'video' ? CREDIT_COSTS.video : (CREDIT_COSTS[quality] * batchSize);
 
-    const isAdmin = profile?.role === 'admin' || profile?.role === 'su';
+    // Legacy check for quality tiers, but global access is now suite-based
     const isPro = profile?.subscription === 'pro' || isAdmin;
 
     // Check if quality is allowed for subscription
@@ -1686,11 +1708,12 @@ function GeneratePageContent() {
     }
 
     const isCasual = profile.audienceMode === 'casual';
-    const isProInUI = profile.subscription === 'pro' || profile.role === 'admin' || profile.role === 'su';
+    const isProInUI = hasStudioAccess || profile.subscription === 'pro' || profile.role === 'admin' || profile.role === 'su';
 
     // Calculate unsaved changes for navigation prompts
     const currentStateStr = JSON.stringify({ rawTemplate, variables, title });
-    const hasUnsavedChanges = lastBakedState !== '' && currentStateStr !== lastBakedState;
+    const hasUnsavedChanges = (lastBakedState !== '' && currentStateStr !== lastBakedState) || 
+                              (lastBakedState === '' && rawTemplate.trim().length > 0);
 
     const handleSafeNavigation = (route: string) => {
         if (hasUnsavedChanges) {
@@ -1701,6 +1724,42 @@ function GeneratePageContent() {
         }
     };
 
+    if (!hasStudioAccess && !loading) {
+        return (
+            <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center px-6 pt-20">
+                <Card variant="glass" className="max-w-xl w-full p-12 rounded-[3.5rem] border-primary/30 bg-primary/5 text-center space-y-8 backdrop-blur-3xl shadow-2xl relative overflow-hidden">
+                    <div className="absolute -top-12 -left-12 w-48 h-48 bg-primary/10 rounded-full blur-3xl" />
+                    <div className="absolute -bottom-12 -right-12 w-48 h-48 bg-stillwater-teal/10 rounded-full blur-3xl" />
+                    
+                    <div className="relative z-10 space-y-6">
+                        <div className="w-20 h-20 rounded-3xl bg-primary/20 flex items-center justify-center text-primary mx-auto shadow-lg shadow-primary/20">
+                            <Icons.sparkles className="w-10 h-10" />
+                        </div>
+                        
+                        <div className="space-y-3">
+                            <h2 className="text-4xl font-black uppercase tracking-tighter">Studio Access <br /><span className="text-primary">Restricted</span></h2>
+                            <p className="text-foreground-muted font-medium text-sm leading-relaxed">
+                                The Stillwater Studio is an exclusive multimodal pipeline reserved for Pro Suite members. 
+                                Unlock unlimited generation, 4K rendering, and asynchronous video engines.
+                            </p>
+                        </div>
+
+                        <div className="pt-4 flex flex-col gap-4">
+                            <Button
+                                onClick={() => window.open(`http://localhost:3002/pricing?returnUrl=${encodeURIComponent('http://localhost:3001/generate')}`, '_blank')}
+                                className="h-16 w-full rounded-2xl bg-white text-black font-black uppercase tracking-widest hover:bg-primary hover:text-white transition-all shadow-xl shadow-white/5"
+                            >
+                                Upgrade to Master Suite
+                            </Button>
+                            <Link href="/dashboard" className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground-muted hover:text-white transition-colors">
+                                Return to Dashboard
+                            </Link>
+                        </div>
+                    </div>
+                </Card>
+            </div>
+        );
+    }
     return (
         <div className="min-h-screen bg-background">
             <GenerateHeader
@@ -1708,6 +1767,8 @@ function GeneratePageContent() {
                 onHistoryOpen={() => setIsHistoryOpen(true)}
                 onGalleryClick={() => handleSafeNavigation('/gallery')}
                 onDashboardClick={() => handleSafeNavigation('/dashboard')}
+                onPricingClick={() => handleSafeNavigation('/pricing')}
+                onAdminClick={() => handleSafeNavigation('/admin')}
                 isAdmin={profile.role === 'admin' || profile.role === 'su'}
             />
 
@@ -1791,6 +1852,7 @@ function GeneratePageContent() {
                             hasUnsavedChanges={hasUnsavedChanges}
                             isVisionEditEnabled={isVisionEditEnabled}
                             setIsVisionEditEnabled={setIsVisionEditEnabled}
+                            hasStudioAccess={hasStudioAccess}
                         />
 
                         <SettingsSection
@@ -1953,48 +2015,99 @@ function GeneratePageContent() {
             <ConfirmationModal
                 isOpen={showUnsavedModal}
                 title="Bake Architecture & Leave?"
-                onConfirm={async () => {
-                    await handleSaveBlueprint();
-                    if (pendingRoute) window.location.href = pendingRoute;
-                }}
                 onCancel={() => setShowUnsavedModal(false)}
-                confirmLabel="Bake & Leave"
-                cancelLabel="Stay"
-                type="info"
             >
                 <div className="space-y-6">
                     <div className="space-y-3">
-                        <p className="text-sm leading-relaxed text-foreground-muted">You have modified your vision template or variables but haven't **baked** them into the Registry yet.</p>
-                        <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
-                            <p className="text-[10px] font-black text-primary uppercase tracking-[0.1em]">Recommended: Bake your changes to keep this configuration as the new baseline for future generations.</p>
-                        </div>
+                        <p className="text-sm leading-relaxed text-foreground-muted">You have unsaved changes in your vision template.</p>
                     </div>
 
-                    <div className="flex flex-col gap-3 py-2 border-t border-border/40 pt-6">
-                        <p className="text-[10px] font-bold text-foreground-muted uppercase tracking-widest text-center mb-1">Select an exit strategy:</p>
-                        
-                        <Button 
-                            variant="secondary" 
-                            className="w-full h-11 font-black uppercase tracking-widest text-[10px] bg-background-secondary border-border/50 hover:border-primary/30 transition-all flex items-center justify-center gap-2"
-                            onClick={async () => {
-                                await handleSaveDraftPrompt();
-                                if (pendingRoute) window.location.href = pendingRoute;
-                            }}
+                    <div className="flex flex-col gap-2.5 py-2 border-t border-border/40 pt-4">
+                        <Tooltip 
+                            content={
+                                <div className="space-y-1">
+                                    <p className="font-black text-primary uppercase text-[9px] mb-1">Library Synchronization</p>
+                                    <p>Commits your architecture & variables back to the master Blueprint library. Use this when you've reached a stable, winning configuration.</p>
+                                    <p className="text-green-400/80 pt-1">Consequence: Permanently updates the baseline for this blueprint across all apps.</p>
+                                </div>
+                            }
+                            className="w-full"
                         >
-                            <Icons.database size={14} className="opacity-70" />
-                            Save Draft & Leave
-                        </Button>
-                        
-                        <Button 
-                            variant="secondary" 
-                            className="w-full h-11 text-[10px] uppercase font-black tracking-widest text-error/70 border-error/20 hover:bg-error/5 group flex items-center justify-center gap-2"
-                            onClick={() => {
-                                if (pendingRoute) window.location.href = pendingRoute;
-                            }}
+                            <Button 
+                                variant="primary" 
+                                className="w-full h-12 font-black uppercase tracking-widest text-[10px] bg-primary text-white shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
+                                onClick={async () => {
+                                    setIsExiting(true);
+                                    await handleSaveBlueprint();
+                                    if (pendingRoute) window.location.href = pendingRoute;
+                                }}
+                            >
+                                <Icons.zap size={14} className="group-hover:rotate-12 transition-transform" />
+                                Bake & Leave (Recommended)
+                            </Button>
+                        </Tooltip>
+
+                        <Tooltip 
+                            content={
+                                <div className="space-y-1">
+                                    <p className="font-black text-blue-400 uppercase text-[9px] mb-1">Personal Draft Storage</p>
+                                    <p>Saves your current session state only to your personal tray. Useful for incremental work that isn't ready for the master registry yet.</p>
+                                    <p className="text-blue-300/80 pt-1">Consequence: Your work is hidden from other suite tools until you perform a final Bake.</p>
+                                </div>
+                            }
+                            className="w-full"
                         >
-                            <Icons.close size={14} className="opacity-50 group-hover:opacity-100" />
-                            Discard Changes & Leave
-                        </Button>
+                            <Button 
+                                variant="secondary" 
+                                className="w-full h-11 font-black uppercase tracking-widest text-[10px] bg-background-secondary border-border/50 hover:border-primary/30 transition-all flex items-center justify-center gap-2"
+                                onClick={async () => {
+                                    setIsExiting(true);
+                                    await handleSaveDraftPrompt();
+                                    if (pendingRoute) window.location.href = pendingRoute;
+                                }}
+                            >
+                                <Icons.database size={14} className="opacity-70" />
+                                Save Draft & Leave
+                            </Button>
+                        </Tooltip>
+                        
+                        <Tooltip 
+                            content={
+                                <div className="space-y-1">
+                                    <p className="font-black text-red-400 uppercase text-[9px] mb-1">Session Purge</p>
+                                    <p>Exits the studio without saving any of your latest architectural changes.</p>
+                                    <p className="text-red-500 font-black pt-1">Danger: All unbaked modifications will be permanently lost and cannot be recovered.</p>
+                                </div>
+                            }
+                            className="w-full"
+                        >
+                            <Button 
+                                variant="secondary" 
+                                className="w-full h-11 text-[10px] uppercase font-black tracking-widest text-error/70 border-error/20 hover:bg-error/5 group flex items-center justify-center gap-2"
+                                onClick={() => {
+                                    setIsExiting(true);
+                                    if (pendingRoute) window.location.href = pendingRoute;
+                                }}
+                            >
+                                <Icons.close size={14} className="opacity-50 group-hover:opacity-100" />
+                                Discard Changes & Leave
+                            </Button>
+                        </Tooltip>
+
+                        <div className="flex justify-center mt-2">
+                            <Tooltip 
+                                content="Aborts navigation and returns you to the active workspace with all changes intact."
+                                position="top"
+                                width="w-48"
+                            >
+                                <button 
+                                    onClick={() => setShowUnsavedModal(false)}
+                                    className="text-[9px] font-black uppercase tracking-[0.2em] text-foreground-muted hover:text-white transition-colors"
+                                >
+                                    Wait, I want to stay
+                                </button>
+                            </Tooltip>
+                        </div>
                     </div>
                 </div>
             </ConfirmationModal>

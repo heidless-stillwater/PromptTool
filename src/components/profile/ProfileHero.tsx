@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Icons } from '@/components/ui/Icons';
+import UserAvatar from '@/components/UserAvatar';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -52,18 +53,12 @@ export default function ProfileHero({
                     {/* Avatar */}
                     <div className="relative group/avatar -mt-24">
                         <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-500" />
-                        {author.photoURL && author.photoURL !== 'null' ? (
-                            <img
-                                src={author.photoURL}
-                                alt={author.displayName || 'Author'}
-                                className="w-40 h-40 rounded-full border-[6px] border-background shadow-2xl relative z-10 object-cover"
-                            />
-                        ) : (
-                            <div className="w-40 h-40 rounded-full bg-background-tertiary flex items-center justify-center text-5xl font-black text-primary border-[6px] border-background shadow-2xl relative z-10">
-                                {(author.displayName || 'A').charAt(0).toUpperCase()}
-                            </div>
-                        )}
-                        {/* Status/Verified Badge if needed */}
+                        <UserAvatar 
+                            src={author.photoURL} 
+                            name={author.displayName || author.username} 
+                            size="xl"
+                            className="border-[6px] border-background shadow-2xl relative z-10"
+                        />
                     </div>
 
                     <div className="flex-1 pb-2">

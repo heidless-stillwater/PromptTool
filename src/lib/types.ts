@@ -46,6 +46,23 @@ export interface UserProfile {
         instagram?: string;
         website?: string;
     };
+    
+    // Suite Entitlements (Shared across ecosystem)
+    subscriptionMetadata?: {
+        bundleId: string;
+        activeSuites: string[]; // e.g. ['resources', 'studio', 'registry', 'prompttool']
+        status: 'active' | 'past_due' | 'canceled' | 'incomplete';
+        expiresAt?: any;
+    };
+
+    // New unified subscription object (written by Stripe webhook via PromptResources)
+    suiteSubscription?: {
+        bundleId: string;
+        activeSuites: string[];
+        status: 'active' | 'past_due' | 'canceled' | 'incomplete';
+        expiresAt?: any;
+    };
+
     createdAt: FirestoreTimestamp;
     updatedAt: FirestoreTimestamp;
 }
