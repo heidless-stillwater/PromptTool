@@ -35,17 +35,28 @@ export default function DashboardHeader({
     return (
         <Card variant="glass" className="sticky top-0 z-50 border-x-0 border-t-0 rounded-none border-b border-border shadow-sm h-[72px] flex items-center">
             <div className="max-w-7xl w-full mx-auto px-4 flex items-center justify-between">
-                <Link href="/dashboard" className="text-xl font-bold gradient-text">
-                    AI Image Studio
+                <Link href="/dashboard" className="flex items-center gap-3 group">
+                    <div className="w-10 h-10 rounded-xl bg-brand-gradient p-[1px]">
+                        <div className="w-full h-full bg-black rounded-xl flex items-center justify-center">
+                            <Icons.zap className="text-primary w-5 h-5 group-hover:scale-110 transition-transform" />
+                        </div>
+                    </div>
+                    <div>
+                        <h1 className="text-lg font-black uppercase tracking-tighter leading-none">Stillwater Studio</h1>
+                        <p className="text-[9px] font-black text-foreground-muted uppercase tracking-[0.2em] mt-1">Ecosystem Central</p>
+                    </div>
                 </Link>
 
-                <div className="flex items-center gap-4">
-                    <Link href="/collections" className="text-sm font-medium hover:text-primary transition-colors hidden md:block">
-                        My Collections
-                    </Link>
-                    <Link href="/community" className="text-sm font-medium hover:text-emerald-500 transition-colors hidden lg:block">
-                        Community Hub
-                    </Link>
+                <div className="flex items-center gap-6">
+                    <nav className="hidden lg:flex items-center gap-5">
+                        <Link href="/collections" className="text-[10px] font-black uppercase tracking-widest text-foreground-muted hover:text-white transition-colors">My Gallery</Link>
+                        <Link href="http://localhost:3002/resources" className="text-[10px] font-black uppercase tracking-widest text-foreground-muted hover:text-primary transition-colors">Resources Hub</Link>
+                        <Link href="http://localhost:5173" className="text-[10px] font-black uppercase tracking-widest text-foreground-muted hover:text-purple-400 transition-colors">Master Registry</Link>
+                        <Link href="/community" className="text-[10px] font-black uppercase tracking-widest text-emerald-500 hover:text-emerald-400 transition-colors">Leaderboard</Link>
+                    </nav>
+                    
+                    <div className="h-4 w-[1px] bg-white/5 mx-2 hidden lg:block" />
+                    
                     <GlobalSearch />
                     <NotificationBell />
 

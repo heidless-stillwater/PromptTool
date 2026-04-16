@@ -37,6 +37,8 @@ export interface MediaSaveOptions {
     targetVariationId?: string;
     title?: string;
     rawPrompt?: string;
+    variables?: Record<string, { value: string; default: string }>;
+    template?: string;
 }
 
 export class GenerationService {
@@ -45,6 +47,14 @@ export class GenerationService {
      */
     static async validateTier(userId: string, body: any) {
         const { modality = 'image', quality, count = 1, seed, negativePrompt, guidanceScale } = body;
+        
+        // SOVEREIGN_SENTINEL: Real-time Compliance Gating
+        const { ComplianceService } = await import('./compliance-service');
+        const gate = await ComplianceService.verifySovereignGate();
+        if (gate.gated) {
+            console.error(`[GenerationService] ACCESS_GATED: ${gate.message}`);
+            throw new Error(gate.message);
+        }
 
         const userDoc = await adminDb.collection('users').doc(userId).get();
         if (!userDoc.exists) throw new Error('User not found');
@@ -164,7 +174,7 @@ export class GenerationService {
      */
     static async saveMedia(userId: string, media: { data: string, mimeType: string }, options: MediaSaveOptions) {
         const bucket = adminStorage.bucket();
-        const { modality, quality, aspectRatio, prompt, promptType, madlibsData, seed, negativePrompt, guidanceScale, sourceImageId, promptSetID, collectionIds, requestedModality, initialImageUrl, targetVariationId, title, rawPrompt } = options;
+        const { modality, quality, aspectRatio, prompt, promptType, madlibsData, seed, negativePrompt, guidanceScale, sourceImageId, promptSetID, collectionIds, requestedModality, initialImageUrl, targetVariationId, title, rawPrompt, variables, template } = options;
 
         const isVideo = media.mimeType.startsWith('video/');
         const extension = media.mimeType.split('/')[1] || (isVideo ? 'mp4' : 'png');
@@ -212,6 +222,8 @@ export class GenerationService {
             ...(promptSetID && { promptSetID }),
             ...(collectionIds && { collectionIds }),
             ...(title && { title }),
+            ...(variables && { variables }),
+            ...(template && { template }),
         };
 
         let mediaDoc;

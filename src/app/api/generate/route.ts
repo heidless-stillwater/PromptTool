@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
         }
 
         const validatedData = result.data;
-        const { prompt, rawPrompt, quality, aspectRatio, modality, count, seed, negativePrompt, guidanceScale, referenceImage, referenceImageUrl, referenceMimeType, sourceImageId, promptSetID, collectionIds, title } = validatedData;
+        const { prompt, rawPrompt, quality, aspectRatio, modality, count, seed, negativePrompt, guidanceScale, referenceImage, referenceImageUrl, referenceMimeType, sourceImageId, promptSetID, collectionIds, title, variables, template } = validatedData;
 
         await GenerationService.validateTier(userId, validatedData);
         const validation = await GenerationService.validateCredits(userId, modality as any, quality as any, count);
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
 
         (async () => {
             try {
-                const nanoBananaService = getNanoBananaService();
+                const nanoBananaService = await getNanoBananaService();
                 let genResult;
 
                 if (modality === 'video') {
@@ -98,7 +98,9 @@ export async function POST(request: NextRequest) {
                         promptSetID: promptSetID ?? undefined, collectionIds: collectionIds ?? undefined,
                         requestedModality: modality as any, modality: modality as any, initialImageUrl: referenceImageUrl ?? undefined,
                         targetVariationId: i === 0 ? validatedData.targetVariationId : undefined,
-                        title: title ?? undefined
+                        title: title ?? undefined,
+                        variables: variables as any,
+                        template: template as any
                     });
                     generatedMediaData.push(mediaData);
                     await sendEvent({ type: 'image_ready', image: mediaData, index: i });

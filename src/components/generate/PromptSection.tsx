@@ -9,8 +9,8 @@ import { Select } from '@/components/ui/Select';
 import { cn } from '@/lib/utils';
 import Tooltip from '@/components/Tooltip';
 import { motion, AnimatePresence } from 'framer-motion';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, getDocs, query, where, limit } from 'firebase/firestore';
+import { db, auth } from '@/lib/firebase';
 
 type PromptMode = 'freeform' | 'customize';
 
@@ -179,9 +179,17 @@ function CustomizeSection({
         if (!hasStudioAccess) return;
         
         const fetchBlueprints = async () => {
+            const user = auth.currentUser;
+            if (!user) {
+                console.log('No user found for blueprint fetch');
+                return;
+            }
+
             setLoading(true);
             try {
-                const snap = await getDocs(collection(db, 'blueprints'));
+                // Hardened: Filter by UID to comply with ownership-based rules
+                const q = query(collection(db, 'blueprints'), where('uid', '==', user.uid));
+                const snap = await getDocs(q);
                 const bps = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 setBlueprints(bps);
             } catch (err) {
@@ -190,7 +198,15 @@ function CustomizeSection({
                 setLoading(false);
             }
         };
-        fetchBlueprints();
+        
+        // Use auth state listener if currentUser is not yet available
+        const unsubscribe = auth.onAuthStateChanged((user) => {
+            if (user) {
+                fetchBlueprints();
+            }
+        });
+
+        return () => unsubscribe();
     }, [hasStudioAccess]);
 
     const handleSelect = (bp: any) => {

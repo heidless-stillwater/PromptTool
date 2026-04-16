@@ -1988,18 +1988,36 @@ function GeneratePageContent() {
             <ConfirmationModal
                 isOpen={showConfirmModal}
                 title="Confirm Resource Spend"
-                onConfirm={executeGeneration}
                 onCancel={() => setShowConfirmModal(false)}
-                confirmLabel="Let's Manifest"
-                cancelLabel="Not Yet"
+                customButtons={[
+                    {
+                        label: "Let's Manifest",
+                        onClick: () => {
+                            setShowConfirmModal(false);
+                            executeGeneration();
+                        },
+                        className: "col-span-2 py-4 px-6 rounded-2xl bg-primary text-white text-[11px] font-black uppercase tracking-[0.2em] hover:bg-primary-hover hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-2"
+                    },
+                    {
+                        label: "Abort Initialization",
+                        onClick: () => setShowConfirmModal(false),
+                        className: "col-span-2 py-3 px-6 rounded-xl border border-white/5 text-[9px] font-black uppercase tracking-[0.2em] text-white/20 hover:text-white/40 hover:bg-white/5 transition-all flex items-center justify-center gap-2"
+                    }
+                ]}
             >
-                <div className="space-y-4">
-                    <p>You are about to spend <span className="text-primary font-black">{currentCost} credits</span> to manifest this creation.</p>
-                    <div className="p-4 bg-background-secondary rounded-xl border border-border flex items-center justify-between">
-                        <span className="text-xs font-bold text-foreground-muted">Remaining Balance</span>
-                        <div className="flex items-center gap-1">
-                            <span className="font-black text-primary">{availableCredits - currentCost}</span>
-                            <Icons.zap size={12} className="text-primary" />
+                <div className="space-y-6">
+                    <p className="text-sm font-medium text-foreground/60 leading-relaxed uppercase tracking-wider">
+                        You are about to spend <span className="text-primary font-black">{currentCost} credits</span> to manifest this creation across the neural compute cluster.
+                    </p>
+                    
+                    <div className="p-5 bg-white/[0.03] rounded-2xl border border-white/5 flex items-center justify-between shadow-inner group transition-colors hover:border-primary/20">
+                        <div className="flex flex-col gap-1 text-left">
+                            <span className="text-[9px] font-black text-white/20 uppercase tracking-[0.2em] group-hover:text-primary/40 transition-colors">Projected Balance</span>
+                            <span className="text-[10px] font-bold text-foreground-muted">Post-Generation</span>
+                        </div>
+                        <div className="flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-xl border border-primary/20">
+                            <span className="font-black text-primary tabular-nums text-lg">{availableCredits - currentCost}</span>
+                            <Icons.zap size={14} className="text-primary animate-pulse" />
                         </div>
                     </div>
                 </div>

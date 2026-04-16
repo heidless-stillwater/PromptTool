@@ -1,6 +1,7 @@
 // NanoBanana (Gemini) Image Generation Service
 import { GoogleGenAI } from '@google/genai';
 import { AspectRatio, ImageQuality } from '../types';
+import { getSecret } from '../config-helper';
 
 // Model selection based on quality
 const MODELS = {
@@ -367,11 +368,11 @@ export class NanoBananaService {
 // Server-side singleton
 let nanoBananaService: NanoBananaService | null = null;
 
-export function getNanoBananaService(): NanoBananaService {
+export async function getNanoBananaService(): Promise<NanoBananaService> {
     if (!nanoBananaService) {
-        const apiKey = process.env.GEMINI_API_KEY;
+        const apiKey = await getSecret('GEMINI_API_KEY');
         if (!apiKey) {
-            throw new Error('GEMINI_API_KEY not configured');
+            throw new Error('GEMINI_API_KEY not configured in environment or database');
         }
         nanoBananaService = new NanoBananaService(apiKey);
     }

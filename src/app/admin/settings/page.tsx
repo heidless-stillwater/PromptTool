@@ -10,6 +10,7 @@ import { Icons } from '@/components/ui/Icons';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import { SignupIncentives, SystemConfig } from '@/lib/types';
+import { SecretsManager } from './SecretsManager';
 
 export default function AdminSettingsPage() {
     const {
@@ -269,6 +270,11 @@ export default function AdminSettingsPage() {
                     Save Global Settings
                 </Button>
             </div>
+
+            <hr className="border-border/50" />
+
+            {/* API Secrets Management */}
+            <SecretsManager />
         </div>
     );
 }

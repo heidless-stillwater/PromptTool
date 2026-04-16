@@ -76,6 +76,16 @@ export const adminStorage: any = new Proxy({} as any, {
     }
 });
 
+export const accreditationDb: any = new Proxy({} as any, {
+    get(target, prop) {
+        const app = getEnsuredApp();
+        const db = getFirestore(app, 'promptaccreditation-db-0');
+        try { db.settings({ ignoreUndefinedProperties: true }); } catch (e) {}
+        const value = (db as any)[prop];
+        return typeof value === 'function' ? value.bind(db) : value;
+    }
+});
+
 export const adminApp: any = new Proxy({} as any, {
     get(target, prop) {
         const app = getEnsuredApp();

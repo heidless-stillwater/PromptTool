@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { getSecret } from '../config-helper';
 
 export class AIPromptService {
     private client: GoogleGenAI;
@@ -103,11 +104,11 @@ export class AIPromptService {
 // Singleton helper
 let aiPromptService: AIPromptService | null = null;
 
-export function getAIPromptService(): AIPromptService {
+export async function getAIPromptService(): Promise<AIPromptService> {
     if (!aiPromptService) {
-        const apiKey = process.env.GEMINI_API_KEY;
+        const apiKey = await getSecret('GEMINI_API_KEY');
         if (!apiKey) {
-            throw new Error('GEMINI_API_KEY not configured');
+            throw new Error('GEMINI_API_KEY not configured in environment or database');
         }
         aiPromptService = new AIPromptService(apiKey);
     }

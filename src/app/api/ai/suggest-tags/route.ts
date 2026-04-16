@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
         const { prompts } = result.data;
 
         // 3. Suggest Tags
-        const aiService = getAIPromptService();
+        const aiService = await getAIPromptService();
         const suggestedTags = await aiService.suggestTags(prompts);
 
         return NextResponse.json({
