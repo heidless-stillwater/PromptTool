@@ -107,8 +107,8 @@ function TileCard({
     return (
         <Card
             className={cn(
-                'overflow-visible group cursor-pointer hover:ring-2 hover:ring-border/80 transition-all hover:shadow-xl hover:shadow-black/10',
-                viewMode === 'feed' ? 'rounded-3xl border-border/60' : 'rounded-2xl'
+                'overflow-visible group cursor-pointer hover:ring-2 hover:ring-primary/40 transition-all hover:shadow-2xl hover:shadow-primary/5',
+                viewMode === 'feed' ? 'rounded-3xl border-white/10' : 'rounded-2xl border-white/5'
             )}
             variant="glass"
         >
@@ -138,9 +138,9 @@ function TileCard({
                     }}
                 >
                     {error ? (
-                        <div className="w-full h-full flex flex-col items-center justify-center bg-background-secondary text-foreground-muted">
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-white/[0.02] text-white/20">
                             <Icons.error className="w-10 h-10 opacity-20 mb-2" />
-                            <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Unavailable</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Architectural Fragment Offline</span>
                         </div>
                     ) : (
                         <MediaThumb
@@ -192,8 +192,8 @@ function TileCard({
             {viewMode !== 'compact' && (
                 <div className="p-4">
                     <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-foreground-muted opacity-60">
-                            {image.settings?.quality || 'standard'} · {image.settings?.aspectRatio || '1:1'}
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30">
+                            {image.settings?.quality || 'standard'} <span className="text-primary/40">/</span> {image.settings?.aspectRatio || '1:1'}
                         </span>
                         {showStack && (
                             <span className="text-[10px] font-black uppercase tracking-widest text-primary opacity-80">
@@ -224,7 +224,7 @@ function ListCard({
     return (
         <Card
             variant="glass"
-            className="overflow-hidden group cursor-pointer hover:ring-2 hover:ring-border/80 transition-all hover:shadow-lg hover:shadow-black/10 rounded-2xl"
+            className="overflow-hidden group cursor-pointer hover:ring-2 hover:ring-primary/40 transition-all hover:shadow-2xl hover:shadow-primary/5 rounded-2xl border-white/5 bg-white/[0.02]"
         >
             <div className="flex items-stretch gap-0">
                 {/* Thumbnail */}
@@ -239,7 +239,7 @@ function ListCard({
                     }}
                 >
                     {error ? (
-                        <div className="w-full h-full flex items-center justify-center bg-background-secondary text-foreground-muted">
+                        <div className="w-full h-full flex items-center justify-center bg-white/[0.02] text-white/20">
                             <Icons.error className="w-6 h-6 opacity-20" />
                         </div>
                     ) : (
@@ -262,15 +262,15 @@ function ListCard({
                 </div>
 
                 {/* Metadata */}
-                <div className="flex-1 px-4 py-3 flex flex-col justify-center gap-1.5 min-w-0">
-                    <p className="text-sm font-medium leading-snug line-clamp-2 text-foreground">
+                <div className="flex-1 px-6 py-4 flex flex-col justify-center gap-1.5 min-w-0">
+                    <p className="text-sm font-black leading-snug line-clamp-2 text-white/80 group-hover:text-white transition-colors">
                         {image.prompt}
                     </p>
                     <div className="flex items-center gap-3 flex-wrap">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-foreground-muted opacity-60">
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20">
                             {image.settings?.quality || 'standard'}
                         </span>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-foreground-muted opacity-60">
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20">
                             {image.settings?.aspectRatio || '1:1'}
                         </span>
                         {isVideo && (
@@ -442,78 +442,72 @@ export default function ProfilePortfolio({
 
     return (
         <div className="space-y-8">
-            {/* ── Header ── */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-background-secondary border border-border/50">
-                        <Icons.image className="text-primary" size={20} />
+            {/* ── CONTROL BELT (Aligned with Resources Page) ── */}
+            <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-white/[0.03] backdrop-blur-xl border border-white/5 rounded-[2rem] mb-6 shadow-2xl relative overflow-hidden">
+                <div className="flex flex-wrap items-center gap-4 flex-1 min-w-[300px] relative z-10">
+                    <div className="flex items-center gap-3 px-4 py-2 bg-white/5 rounded-2xl border border-white/5">
+                        <Icons.image className="text-primary" size={16} />
+                        <div>
+                            <h2 className="text-[11px] font-black tracking-tighter uppercase text-white leading-none">Creation Portfolio</h2>
+                            <p className="text-[8px] font-black uppercase tracking-[0.2em] text-primary/40 mt-1">
+                                {isGrouped ? 'Grouped Manifest' : 'Fragment Index'}
+                            </p>
+                        </div>
                     </div>
-                    <div>
-                        <h2 className="text-2xl font-black tracking-tighter uppercase">Creation Portfolio</h2>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-foreground-muted opacity-60">
-                            {isGrouped ? 'Grouped by Prompt Set' : 'All Creations'}
-                        </p>
-                    </div>
-                </div>
 
-                <div className="flex items-center gap-2 flex-wrap justify-end">
-                    {/* View mode buttons */}
-                    <div className="flex bg-background-secondary rounded-xl p-1 border border-border/50 shadow-inner">
+                    <div className="h-8 w-px bg-white/5 hidden md:block" />
+
+                    {/* View mode switcher */}
+                    <div className="flex p-1 bg-[#0f172a]/40 rounded-xl border border-white/5">
                         {VIEW_OPTIONS.map(view => (
-                            <Button
+                            <button
                                 key={view.key}
-                                variant={viewMode === view.key ? 'secondary' : 'ghost'}
-                                size="sm"
                                 onClick={() => onViewModeChange(view.key)}
                                 className={cn(
-                                    'rounded-lg px-2.5 h-8 gap-1.5 font-black uppercase tracking-widest text-[9px]',
-                                    viewMode !== view.key
-                                        ? 'text-foreground-muted hover:text-foreground'
-                                        : 'bg-background shadow-sm text-foreground'
+                                    'p-2 rounded-lg transition-all',
+                                    viewMode === view.key
+                                        ? 'bg-white/10 text-white shadow-inner'
+                                        : 'text-white/20 hover:text-white/40'
                                 )}
                                 title={view.label}
                             >
                                 {view.icon}
-                                <span className="hidden lg:inline">{view.label}</span>
-                            </Button>
+                            </button>
                         ))}
                     </div>
 
-                    <Button
-                        variant={isGrouped ? 'primary' : 'secondary'}
-                        size="sm"
+                    <div className="h-8 w-px bg-white/5 hidden md:block" />
+
+                    <button
                         onClick={onToggleGrouped}
                         className={cn(
-                            'h-8 px-3 gap-1.5 font-black uppercase tracking-widest text-[9px] rounded-xl border border-border/50',
+                            'h-10 px-4 gap-2 font-black uppercase tracking-widest text-[9px] rounded-xl border transition-all flex items-center',
                             isGrouped
-                                ? 'shadow-lg shadow-primary/20'
-                                : 'text-foreground-muted hover:text-foreground bg-background-secondary'
+                                ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20'
+                                : 'bg-white/5 border-white/5 text-white/20 hover:text-white/40'
                         )}
-                        title="Group by Prompt Set"
                     >
-                        <Icons.stack size={13} />
-                        <span className="hidden sm:inline">Grouped</span>
-                    </Button>
+                        <Icons.stack size={14} />
+                        Grouped
+                    </button>
 
-                    <Button
-                        variant={showOnlyCommunity ? 'primary' : 'secondary'}
-                        size="sm"
+                    <button
                         onClick={onToggleOnlyCommunity}
                         className={cn(
-                            'h-8 px-3 gap-1.5 font-black uppercase tracking-widest text-[9px] rounded-xl border border-border/50',
+                            'h-10 px-4 gap-2 font-black uppercase tracking-widest text-[9px] rounded-xl border transition-all flex items-center',
                             showOnlyCommunity
-                                ? 'shadow-lg shadow-primary/20 border-primary/50'
-                                : 'text-foreground-muted hover:text-foreground bg-background-secondary'
+                                ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20'
+                                : 'bg-white/5 border-white/5 text-white/20 hover:text-white/40'
                         )}
-                        title="Show only Community Hub entries"
                     >
-                        <Icons.globe size={13} className={showOnlyCommunity ? 'text-white' : 'text-primary'} />
-                        <span className="hidden sm:inline">Community Only</span>
-                    </Button>
+                        <Icons.globe size={14} />
+                        Hub Only
+                    </button>
+                </div>
 
-                    {/* Count chip */}
-                    <div className="px-3 py-2 rounded-full bg-background-secondary border border-border/50 text-[10px] font-black uppercase tracking-widest text-foreground-muted whitespace-nowrap">
-                        {displayCount} {isGrouped ? 'sets' : 'items'}
+                <div className="flex items-center gap-3 relative z-10">
+                    <div className="px-4 py-2 rounded-xl bg-white/5 border border-white/5 text-[9px] font-black uppercase tracking-[0.3em] text-white/30 whitespace-nowrap">
+                        {displayCount} {isGrouped ? 'Sets' : 'Fragments'}
                     </div>
                 </div>
             </div>
@@ -536,13 +530,13 @@ export default function ProfilePortfolio({
 
             {/* ── Empty state ── */}
             {images.length === 0 ? (
-                <Card variant="glass" className="py-24 flex flex-col items-center justify-center text-center border-dashed border-2">
-                    <div className="w-20 h-20 rounded-full bg-background-secondary flex items-center justify-center mb-6 opacity-50">
-                        <Icons.image size={40} className="text-foreground-muted" />
+                <Card variant="glass" className="py-24 flex flex-col items-center justify-center text-center border-white/5 bg-white/[0.01]">
+                    <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6 border border-white/10">
+                        <Icons.image size={40} className="text-white/20" />
                     </div>
-                    <h2 className="text-xl font-black tracking-tight mb-2">Portfolio is empty</h2>
-                    <p className="text-foreground-muted max-w-sm text-sm">
-                        This creator hasn&apos;t generated any images yet. Check back soon!
+                    <h2 className="text-xl font-black tracking-tighter uppercase text-white mb-2">Portfolio Registry Empty</h2>
+                    <p className="text-white/40 max-w-sm text-[11px] font-black uppercase tracking-widest leading-relaxed">
+                        No architectural fragments detected in this creator's node. 
                     </p>
                 </Card>
             ) : (

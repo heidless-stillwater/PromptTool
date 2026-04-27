@@ -36,20 +36,20 @@ export default function ProfileStats({
                     onClick={() => stat.clickable && onStatClick?.(stat.key as any)}
                 >
                     <div className={cn(
-                        "p-3 rounded-2xl bg-background-secondary border border-border/50 transition-colors shadow-sm",
-                        stat.clickable ? "group-hover:border-primary/50 group-hover:bg-primary/5" : "group-hover:border-primary/30"
+                        "p-4 rounded-2xl bg-white/[0.02] border border-white/5 transition-all shadow-sm",
+                        stat.clickable ? "group-hover:border-primary/50 group-hover:bg-primary/10" : "group-hover:border-primary/30"
                     )}>
                         {stat.icon}
                     </div>
                     <div className="space-y-0.5">
                         <p className={cn(
-                            "text-3xl font-black tracking-tight transition-colors",
-                            stat.color === 'primary' ? "text-primary" : "text-foreground",
+                            "text-3xl font-black tracking-tighter transition-colors",
+                            stat.color === 'primary' ? "text-primary" : "text-white",
                             stat.clickable && "group-hover:text-primary"
                         )}>
                             {stat.value}
                         </p>
-                        <p className="text-[9px] uppercase tracking-widest text-foreground-muted font-black leading-none">
+                        <p className="text-[9px] uppercase tracking-[0.3em] text-white/30 font-black leading-none">
                             {stat.label}
                         </p>
                     </div>

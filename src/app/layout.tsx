@@ -36,6 +36,8 @@ export const metadata: Metadata = {
     },
 };
 
+import { SovereignSentinel } from '@/components/SovereignSentinel';
+
 export default function RootLayout({
     children,
 }: {
@@ -46,6 +48,7 @@ export default function RootLayout({
             <body className={`${inter.variable} ${outfit.variable} font-sans antialiased`}>
                 <QueryProvider>
                     <AuthProvider>
+                        <SovereignSentinel />
                         <ToastProvider>
                             <TourProvider>
                                 <GuidedTour />

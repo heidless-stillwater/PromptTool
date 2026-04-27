@@ -162,6 +162,7 @@ export function SecretsManager() {
                 className="w-full bg-black/40 backdrop-blur-md border border-white/10 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder:text-white/20 focus:ring-2 focus:ring-primary/50 transition-all outline-none"
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
+                autoComplete="current-password"
                 required
               />
             </div>

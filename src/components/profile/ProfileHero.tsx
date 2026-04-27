@@ -16,6 +16,10 @@ interface ProfileHeroProps {
     followLoading: boolean;
     onToggleFollow: () => void;
     formatDate: (ts: any) => string;
+    stats: {
+        totalVotes: number;
+        totalEntries: number;
+    };
 }
 
 export default function ProfileHero({
@@ -24,152 +28,104 @@ export default function ProfileHero({
     isFollowing,
     followLoading,
     onToggleFollow,
-    formatDate
+    formatDate,
+    stats
 }: ProfileHeroProps) {
     return (
-        <Card variant="glass" className="rounded-[2.5rem] mb-12 relative overflow-hidden border-0 bg-background-secondary/30">
-            {/* Banner */}
+        <Card variant="glass" className="rounded-[2.5rem] mb-12 relative overflow-hidden border-white/5 bg-background-secondary/20 shadow-2xl">
+            {/* Compact Header Stripe */}
             <div className={cn(
-                "w-full relative bg-background-tertiary overflow-hidden group",
-                !author.bannerUrl ? "h-64" : ""
-            )}>
-                {author.bannerUrl ? (
-                    <img
-                        src={author.bannerUrl}
-                        alt="Profile Banner"
-                        className="w-full h-full object-cover block min-h-[200px] transition-transform duration-700 group-hover:scale-105"
-                    />
-                ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-primary/20 via-purple-500/10 to-accent/5" />
-                )}
-                {/* Subtle top/bottom overlays */}
-                <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-black/20" />
-            </div>
+                "w-full relative h-2 bg-brand-gradient"
+            )} />
 
-            <div className="px-10 pb-10 relative">
-                <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 blur-[120px] -mr-48 -mt-24 rounded-full pointer-events-none" />
+            <div className="px-8 py-8 relative">
+                <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/5 blur-[100px] -mr-32 -mt-32 rounded-full pointer-events-none" />
 
-                <div className="relative flex flex-col md:flex-row items-center md:items-end gap-8 text-center md:text-left">
-                    {/* Avatar */}
-                    <div className="relative group/avatar -mt-24">
-                        <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-500" />
-                        <UserAvatar 
-                            src={author.photoURL} 
-                            name={author.displayName || author.username} 
-                            size="xl"
-                            className="border-[6px] border-background shadow-2xl relative z-10"
-                        />
-                    </div>
+                <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                    {/* Primary Info */}
+                    <div className="lg:col-span-7 flex flex-col md:flex-row items-center md:items-start gap-6">
+                        <div className="relative group/avatar">
+                            <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-500" />
+                            <UserAvatar 
+                                src={author.photoURL} 
+                                name={author.displayName || author.username} 
+                                size="xl"
+                                className="border-4 border-[#0f172a] shadow-2xl relative z-10"
+                            />
+                        </div>
+                        
+                        <div className="flex-1 text-center md:text-left pt-2">
+                            <div className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-2 flex items-center justify-center md:justify-start gap-2">
+                                Node Identity
+                                <span className="w-1 h-1 rounded-full bg-primary/50" />
+                                <span className="text-primary/60">node-{author.uid.slice(0, 8)}</span>
+                            </div>
 
-                    <div className="flex-1 pb-2">
-                        <div className="flex flex-col md:flex-row md:items-center gap-4 mb-3">
-                            <h1 className="text-4xl font-black tracking-tighter text-foreground">{author.displayName || 'Anonymous Author'}</h1>
-                            <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
-                                {(author.badges || []).map(badgeId => {
-                                    const badge = BADGES[badgeId];
-                                    if (!badge) return null;
-                                    return (
-                                        <Badge
-                                            key={badgeId}
-                                            variant="secondary"
-                                            className={cn("gap-1.5 font-black uppercase tracking-widest text-[9px] px-2.5 py-1", badge.color.replace('text-', 'bg-').concat('/10 ').concat(badge.color))}
-                                        >
-                                            <span>{badge.icon}</span>
-                                            <span>{badge.label}</span>
-                                        </Badge>
-                                    );
-                                })}
+                            <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-white mb-2 leading-none capitalize">
+                                {author.displayName || 'Anonymous'}
+                            </h1>
+
+                            <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-4">
                                 {author.role === 'su' || author.role === 'admin' ? (
-                                    <Badge variant="primary" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20 font-black uppercase tracking-widest text-[9px] px-2.5 py-1">
-                                        <Icons.settings size={10} className="mr-1" /> STAFF
-                                    </Badge>
+                                    <Badge variant="primary" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20 font-black uppercase tracking-widest text-[8px] px-2 py-0.5">STAFF</Badge>
                                 ) : (
-                                    <Badge variant="primary" className="bg-primary/10 text-primary border-primary/20 font-black uppercase tracking-widest text-[9px] px-2.5 py-1">
-                                        <Icons.zap size={10} className="mr-1" /> CREATOR
-                                    </Badge>
+                                    <Badge variant="primary" className="bg-primary/10 text-primary border-primary/20 font-black uppercase tracking-widest text-[8px] px-2 py-0.5">CREATOR</Badge>
                                 )}
+                                <div className="text-white/20 text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-1.5">
+                                    <Icons.history size={10} className="text-primary/40" />
+                                    Since {formatDate(author.createdAt)}
+                                </div>
                             </div>
-                        </div>
 
-                        <div className="flex items-center justify-center md:justify-start gap-4 mb-4">
-                            <div className="flex items-center gap-1.5 text-foreground-muted text-[10px] font-black uppercase tracking-widest">
-                                <Icons.history size={12} className="opacity-50" />
-                                <span>Member since {formatDate(author.createdAt)}</span>
-                            </div>
-                        </div>
-
-                        {author.bio && (
-                            <div className="relative group/bio max-w-2xl">
-                                <div className="absolute -left-4 top-0 bottom-0 w-1 bg-primary/20 rounded-full" />
-                                <p className="text-foreground/80 text-sm leading-relaxed whitespace-pre-wrap italic font-medium pl-4">
+                            {author.bio && (
+                                <p className="text-white/40 text-sm italic border-l border-white/10 pl-4 mb-6 max-w-md line-clamp-2">
                                     &quot;{author.bio}&quot;
                                 </p>
-                            </div>
-                        )}
+                            )}
 
-                        {author.socialLinks && (
-                            <div className="flex flex-wrap items-center justify-center md:justify-start gap-8 mt-8 pt-6 border-t border-border/50">
-                                {author.socialLinks.twitter && (
-                                    <a href={`https://x.com/${author.socialLinks.twitter}`} target="_blank" rel="noopener noreferrer" className="text-foreground-muted hover:text-primary transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest group/social">
-                                        <div className="p-2 rounded-lg bg-background-secondary group-hover/social:bg-primary/10 transition-colors">
-                                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
-                                        </div>
-                                        {author.socialLinks.twitter}
-                                    </a>
-                                )}
-                                {author.socialLinks.instagram && (
-                                    <a href={`https://instagram.com/${author.socialLinks.instagram}`} target="_blank" rel="noopener noreferrer" className="text-foreground-muted hover:text-accent transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest group/social">
-                                        <div className="p-2 rounded-lg bg-background-secondary group-hover/social:bg-accent/10 transition-colors">
-                                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M7.75 2h8.5A5.75 5.75 0 0 1 22 7.75v8.5A5.75 5.75 0 0 1 16.25 22h-8.5A5.75 5.75 0 0 1 2 16.25v-8.5A5.75 5.75 0 0 1 7.75 2zm0 1.5a4.25 4.25 0 0 0-4.25 4.25v8.5a4.25 4.25 0 0 0 4.25 4.25h8.5a4.25 4.25 0 0 0 4.25-4.25v-8.5a4.25 4.25 0 0 0-4.25-4.25h-8.5zM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm0 1.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm5.25-.75a1 1 0 1 1 0 2 1 1 0 0 1 0-2z" /></svg>
-                                        </div>
-                                        {author.socialLinks.instagram}
-                                    </a>
-                                )}
-                                {author.socialLinks.website && (
-                                    <a href={author.socialLinks.website} target="_blank" rel="noopener noreferrer" className="text-foreground-muted hover:text-primary transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest group/social">
-                                        <div className="p-2 rounded-lg bg-background-secondary group-hover/social:bg-primary/10 transition-colors">
-                                            <Icons.globe size={14} />
-                                        </div>
-                                        Website
-                                    </a>
+                            <div className="flex items-center justify-center md:justify-start gap-4">
+                                {currentUser?.uid === author.uid ? (
+                                    <Link href="/settings">
+                                        <Button variant="secondary" className="h-9 px-4 bg-white/5 border-white/5 text-white rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-white/10 transition-all">
+                                            Manage Node
+                                            <Icons.settings size={12} />
+                                        </Button>
+                                    </Link>
+                                ) : currentUser && (
+                                    <Button
+                                        onClick={onToggleFollow}
+                                        disabled={followLoading}
+                                        className={cn(
+                                            "h-9 px-6 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-xl",
+                                            isFollowing 
+                                                ? "bg-white/5 border border-white/5 text-white/40" 
+                                                : "bg-primary text-white shadow-primary/20"
+                                        )}
+                                    >
+                                        {followLoading ? <Icons.spinner className="w-3 h-3 animate-spin" /> : isFollowing ? 'Connected' : 'Connect'}
+                                        {!isFollowing && !followLoading && <Icons.plus size={12} />}
+                                    </Button>
                                 )}
                             </div>
-                        )}
+                        </div>
                     </div>
 
-                    <div className="flex items-center gap-3 pb-2">
-                        {currentUser?.uid === author.uid ? (
-                            <Link href="/settings">
-                                <Button variant="secondary" className="px-6 h-12 font-black uppercase tracking-[0.15em] text-[10px] border-primary/20 shadow-xl shadow-primary/5 hover:shadow-primary/10 transition-all">
-                                    <Icons.settings size={14} className="mr-2" />
-                                    Edit Profile
-                                </Button>
-                            </Link>
-                        ) : currentUser && (
-                            <Button
-                                onClick={onToggleFollow}
-                                disabled={followLoading}
-                                variant={isFollowing ? 'secondary' : 'primary'}
-                                className={cn(
-                                    "px-8 h-12 font-black uppercase tracking-[0.2em] text-[11px] min-w-[180px] shadow-2xl transition-all duration-500",
-                                    !isFollowing && "shadow-primary/20"
-                                )}
-                            >
-                                {followLoading ? (
-                                    <Icons.spinner className="w-5 h-5 animate-spin" />
-                                ) : (
-                                    isFollowing ? (
-                                        <span className="flex items-center gap-2">
-                                            <Icons.check size={14} /> Unfollow
-                                        </span>
-                                    ) : (
-                                        <span className="flex items-center gap-2">
-                                            <Icons.plus size={14} /> Follow Creator
-                                        </span>
-                                    )
-                                )}
-                            </Button>
-                        )}
+                    {/* HUD Stats - Elevated & Compact */}
+                    <div className="lg:col-span-5 grid grid-cols-2 gap-2">
+                        {[
+                            { label: 'Fragments', value: stats.totalEntries, icon: <Icons.database size={12} /> },
+                            { label: 'Resonance', value: stats.totalVotes, icon: <Icons.trophy size={12} /> },
+                            { label: 'Network', value: author.followerCount || 0, icon: <Icons.users size={12} /> },
+                            { label: 'Trust', value: (author.role === 'admin' || author.role === 'su') ? 'MAX' : 'HIGH', icon: <Icons.shield size={12} /> }
+                        ].map((stat, i) => (
+                            <div key={i} className="bg-white/[0.02] border border-white/5 rounded-xl p-4 flex flex-col items-center justify-center group/stat hover:bg-white/5 transition-all">
+                                <div className="text-2xl font-black text-white tracking-tighter">{stat.value}</div>
+                                <div className="text-[8px] font-black text-white/20 uppercase tracking-[0.3em] mt-1 flex items-center gap-1.5">
+                                    <span className="text-primary/30 group-hover/stat:text-primary transition-colors">{stat.icon}</span>
+                                    {stat.label}
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </div>

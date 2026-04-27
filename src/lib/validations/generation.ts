@@ -24,6 +24,11 @@ export const generationSchema = z.object({
     referenceImage: z.string().optional(), // Base64
     referenceImageUrl: z.string().optional(), // URL for thumbnail initialization
     referenceMimeType: z.string().optional(),
+    referenceImages: z.array(z.object({
+        data: z.string(), // Base64
+        mimeType: z.string(),
+        title: z.string().optional()
+    })).optional(),
     sourceImageId: z.string().optional(),
     promptSetID: z.string().optional(),
     collectionIds: z.array(z.string()).optional(),

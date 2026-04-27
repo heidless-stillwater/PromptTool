@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
         }
 
         const validatedData = result.data;
-        const { prompt, rawPrompt, quality, aspectRatio, modality, count, seed, negativePrompt, guidanceScale, referenceImage, referenceImageUrl, referenceMimeType, sourceImageId, promptSetID, collectionIds, title, variables, template } = validatedData;
+        const { prompt, rawPrompt, quality, aspectRatio, modality, count, seed, negativePrompt, guidanceScale, referenceImage, referenceImageUrl, referenceMimeType, referenceImages, sourceImageId, promptSetID, collectionIds, title, variables, template } = validatedData;
 
         await GenerationService.validateTier(userId, validatedData);
         const validation = await GenerationService.validateCredits(userId, modality as any, quality as any, count);
@@ -73,14 +73,17 @@ export async function POST(request: NextRequest) {
                 if (modality === 'video') {
                     genResult = await nanoBananaService.generateVideo({
                         prompt, aspectRatio,
-                        onProgress: (current, total) => sendEvent({ type: 'progress', current, total, message: `Generating video...` })
+                        onProgress: (current, total) => sendEvent({ type: 'progress', current, total, message: `Generating video...` }),
+                        onStatus: (message) => sendEvent({ type: 'progress', message })
                     });
                 } else {
                     genResult = await nanoBananaService.generateImage({
                         prompt, quality: quality as any, aspectRatio, count,
                         seed: seed ?? undefined, negativePrompt: negativePrompt ?? undefined, guidanceScale: guidanceScale ?? undefined,
                         referenceImage: referenceImage ?? undefined, referenceMimeType: referenceMimeType ?? undefined,
-                        onProgress: (current, total) => sendEvent({ type: 'progress', current, total, message: `Generated ${current} of ${total} images...` })
+                        referenceImages: referenceImages ?? undefined,
+                        onProgress: (current, total) => sendEvent({ type: 'progress', current, total, message: `Generated ${current} of ${total} images...` }),
+                        onStatus: (message) => sendEvent({ type: 'progress', message })
                     });
                 }
 

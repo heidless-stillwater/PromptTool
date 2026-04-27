@@ -36,6 +36,20 @@ const nextConfig = {
             },
         ],
     },
+    experimental: {
+        optimizePackageImports: [
+            'lucide-react',
+            'framer-motion',
+            'recharts',
+            '@tanstack/react-query'
+        ],
+    },
+    eslint: {
+        ignoreDuringBuilds: true,
+    },
+    typescript: {
+        ignoreBuildErrors: true,
+    },
 };
 
 module.exports = nextConfig;

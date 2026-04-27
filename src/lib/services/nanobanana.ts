@@ -27,7 +27,9 @@ interface GenerateImageOptions {
     guidanceScale?: number;
     referenceImage?: string;    // Base64 image data for Img2Img variations
     referenceMimeType?: string; // MIME type of reference image (default: image/png)
+    referenceImages?: Array<{ data: string, mimeType: string }>; // Multiple reference images
     onProgress?: (current: number, total: number) => void;
+    onStatus?: (message: string) => void;
 }
 
 export interface ImageResult {
@@ -50,7 +52,12 @@ export class NanoBananaService {
         this.apiKey = apiKey;
     }
 
-    async generateVideo(options: { prompt: string; aspectRatio: AspectRatio; onProgress?: (current: number, total: number) => void }): Promise<GenerateImageResult> {
+    async generateVideo(options: { 
+        prompt: string; 
+        aspectRatio: AspectRatio; 
+        onProgress?: (current: number, total: number) => void;
+        onStatus?: (message: string) => void;
+    }): Promise<GenerateImageResult> {
         const { prompt, aspectRatio, onProgress } = options;
         const model = 'models/veo-2.0-generate-001';
 
@@ -87,7 +94,15 @@ export class NanoBananaService {
 
             if (!response.ok) {
                 const errorText = await response.text();
-                throw new Error(`Veo API Error (${response.status}): ${errorText}`);
+                const status = response.status;
+                
+                // For video, we don't have a simple retry loop yet as it's a long-running op,
+                // but we can at least detect the 503/429 during the INITIAL request.
+                if (status === 503 || status === 429) {
+                     // We'll wrap this in a retry if needed, but for now let's just properly report it.
+                     throw new Error(`AI Core is at capacity (503). Please try again in a few moments.`);
+                }
+                throw new Error(`Veo API Error (${status}): ${errorText}`);
             }
 
             const initialData = await response.json();
@@ -184,17 +199,36 @@ export class NanoBananaService {
     }
 
     async generateImage(options: GenerateImageOptions): Promise<GenerateImageResult> {
-        const { prompt, quality, aspectRatio, count = 1, seed, negativePrompt, guidanceScale, referenceImage, referenceMimeType, onProgress } = options;
+        const { prompt, quality, aspectRatio, count = 1, seed, negativePrompt, guidanceScale, referenceImage, referenceMimeType, referenceImages, onProgress } = options;
         const model = MODELS[quality];
         const resolution = RESOLUTIONS[quality];
 
         const images: ImageResult[] = [];
+        
+        // Helper to resolve URLs to Base64 for Gemini multimodal input
+        const resolveImage = async (data: string): Promise<{ data: string, mimeType: string }> => {
+            if (data.startsWith('http')) {
+                try {
+                    const res = await fetch(data);
+                    if (!res.ok) throw new Error(`Failed to fetch reference image: ${res.statusText}`);
+                    const buffer = Buffer.from(await res.arrayBuffer());
+                    return {
+                        data: buffer.toString('base64'),
+                        mimeType: res.headers.get('content-type') || 'image/png'
+                    };
+                } catch (err) {
+                    console.error('[NanoBanana] Image fetch failed:', err);
+                    throw err;
+                }
+            }
+            return { data, mimeType: referenceMimeType || 'image/png' };
+        };
 
         try {
             // Loop for multiple images (Batch Generation)
             for (let i = 0; i < count; i++) {
                 let attempts = 0;
-                const maxAttempts = 2; // Up to 2 retries for each image
+                const maxAttempts = 5; // Increased for high-demand resilience
                 let foundImageInCandidate = false;
                 let lastError: any = null;
 
@@ -256,16 +290,29 @@ export class NanoBananaService {
                             finalPrompt = `${prompt}\n\nNegative Prompt: ${negativePrompt}`;
                         }
 
-                        // Build contents - multimodal if reference image provided
+                        // Build contents - multimodal if reference image(s) provided
                         let contents: any;
-                        if (referenceImage) {
-                            // Img2Img mode: include reference image + text prompt
+                        if (referenceImages && referenceImages.length > 0) {
+                            // Multiple reference images mode
+                            const resolvedImages = await Promise.all(referenceImages.map(img => resolveImage(img.data)));
+                            contents = [
+                                ...resolvedImages.map(img => ({
+                                    inlineData: {
+                                        mimeType: img.mimeType,
+                                        data: img.data,
+                                    },
+                                })),
+                                { text: finalPrompt },
+                            ];
+                        } else if (referenceImage) {
+                            // Single legacy reference image mode
+                            const resolved = await resolveImage(referenceImage);
                             const variationPrompt = `Create a variation of this image. ${finalPrompt}`;
                             contents = [
                                 {
                                     inlineData: {
-                                        mimeType: referenceMimeType || 'image/png',
-                                        data: referenceImage,
+                                        mimeType: resolved.mimeType,
+                                        data: resolved.data,
                                     },
                                 },
                                 { text: variationPrompt },
@@ -328,13 +375,25 @@ export class NanoBananaService {
                             }
                         }
                     } catch (innerError: any) {
-                        console.error(`[NanoBanana] Attempt ${attempts} failed for index ${i}:`, innerError.message);
+                        const status = innerError?.status || innerError?.error?.status;
+                        const isRetryable = status === 'UNAVAILABLE' || status === 'RESOURCE_EXHAUSTED' || innerError?.message?.includes('503') || innerError?.message?.includes('429');
+
+                        console.error(`[NanoBanana] Attempt ${attempts} failed for index ${i} (Status: ${status}):`, innerError.message);
                         lastError = innerError;
-                        if (attempts >= maxAttempts) {
+
+                        if (attempts >= maxAttempts || !isRetryable) {
                             break;
                         }
-                        // Short wait before retry
-                        await new Promise(resolve => setTimeout(resolve, 500));
+
+                        // Exponential Backoff: 1s, 2s, 4s, 8s...
+                        const delay = Math.pow(2, attempts - 1) * 1000;
+                        const waitMsg = status === 'UNAVAILABLE' ? 'AI Core is at capacity' : 'Rate limit reached';
+                        
+                        if (options.onStatus) {
+                            options.onStatus(`${waitMsg}. Retrying in ${delay / 1000}s... (Attempt ${attempts + 1}/${maxAttempts})`);
+                        }
+
+                        await new Promise(resolve => setTimeout(resolve, delay));
                     }
                 }
 

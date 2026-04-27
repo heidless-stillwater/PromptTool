@@ -53,31 +53,37 @@ export default function ProfileClient() {
     if (!author) return null;
 
     return (
-        <div className="min-h-screen bg-background text-foreground">
+        <div className="min-h-screen bg-[#0f172a] text-white selection:bg-primary/30 relative overflow-hidden">
+            {/* Subtle Ecosystem Gradients */}
+            <div className="fixed inset-0 pointer-events-none z-0">
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/5 blur-[120px] rounded-full" />
+                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent/5 blur-[120px] rounded-full" />
+            </div>
             {/* Header */}
-            <Card variant="glass" className="sticky top-0 z-50 border-x-0 border-t-0 rounded-none border-b border-border p-0">
-                <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+            <Card variant="glass" className="sticky top-0 z-50 border-x-0 border-t-0 rounded-none border-b border-white/5 p-0 bg-[#0f172a]/60 backdrop-blur-2xl">
+                <div className="max-w-7xl mx-auto px-4 h-[72px] flex items-center justify-between">
+                    <div className="flex items-center gap-6">
                         <Link href="/dashboard">
-                            <Button variant="secondary" size="icon" className="w-9 h-9">
-                                <Icons.arrowLeft size={18} />
+                            <Button variant="secondary" size="icon" className="w-10 h-10 bg-white/5 border-white/10 hover:bg-white/10 transition-all">
+                                <Icons.arrowLeft size={18} className="text-white/60" />
                             </Button>
                         </Link>
-                        <Link href="/dashboard" className="text-xl font-black tracking-tighter gradient-text hover:opacity-80 transition-opacity">
-                            STILLWATER<span className="text-foreground"> STUDIO</span>
-                        </Link>
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-brand-gradient p-[1px]">
+                                <div className="w-full h-full bg-[#0f172a] rounded-xl flex items-center justify-center">
+                                    <Icons.zap className="text-primary w-5 h-5" />
+                                </div>
+                            </div>
+                            <div>
+                                <h1 className="text-lg font-black uppercase tracking-tighter leading-none">Stillwater Studio</h1>
+                                <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em] mt-1">Creator Profile</p>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <Link href="/community">
-                            <Button variant="secondary" size="sm" className="h-9 gap-2 font-black uppercase tracking-widest text-[10px]">
-                                <Icons.globe size={14} className="text-primary" />
-                                <span className="hidden sm:inline">Community Hub</span>
-                            </Button>
-                        </Link>
-                        <div className="h-6 w-px bg-border/50 mx-1" />
                         <Link href="/dashboard">
-                            <Button variant="primary" size="sm" className="h-9 px-4 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20">
+                            <Button variant="primary" size="sm" className="h-10 px-6 font-black uppercase tracking-[0.2em] text-[10px] shadow-2xl shadow-primary/20 hover:scale-[1.02] transition-all">
                                 Dashboard
                             </Button>
                         </Link>
@@ -85,7 +91,7 @@ export default function ProfileClient() {
                 </div>
             </Card>
 
-            <main className="max-w-5xl mx-auto px-4 py-12">
+            <main className="max-w-5xl mx-auto px-4 py-8">
                 <ProfileHero
                     author={author}
                     currentUser={currentUser}
@@ -93,22 +99,12 @@ export default function ProfileClient() {
                     followLoading={followLoadingProfile}
                     onToggleFollow={handleToggleFollowProfile}
                     formatDate={formatDate}
+                    stats={{
+                        totalVotes: stats.totalVotes,
+                        totalEntries: stats.totalEntries
+                    }}
                 />
 
-                <div className="bg-background-secondary/50 rounded-[2.5rem] p-10 mb-12 border border-border/50 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[80px] -mr-32 -mt-32 rounded-full" />
-                    <div className="flex items-center gap-3 mb-8">
-                        <div className="w-1 h-4 bg-primary rounded-full" />
-                        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground-muted">Creator Impact</h3>
-                    </div>
-                    <ProfileStats
-                        influence={stats.totalVotes}
-                        creations={stats.totalEntries}
-                        followers={author.followerCount || 0}
-                        following={author.followingCount || 0}
-                        onStatClick={handleStatClick}
-                    />
-                </div>
 
                 <ProfilePortfolio
                     images={images}

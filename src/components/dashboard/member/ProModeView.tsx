@@ -71,7 +71,7 @@ export default function ProModeView({ dashboardData }: ProModeViewProps) {
                         isCurrent: true 
                     },
                     { 
-                        name: 'Resources Hub', 
+                        name: 'Resources', 
                         id: 'resources', 
                         url: 'http://localhost:3002/resources', 
                         icon: '📚', 

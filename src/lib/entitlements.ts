@@ -5,7 +5,7 @@ export type AppSuiteType = 'resources' | 'studio' | 'prompttool' | 'registry';
 
 /**
  * ENTITLEMENT HELPER (PromptTool Version)
- * Checks access against the global Identity Store (database: '(default)').
+ * Checks access against the global Identity Store (database: 'prompttool-db-0').
  * Supports both 'studio' and 'prompttool' as equivalent keys for PromptTool access.
  */
 export async function checkAppAccess(uid: string, app: AppSuiteType): Promise<boolean> {
@@ -18,8 +18,8 @@ export async function checkAppAccess(uid: string, app: AppSuiteType): Promise<bo
             return false;
         }
 
-        // Target the (default) database where PromptResources stores identity/subscription data
-        const identityDb = getFirestore(firebaseApp, '(default)');
+        // Target the prompttool-db-0 database where user identity/subscription data resides
+        const identityDb = getFirestore(firebaseApp, 'prompttool-db-0');
         const userDoc = await identityDb.collection('users').doc(uid).get();
 
         if (!userDoc.exists) return false;

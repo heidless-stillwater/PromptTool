@@ -19,10 +19,16 @@ import RecentCreations from '@/components/dashboard/RecentCreations';
 import CommunityPulse from '@/components/dashboard/CommunityPulse';
 
 import { Suspense } from 'react';
+import dynamic from 'next/dynamic';
 import { SkeletonDashboard } from '@/components/ui/SkeletonDashboard';
 
-import SuDashboard from '@/components/dashboard/SuDashboard';
-import MemberDashboard from '@/components/dashboard/MemberDashboard';
+const SuDashboard = dynamic(() => import('@/components/dashboard/SuDashboard'), {
+    loading: () => <SkeletonDashboard />,
+});
+
+const MemberDashboard = dynamic(() => import('@/components/dashboard/MemberDashboard'), {
+    loading: () => <SkeletonDashboard />,
+});
 
 function DashboardContent() {
     const dashboardData = useDashboard();

@@ -43,6 +43,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isAdmin = profile?.role === 'admin' || profile?.role === 'su';
     const isSu = profile?.role === 'su';
 
+    // --- Sovereign Identity Hardening ---
+    const normalizeSubscription = (sub: any): SubscriptionTier => {
+        if (!sub) return 'free';
+        if (typeof sub === 'string') return sub as SubscriptionTier;
+        
+        // If it's the drifted metadata object, resolve to the highest tier detected
+        if (typeof sub === 'object') {
+            const keys = Object.keys(sub);
+            if (keys.includes('activeSuites')) {
+                const suites = sub.activeSuites || [];
+                if (suites.includes('prompttool-pro') || suites.includes('accreditation-enterprise')) return 'pro';
+                if (suites.includes('prompttool')) return 'pro';
+            }
+        }
+        return 'free';
+    };
+
     // Create or update user profile
     const createOrUpdateProfile = async (firebaseUser: User): Promise<UserProfile> => {
         const userRef = doc(db, 'users', firebaseUser.uid);
@@ -52,17 +69,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const existingProfile = userSnap.data() as UserProfile;
             // Update last login and any changed fields
             const isAdmin = ADMIN_EMAILS.includes(firebaseUser.email || '');
-        // --- Deep Sync Strategy for Avatars ---
-        const providerPhoto = firebaseUser.providerData.find(p => p.photoURL)?.photoURL;
-        const currentPhoto = (existingProfile.photoURL && !['null', 'undefined', ''].includes(existingProfile.photoURL)) 
-            ? existingProfile.photoURL 
-            : (firebaseUser.photoURL || providerPhoto);
+            
+            // --- Deep Sync Strategy for Avatars ---
+            const providerPhoto = firebaseUser.providerData.find(p => p.photoURL)?.photoURL;
+            const currentPhoto = (existingProfile.photoURL && !['null', 'undefined', ''].includes(existingProfile.photoURL)) 
+                ? existingProfile.photoURL 
+                : (firebaseUser.photoURL || providerPhoto);
 
-        const updatedProfile: UserProfile = {
-            ...existingProfile,
-            displayName: existingProfile.displayName || firebaseUser.displayName,
-            photoURL: currentPhoto || null,
-            subscription: existingProfile.subscription || 'free',
+            const updatedProfile: UserProfile = {
+                ...existingProfile,
+                displayName: existingProfile.displayName || firebaseUser.displayName,
+                photoURL: currentPhoto || null,
+                subscription: normalizeSubscription(existingProfile.subscription),
                 audienceMode: existingProfile.audienceMode || 'casual',
                 role: existingProfile.role || (isAdmin ? 'admin' : 'member'),
                 updatedAt: Timestamp.now(),
@@ -286,7 +304,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     unsubscribeProfile = onSnapshot(userRef, (doc) => {
                         if (doc.exists()) {
                             const data = doc.data() as UserProfile;
-                            setProfile(data);
+                            setProfile({
+                                ...data,
+                                subscription: normalizeSubscription(data.subscription)
+                            });
                         }
                     });
 

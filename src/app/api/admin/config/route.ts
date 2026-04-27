@@ -75,7 +75,7 @@ export async function DELETE(req: NextRequest) {
 
     const docRef = adminDb.collection(COLLECTION).doc(CONFIG_DOC);
     
-    await adminDb.runTransaction(async (transaction) => {
+    await adminDb.runTransaction(async (transaction: any) => {
       const doc = await transaction.get(docRef);
       if (!doc.exists) return;
       

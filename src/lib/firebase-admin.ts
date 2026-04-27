@@ -58,7 +58,7 @@ export const adminAuth: any = new Proxy({} as any, {
 export const adminDb: any = new Proxy({} as any, {
     get(target, prop) {
         const app = getEnsuredApp();
-        const databaseId = process.env.NEXT_PUBLIC_FIREBASE_DATABASE_ID || process.env.FIREBASE_DATABASE_ID || '(default)';
+        const databaseId = process.env.NEXT_PUBLIC_FIREBASE_DATABASE_ID || process.env.FIREBASE_DATABASE_ID || 'prompttool-db-0';
         const db = getFirestore(app, databaseId);
         // Apply settings once
         try { db.settings({ ignoreUndefinedProperties: true }); } catch (e) {}

@@ -22,7 +22,7 @@ export function useCommunity() {
 
     // ── Local UI State ──────────────────────────────────────
     const [sortMode, setSortMode] = useState<SortMode>('recent');
-    const [viewMode, setViewMode] = useState<'grid' | 'feed' | 'compact' | 'creators'>('grid');
+    const [viewMode, setViewMode] = useState<'grid' | 'feed' | 'compact' | 'creators'>('compact');
     const [isGrouped, setIsGrouped] = useState(false);
     const [isGroupedByUser, setIsGroupedByUser] = useState(false);
     const [filterUserId, setFilterUserId] = useState<string | null>(null);
@@ -86,7 +86,7 @@ export function useCommunity() {
 
     // ── Persist view mode & grouping ────────────────────────
     useEffect(() => {
-        const savedView = localStorage.getItem('communityViewMode');
+        const savedView = localStorage.getItem('communityViewPreference');
         const savedGroup = localStorage.getItem('communityIsGrouped');
         const savedGroupByUser = localStorage.getItem('communityIsGroupedByUser');
 
@@ -103,7 +103,7 @@ export function useCommunity() {
     // ── View / Sort handlers ────────────────────────────────
     const handleViewModeChange = (mode: 'grid' | 'feed' | 'compact' | 'creators') => {
         setViewMode(mode);
-        localStorage.setItem('communityViewMode', mode);
+        localStorage.setItem('communityViewPreference', mode);
     };
 
     const handleToggleGrouped = () => {
