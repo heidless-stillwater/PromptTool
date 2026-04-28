@@ -17,7 +17,9 @@ interface GalleryGridProps {
     loadingMore: boolean;
     hasMore: boolean;
     isGrouped: boolean;
+    gridDensity: number;
     groupImagesByPromptSet: (images: GeneratedImage[]) => Record<string, GeneratedImage[]>;
+
     onLoadMore: () => void;
     selectionMode: boolean;
     selectedImageIds: Set<string>;
@@ -37,7 +39,9 @@ export default function GalleryGrid({
     loadingMore,
     hasMore,
     isGrouped,
+    gridDensity,
     groupImagesByPromptSet,
+
     onLoadMore,
     selectionMode,
     selectedImageIds,
@@ -104,8 +108,15 @@ export default function GalleryGrid({
     return (
         <div className="space-y-8">
             <motion.div
-                className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6"
+                className={
+                    gridDensity === 2 ? "grid grid-cols-2 gap-6" :
+                    gridDensity === 3 ? "grid grid-cols-2 md:grid-cols-3 gap-6" :
+                    gridDensity === 5 ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6" :
+                    gridDensity === 6 ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6" :
+                    "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6" // Default 4C
+                }
                 variants={staggerContainer}
+
                 initial="initial"
                 animate="animate"
             >

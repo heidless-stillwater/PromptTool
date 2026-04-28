@@ -1,5 +1,5 @@
 
-import { adminDb } from '../firebase-admin';
+import { adminDb, defaultDb } from '../firebase-admin';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 
 export interface CommunityPublishOptions {
@@ -12,11 +12,20 @@ export class CommunityService {
      * Publishes an image to the community hub.
      */
     static async publishImage({ userId, imageId }: CommunityPublishOptions) {
-        // Get the original image
-        const imageRef = adminDb.collection('users').doc(userId).collection('images').doc(imageId);
-        const imageDoc = await imageRef.get();
+        console.log(`[CommunityService] Publishing image. userId: ${userId}, imageId: ${imageId}`);
+        // Try partitioned database first
+        let imageRef = adminDb.collection('users').doc(userId).collection('images').doc(imageId);
+        console.log(`[CommunityService] Checking imageRef at path: ${imageRef.path}`);
+        let imageDoc = await imageRef.get();
 
         if (!imageDoc.exists) {
+            console.log(`[CommunityService] Image not found in partitioned database. Checking (default)...`);
+            imageRef = defaultDb.collection('users').doc(userId).collection('images').doc(imageId);
+            imageDoc = await imageRef.get();
+        }
+
+        if (!imageDoc.exists) {
+            console.error(`[CommunityService] Image not found in either database for userId: ${userId}, imageId: ${imageId}`);
             throw new Error('Image not found');
         }
 
@@ -29,8 +38,14 @@ export class CommunityService {
         }
 
         // Get user profile for author info
-        const userDoc = await adminDb.collection('users').doc(userId).get();
+        let userDoc = await adminDb.collection('users').doc(userId).get();
         if (!userDoc.exists) {
+            console.log(`[CommunityService] User profile not found in partitioned database. Checking (default)...`);
+            userDoc = await defaultDb.collection('users').doc(userId).get();
+        }
+
+        if (!userDoc.exists) {
+            console.error(`[CommunityService] User profile not found in either database for userId: ${userId}`);
             throw new Error('User profile not found');
         }
 
@@ -40,9 +55,18 @@ export class CommunityService {
         const collectionIds = imageData.collectionIds || (imageData.collectionId ? [imageData.collectionId] : []);
         const collectionNames: string[] = [];
         if (collectionIds.length > 0) {
-            const collectionsSnap = await adminDb.collection('users').doc(userId).collection('collections')
-                .where('__name__', 'in', collectionIds.slice(0, 10)) // Max 10 collections
+            // Try partitioned first
+            let collectionsSnap = await adminDb.collection('users').doc(userId).collection('collections')
+                .where('__name__', 'in', collectionIds.slice(0, 10))
                 .get();
+            
+            if (collectionsSnap.empty) {
+                console.log(`[CommunityService] Collections not found in partitioned database. Checking (default)...`);
+                collectionsSnap = await defaultDb.collection('users').doc(userId).collection('collections')
+                    .where('__name__', 'in', collectionIds.slice(0, 10))
+                    .get();
+            }
+
             collectionsSnap.forEach((doc: any) => {
                 collectionNames.push(doc.data().name);
             });
@@ -85,16 +109,28 @@ export class CommunityService {
         });
 
         // 2. Update original image
-        batch.update(imageRef, {
+        const updateData = {
             publishedToCommunity: true,
             communityEntryId: communityEntryRef.id,
-        });
+        };
+
+        if (imageRef.firestore.databaseId === adminDb.databaseId) {
+            batch.update(imageRef, updateData);
+        } else {
+            await imageRef.update(updateData);
+        }
 
         // 3. Update creator profile
         const creatorRef = adminDb.collection('users').doc(userId);
-        batch.set(creatorRef, {
+        const profileUpdate = {
             publishedCount: FieldValue.increment(1)
-        }, { merge: true });
+        };
+
+        if (creatorRef.firestore.databaseId === adminDb.databaseId) {
+            batch.set(creatorRef, profileUpdate, { merge: true });
+        } else {
+            await creatorRef.set(profileUpdate, { merge: true });
+        }
 
         await batch.commit();
 
@@ -108,21 +144,42 @@ export class CommunityService {
      * Removes an image from the community hub.
      */
     static async unpublishImage({ userId, imageId }: CommunityPublishOptions) {
-        // Get the original image
-        const imageRef = adminDb.collection('users').doc(userId).collection('images').doc(imageId);
-        const imageDoc = await imageRef.get();
+        console.log(`[CommunityService] Unpublishing image. userId: ${userId}, imageId: ${imageId}`);
+        let imageRef = adminDb.collection('users').doc(userId).collection('images').doc(imageId);
+        let imageDoc = await imageRef.get();
 
         if (!imageDoc.exists) {
-            throw new Error('Image not found');
+            console.log(`[CommunityService] Image not found in partitioned database during unpublish. Checking (default)...`);
+            imageRef = defaultDb.collection('users').doc(userId).collection('images').doc(imageId);
+            imageDoc = await imageRef.get();
         }
 
-        const imageData = imageDoc.data()!;
+        let entryId: string | null = null;
 
-        // Check if published — check both new and legacy field names
-        const isPublished = imageData.publishedToCommunity || imageData.publishedToLeague;
-        const entryId = imageData.communityEntryId || imageData.leagueEntryId;
-        if (!isPublished || !entryId) {
-            throw new Error('Image is not published to community');
+        if (imageDoc.exists) {
+            const imageData = imageDoc.data()!;
+            entryId = imageData.communityEntryId || imageData.leagueEntryId || null;
+            
+            const isPublished = imageData.publishedToCommunity || imageData.publishedToLeague;
+            if (!isPublished || !entryId) {
+                throw new Error('Image is not published to community');
+            }
+        } else {
+            console.warn(`[CommunityService] Image not found in either database during unpublish. Attempting to find leagueEntry by ID...`);
+            // Fallback: try to find the entry by querying for the imageId + userId
+            const entriesSnap = await adminDb.collection('leagueEntries')
+                .where('originalUserId', '==', userId)
+                .where('originalImageId', '==', imageId)
+                .limit(1)
+                .get();
+            
+            if (!entriesSnap.empty) {
+                entryId = entriesSnap.docs[0].id;
+                console.log(`[CommunityService] Found orphaned leagueEntry: ${entryId}`);
+            } else {
+                console.error(`[CommunityService] No leagueEntry found for orphaned imageId: ${imageId}`);
+                throw new Error('Image not found and no associated community entry detected.');
+            }
         }
 
         // Delete the community entry — uses entryId resolved above
@@ -130,11 +187,15 @@ export class CommunityService {
         const communityEntryDoc = await communityEntryRef.get();
 
         if (!communityEntryDoc.exists) {
-            // If entry is missing but image think it is published, just fix the image
-            await imageRef.update({
-                publishedToCommunity: false,
-                communityEntryId: FieldValue.delete(),
-            });
+            // If entry is missing but image thinks it is published, just fix the image
+            if (imageDoc.exists) {
+                await imageRef.update({
+                    publishedToCommunity: false,
+                    communityEntryId: FieldValue.delete(),
+                    publishedToLeague: false,
+                    leagueEntryId: FieldValue.delete(),
+                });
+            }
             return { message: 'Image status cleaned up.' };
         }
 
@@ -143,7 +204,7 @@ export class CommunityService {
 
         // Delete comments subcollection first
         const commentsSnapshot = await communityEntryRef.collection('comments').get();
-        const batch = adminDb.batch();
+        const batch = communityEntryRef.firestore.batch();
 
         // 1. Delete comments
         commentsSnapshot.docs.forEach((doc: any) => batch.delete(doc.ref));
@@ -159,17 +220,24 @@ export class CommunityService {
         if (votesToRemove > 0) {
             updates.totalInfluence = FieldValue.increment(-votesToRemove);
         }
-        batch.set(creatorRef, updates, { merge: true });
+
+        if (creatorRef.firestore.databaseId === communityEntryRef.firestore.databaseId) {
+            batch.set(creatorRef, updates, { merge: true });
+        } else {
+            await creatorRef.set(updates, { merge: true });
+        }
 
         await batch.commit();
 
-        // Update original image — clear both new and legacy published fields
-        await imageRef.update({
-            publishedToCommunity: false,
-            communityEntryId: FieldValue.delete(),
-            publishedToLeague: false,
-            leagueEntryId: FieldValue.delete(),
-        });
+        // Update original image if it exists — clear both new and legacy published fields
+        if (imageDoc.exists) {
+            await imageRef.update({
+                publishedToCommunity: false,
+                communityEntryId: FieldValue.delete(),
+                publishedToLeague: false,
+                leagueEntryId: FieldValue.delete(),
+            });
+        }
 
         return {
             message: 'Image removed from community.',

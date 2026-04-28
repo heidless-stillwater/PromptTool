@@ -16,34 +16,28 @@ interface GalleryToolbarProps {
     selectionMode: boolean;
     onToggleSelectionMode: () => void;
     onClearSelection: () => void;
-    filterExemplar: boolean;
-    onFilterExemplarChange: (value: boolean) => void;
-    filterCommunity: boolean;
-    onFilterCommunityChange: (value: boolean) => void;
-    selectedCollectionId: string | null;
-    onSelectCollection: (id: string | null) => void;
-    collections: Collection[];
     sortMode: 'newest' | 'oldest' | 'az' | 'za' | 'recent_update' | 'old_update';
     onSortChange: (mode: 'newest' | 'oldest' | 'az' | 'za' | 'recent_update' | 'old_update') => void;
+    gridDensity: number;
+    onGridDensityChange: (density: number) => void;
 }
+
 
 export default function GalleryToolbar({
     viewMode, setViewMode, isSu,
     isGrouped, onToggleGrouped,
     selectionMode, onToggleSelectionMode, onClearSelection,
-    filterExemplar, onFilterExemplarChange,
-    filterCommunity, onFilterCommunityChange,
-    selectedCollectionId, onSelectCollection,
-    collections,
-    sortMode, onSortChange
+    sortMode, onSortChange,
+    gridDensity, onGridDensityChange
 }: GalleryToolbarProps) {
+
 
 
     return (
         <div className="space-y-6">
             <Card variant="glass" className="p-4 flex flex-wrap gap-3 items-center">
                 {/* Filters */}
-                <div className="flex flex-wrap md:flex-nowrap gap-3 items-center w-full overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+                <div className="flex flex-wrap gap-3 items-center w-full">
                     <div className="flex bg-background-secondary/50 rounded-xl p-1 border border-border/50">
                         <Button
                             variant={!isGrouped ? 'primary' : 'ghost'}
@@ -89,78 +83,6 @@ export default function GalleryToolbar({
                         {selectionMode ? 'Finish' : 'Select'}
                     </Button>
 
-                    <div className="h-6 w-px bg-border/50 mx-1 hidden md:block" />
-
-                    <Button
-                        variant={filterExemplar ? 'primary' : 'secondary'}
-                        size="sm"
-                        onClick={() => onFilterExemplarChange(!filterExemplar)}
-                        className={cn(
-                            "h-10 px-4 text-[10px] font-black tracking-widest uppercase gap-2 transition-all",
-                            filterExemplar ? "bg-gradient-to-r from-amber-400 to-yellow-500 shadow-lg shadow-yellow-500/20 text-white border-amber-300" : "bg-background-secondary/50"
-                        )}
-                    >
-                        <Icons.exemplar size={14} className={filterExemplar ? "fill-current" : ""} />
-                        Exemplars
-                    </Button>
-
-                    <div className="h-6 w-px bg-border/50 mx-1 hidden md:block" />
-
-                    <Button
-                        variant={filterCommunity ? 'primary' : 'secondary'}
-                        size="sm"
-                        onClick={() => onFilterCommunityChange(!filterCommunity)}
-                        className={cn(
-                            "h-10 px-4 text-[10px] font-black tracking-widest uppercase gap-2 transition-all",
-                            filterCommunity ? "bg-gradient-to-r from-blue-500 to-indigo-600 shadow-lg shadow-indigo-500/20 text-white border-indigo-400" : "bg-background-secondary/50"
-                        )}
-                    >
-                        <Icons.users size={14} className={filterCommunity ? "fill-current" : ""} />
-                        Community
-                    </Button>
-
-                    <div className="h-6 w-px bg-border/50 mx-1 hidden md:block" />
-
-                    <div className="flex gap-2 items-center flex-1 md:flex-none">
-                        <Select
-                            value={selectedCollectionId || 'all'}
-                            onChange={(e) => onSelectCollection(e.target.value === 'all' ? null : e.target.value)}
-                            className="h-10 text-[10px] font-black uppercase tracking-widest bg-zinc-900 text-white border-zinc-800 min-w-[160px]"
-                        >
-                            <option value="all">Collections: All</option>
-                            {collections.map(col => (
-                                <option key={col.id} value={col.id}>{col.name.toUpperCase()}</option>
-                            ))}
-                        </Select>
-                    </div>
-
-                    <div className="h-6 w-px bg-border/50 mx-1 hidden md:block" />
-
-                    <div className="flex gap-2 items-center">
-                        <Select
-                            value={sortMode}
-                            onChange={(e) => onSortChange(e.target.value as any)}
-                            className="h-10 text-[10px] font-black uppercase tracking-widest bg-zinc-900 text-white border-zinc-800 min-w-[200px]"
-                        >
-                            <optgroup label="ALPHABETICAL" className="bg-zinc-950 text-zinc-500 text-[10px] uppercase font-black tracking-widest">
-                                <option value="az">A to Z</option>
-                                <option value="za">Z to A</option>
-                            </optgroup>
-                            <optgroup label="GENERATION DATE" className="bg-zinc-950 text-zinc-500 text-[10px] uppercase font-black tracking-widest">
-                                <option value="newest">Newest First</option>
-                                <option value="oldest">Oldest First</option>
-                            </optgroup>
-                            <optgroup label="LAST MODIFIED" className="bg-zinc-950 text-zinc-500 text-[10px] uppercase font-black tracking-widest">
-                                <option value="recent_update">Recently Updated</option>
-                                <option value="old_update">Least Recently Updated</option>
-                            </optgroup>
-                        </Select>
-                    </div>
-
-                    <div className="h-6 w-px bg-border/50 mx-1 hidden md:block" />
-
-
-
                     {isSu && (
                         <>
                             <div className="h-6 w-px bg-border/50 mx-1 hidden md:block" />
@@ -201,6 +123,44 @@ export default function GalleryToolbar({
                             </div>
                         </>
                     )}
+
+                    <div className="flex bg-background-secondary/50 rounded-xl p-1 border border-border/50 ml-auto">
+                        {[2, 3, 4, 5, 6].map(num => (
+                            <Button
+                                key={num}
+                                variant={gridDensity === num ? 'primary' : 'ghost'}
+                                size="sm"
+                                onClick={() => onGridDensityChange(num)}
+                                className={cn(
+                                    "w-8 h-8 p-0 rounded-lg text-[9px] font-black uppercase transition-all",
+                                    gridDensity === num ? "shadow-lg shadow-primary/20" : "text-foreground-muted hover:text-foreground"
+                                )}
+                            >
+                                {num}C
+                            </Button>
+                        ))}
+                    </div>
+
+                    <div className="flex gap-2 items-center">
+                        <Select
+                            value={sortMode}
+                            onChange={(e) => onSortChange(e.target.value as any)}
+                            className="h-10 text-[10px] font-black uppercase tracking-widest bg-zinc-900 text-white border-zinc-800 min-w-[200px]"
+                        >
+                            <optgroup label="ALPHABETICAL" className="bg-zinc-950 text-zinc-500 text-[10px] uppercase font-black tracking-widest">
+                                <option value="az">A to Z</option>
+                                <option value="za">Z to A</option>
+                            </optgroup>
+                            <optgroup label="GENERATION DATE" className="bg-zinc-950 text-zinc-500 text-[10px] uppercase font-black tracking-widest">
+                                <option value="newest">Newest First</option>
+                                <option value="oldest">Oldest First</option>
+                            </optgroup>
+                            <optgroup label="LAST MODIFIED" className="bg-zinc-950 text-zinc-500 text-[10px] uppercase font-black tracking-widest">
+                                <option value="recent_update">Recently Updated</option>
+                                <option value="old_update">Least Recently Updated</option>
+                            </optgroup>
+                        </Select>
+                    </div>
                 </div>
             </Card>
 

@@ -14,7 +14,12 @@ const firebaseConfig = {
     measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-const databaseId = process.env.NEXT_PUBLIC_FIREBASE_DATABASE_ID || '(default)';
+
+const databaseId = 
+    process.env.NEXT_PUBLIC_SERVICE_DATABASE_ID || 
+    process.env.NEXT_PUBLIC_FIREBASE_DATABASE_ID || 
+    'prompttool-db-0';
+
 
 // Initialize Firebase (singleton pattern)
 let app: FirebaseApp;

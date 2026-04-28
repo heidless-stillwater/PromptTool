@@ -35,7 +35,7 @@ export const generationSchema = z.object({
     modality: z.enum(['image', 'video']).default('image'),
     targetVariationId: z.string().optional(),
     title: z.string().max(100).optional(),
-    variables: z.record(z.object({ value: z.string(), default: z.string() })).optional(),
+    variables: z.record(z.string(), z.any()).optional(),
     template: z.string().optional(),
 });
 

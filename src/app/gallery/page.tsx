@@ -16,15 +16,18 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Icons } from '@/components/ui/Icons';
+import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import { Suspense } from 'react';
 
 function GalleryContent() {
-    const { user, loading: authLoading } = useAuth();
     const gallery = useGallery();
     const searchParams = useSearchParams();
     const router = useRouter();
 
     const {
+        user, profile, credits, availableCredits, 
+        effectiveRole, switchRole, setAudienceMode, 
+        signOut, authLoading,
         fetchImages,
         fetchCollections,
         images,
@@ -75,7 +78,7 @@ function GalleryContent() {
         return <div className="min-h-screen flex items-center justify-center"><Icons.spinner className="w-8 h-8 animate-spin text-primary" /></div>;
     }
 
-    if (!user) {
+    if (!user || !profile) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <p>Please log in to view your gallery.</p>
@@ -84,71 +87,102 @@ function GalleryContent() {
     }
 
     return (
-        <div className="min-h-screen pt-20 pb-12 px-4 md:px-8 bg-black text-white">
-            <div className="max-w-[1920px] mx-auto flex flex-col lg:flex-row gap-8">
+        <div className="min-h-screen bg-background text-white">
+            <DashboardHeader
+                user={user}
+                profile={profile}
+                credits={credits}
+                availableCredits={availableCredits}
+                isAdminOrSu={gallery.isAdmin}
+                effectiveRole={effectiveRole}
+                switchRole={switchRole}
+                setAudienceMode={setAudienceMode}
+                signOut={signOut}
+            />
+            <div className="max-w-[1920px] mx-auto px-4 md:px-8 py-12 flex flex-col lg:flex-row gap-8">
                 {/* Collection Sidebar */}
                 <GallerySidebar
                     collections={gallery.collections}
                     selectedCollectionId={gallery.selectedCollectionId}
                     onSelectCollection={gallery.setSelectedCollectionId}
                     onCreateCollection={() => gallery.setShowCreateCollection(true)}
+                    
+                    // Filter Props
+                    filterQuality={gallery.filterQuality}
+                    onFilterQualityChange={gallery.setFilterQuality}
+                    filterAspectRatio={gallery.filterAspectRatio}
+                    onFilterAspectRatioChange={gallery.setFilterAspectRatio}
+                    filterTag={gallery.filterTag}
+                    onFilterTagChange={gallery.setFilterTag}
+                    filterExemplar={gallery.filterExemplar}
+                    onFilterExemplarChange={gallery.setFilterExemplar}
+                    filterCommunity={gallery.filterCommunity}
+                    onFilterCommunityChange={gallery.setFilterCommunity}
                 />
 
                 <main className="flex-1 min-w-0">
                     <div className="flex flex-col gap-6">
                         {/* Header */}
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                            <div className="space-y-1">
-                                <div className="flex flex-wrap items-center gap-3 mb-4">
-                                    <Link
-                                        href="/dashboard"
-                                        className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-primary transition-all group px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 hover:border-primary/30"
-                                    >
-                                        <Icons.arrowLeft size={12} className="group-hover:-translate-x-1 transition-transform" />
-                                        Dashboard
-                                    </Link>
-                                    <Link
-                                        href="/community"
-                                        className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-primary transition-all group px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 hover:border-primary/30 shadow-lg shadow-primary/5"
-                                    >
-                                        <Icons.users size={12} className="text-primary/70" />
-                                        Community Hub
-                                    </Link>
+                        {/* Dashboard-style Hero Header */}
+                        <div className="mb-8 p-8 rounded-3xl border border-primary/20 bg-primary/5 shadow-[inset_0_0_40px_rgba(var(--primary-rgb),0.05)] relative overflow-hidden group">
+                            {/* Subtle background glow */}
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[100px] -mr-32 -mt-32 group-hover:bg-primary/20 transition-all duration-1000" />
+                            
+                            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+                                <div className="space-y-4 text-center md:text-left">
+                                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
+                                        <Badge variant="primary" className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest bg-primary text-white">
+                                            Studio Archive
+                                        </Badge>
+                                        <Badge variant="secondary" className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest bg-white/10 text-white/60 border-white/10">
+                                            {gallery.filteredImages.length} Assets
+                                        </Badge>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-white leading-none">
+                                            Prompt <span className="text-primary">Gallery</span>
+                                        </h1>
+                                        <p className="text-white/40 max-w-xl text-lg font-medium leading-relaxed italic">
+                                            {gallery.viewMode === 'personal' 
+                                                ? 'Manage and organize your generated masterpieces within your personal cloud vault.' 
+                                                : gallery.viewMode === 'admin' 
+                                                ? 'Review and manage the ecosystem-wide asset flow from the central authority console.'
+                                                : 'Explore the collective creative output of the entire Stillwater community.'}
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-4">
+                                        <Link
+                                            href="/dashboard"
+                                            className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-primary transition-all group px-4 py-2 rounded-xl bg-black/40 border border-white/5 hover:border-primary/30"
+                                        >
+                                            <Icons.arrowLeft size={12} className="group-hover:-translate-x-1 transition-transform" />
+                                            Return to Dashboard
+                                        </Link>
+                                        <Link
+                                            href="/community"
+                                            className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-primary transition-all group px-4 py-2 rounded-xl bg-black/40 border border-white/5 hover:border-primary/30"
+                                        >
+                                            <Icons.users size={12} />
+                                            Community Hub
+                                        </Link>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-4">
-                                    <h1 className="text-4xl font-black tracking-tighter text-white">
-                                        {gallery.viewMode === 'personal' ? 'YOUR GALLERY' :
-                                            gallery.viewMode === 'admin' ? 'ADMIN FEED' : 'GLOBAL FEED'}
-                                    </h1>
-                                    <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 font-black">
-                                        {gallery.filteredImages.length} ITEMS
-                                    </Badge>
+                                
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full md:w-auto">
+                                    <div className="w-full sm:w-72 lg:w-96">
+                                        <GlobalSearch />
+                                    </div>
+                                    {gallery.viewMode === 'personal' && (
+                                        <button
+                                            id="new-image-set-btn"
+                                            onClick={() => router.push('/generate')}
+                                            className="group relative inline-flex items-center justify-center gap-3 px-8 py-4 rounded-2xl font-black text-[12px] uppercase tracking-[0.2em] text-white overflow-hidden transition-all duration-300 shadow-[0_10px_30px_rgba(var(--primary-rgb),0.3)] hover:scale-[1.05] active:scale-[0.95] whitespace-nowrap whitespace-nowrap bg-brand-gradient"
+                                        >
+                                            <Icons.plus size={18} className="flex-shrink-0 group-hover:rotate-90 transition-transform duration-500" />
+                                            New Generation
+                                        </button>
+                                    )}
                                 </div>
-                                <p className="text-zinc-400 text-sm font-medium uppercase tracking-[0.2em] opacity-60">
-                                    Manage and organize your generated masterpieces
-                                </p>
-                            </div>
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
-                                <div className="w-full sm:w-80">
-                                    <GlobalSearch />
-                                </div>
-                                {gallery.viewMode === 'personal' && (
-                                    <button
-                                        id="new-image-set-btn"
-                                        onClick={() => router.push('/generate')}
-                                        className="group relative inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-black text-[11px] uppercase tracking-widest text-white overflow-hidden transition-all duration-300 shadow-lg hover:shadow-primary/30 hover:scale-[1.03] active:scale-[0.98] whitespace-nowrap"
-                                        style={{
-                                            background: 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)',
-                                        }}
-                                    >
-                                        {/* shimmer */}
-                                        <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                                            style={{ background: 'linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.15) 50%, transparent 70%)', backgroundSize: '200% 100%' }}
-                                        />
-                                        <Icons.plus size={14} className="flex-shrink-0" />
-                                        New Image Set
-                                    </button>
-                                )}
                             </div>
                         </div>
 
@@ -162,16 +196,12 @@ function GalleryContent() {
                             selectionMode={gallery.selectionMode}
                             onToggleSelectionMode={() => gallery.setSelectionMode(!gallery.selectionMode)}
                             onClearSelection={() => gallery.setSelectedImageIds(new Set())}
-                            filterExemplar={gallery.filterExemplar}
-                            onFilterExemplarChange={gallery.setFilterExemplar}
-                            filterCommunity={gallery.filterCommunity}
-                            onFilterCommunityChange={gallery.setFilterCommunity}
-                            selectedCollectionId={gallery.selectedCollectionId}
-                            onSelectCollection={gallery.setSelectedCollectionId}
-                            collections={gallery.collections}
                             sortMode={gallery.sortMode}
                             onSortChange={gallery.setSortMode}
+                            gridDensity={gallery.gridDensity}
+                            onGridDensityChange={gallery.setGridDensity}
                         />
+
 
                         {/* Batch Action Bar */}
                         {gallery.selectionMode && gallery.selectedImageIds.size > 0 && (
@@ -228,7 +258,9 @@ function GalleryContent() {
                             loadingMore={gallery.loadingMore}
                             hasMore={gallery.hasMore}
                             isGrouped={gallery.isGrouped}
+                            gridDensity={gallery.gridDensity}
                             groupImagesByPromptSet={gallery.groupImagesByPromptSet}
+
                             onLoadMore={() => gallery.fetchImages(true)}
                             selectionMode={gallery.selectionMode}
                             selectedImageIds={gallery.selectedImageIds}

@@ -56,10 +56,21 @@ export const adminAuth: any = new Proxy({} as any, {
 });
 
 export const adminDb: any = new Proxy({} as any, {
+
     get(target, prop) {
         const app = getEnsuredApp();
-        const databaseId = process.env.NEXT_PUBLIC_FIREBASE_DATABASE_ID || process.env.FIREBASE_DATABASE_ID || 'prompttool-db-0';
+        const databaseId = 
+            process.env.SERVICE_DATABASE_ID || 
+            process.env.NEXT_PUBLIC_SERVICE_DATABASE_ID ||
+            process.env.FIREBASE_DATABASE_ID || 
+            process.env.NEXT_PUBLIC_FIREBASE_DATABASE_ID || 
+            'prompttool-db-0';
+        
+        console.log(`[adminDb Proxy] Accessing prop: ${String(prop)} on database: ${databaseId}`);
+
+        
         const db = getFirestore(app, databaseId);
+        if (prop === 'databaseId') return databaseId;
         // Apply settings once
         try { db.settings({ ignoreUndefinedProperties: true }); } catch (e) {}
         const value = (db as any)[prop];
@@ -80,6 +91,7 @@ export const accreditationDb: any = new Proxy({} as any, {
     get(target, prop) {
         const app = getEnsuredApp();
         const db = getFirestore(app, 'promptaccreditation-db-0');
+        if (prop === 'databaseId') return 'promptaccreditation-db-0';
         try { db.settings({ ignoreUndefinedProperties: true }); } catch (e) {}
         const value = (db as any)[prop];
         return typeof value === 'function' ? value.bind(db) : value;
@@ -91,5 +103,20 @@ export const adminApp: any = new Proxy({} as any, {
         const app = getEnsuredApp();
         const value = (app as any)[prop];
         return typeof value === 'function' ? value.bind(app) : value;
+    }
+});
+
+/**
+ * Accessor for the (default) database.
+ * Useful for legacy assets or cross-database lookups during migration.
+ */
+export const defaultDb: any = new Proxy({} as any, {
+    get(target, prop) {
+        const app = getEnsuredApp();
+        const db = getFirestore(app);
+        if (prop === 'databaseId') return '(default)';
+        try { db.settings({ ignoreUndefinedProperties: true }); } catch (e) {}
+        const value = (db as any)[prop];
+        return typeof value === 'function' ? value.bind(db) : value;
     }
 });

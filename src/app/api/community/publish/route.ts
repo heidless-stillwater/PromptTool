@@ -9,18 +9,22 @@ export async function POST(request: NextRequest) {
         const authHeader = request.headers.get('Authorization');
         let userId: string;
 
+
         if (authHeader?.startsWith('Bearer ')) {
             const token = authHeader.substring(7);
             const decodedToken = await adminAuth.verifyIdToken(token);
             userId = decodedToken.uid;
+            console.log(`[Community Publish API] Decoded userId: ${userId}`);
         } else {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const body = await request.json();
         const { imageId, action } = body; // action: 'publish' | 'unpublish'
+        console.log(`[Community Publish API] Request body:`, body);
 
         if (!imageId || !action) {
+
             return NextResponse.json({ error: 'Missing imageId or action' }, { status: 400 });
         }
 

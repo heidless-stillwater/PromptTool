@@ -35,6 +35,8 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
+        console.log('[PromptTool API] Received Request Body:', JSON.stringify(body, null, 2));
+
         if (!userId && body.uid) userId = body.uid;
         if (!userId) return NextResponse.json({ error: 'User ID required' }, { status: 401, headers: CORS_HEADERS });
 
@@ -49,7 +51,12 @@ export async function POST(request: NextRequest) {
 
         const result = generationSchema.safeParse(body);
         if (!result.success) {
-            return NextResponse.json({ error: result.error.issues[0].message }, { status: 400, headers: CORS_HEADERS });
+            console.error('[PromptTool API] Validation Failed:', result.error.issues);
+            return NextResponse.json({ 
+                error: result.error.issues[0].message,
+                issues: result.error.issues,
+                receivedBody: body // Log the body back to help debug
+            }, { status: 400, headers: CORS_HEADERS });
         }
 
         const validatedData = result.data;

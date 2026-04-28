@@ -7,8 +7,16 @@ import { useToast } from '@/components/Toast';
 import { normalizeImageData } from '@/lib/image-utils';
 
 export function useGallery() {
-    const { user, isSu, isAdmin } = useAuth();
+    const { 
+        user, profile, credits, 
+        effectiveRole, switchRole, setAudienceMode, 
+        signOut, isSu, isAdmin, loading: authLoading 
+    } = useAuth();
     const { showToast } = useToast();
+
+    const availableCredits = credits
+        ? credits.balance + Math.max(0, credits.dailyAllowance - credits.dailyAllowanceUsed)
+        : 0;
 
     // Data State
     const [images, setImages] = useState<GeneratedImage[]>([]);
@@ -34,6 +42,8 @@ export function useGallery() {
     const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'personal' | 'admin' | 'global'>('personal');
     const [sortMode, setSortMode] = useState<'newest' | 'oldest' | 'az' | 'za' | 'recent_update' | 'old_update'>('newest');
+    const [gridDensity, setGridDensity] = useState<number>(4);
+
 
     // Advanced Filter State
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -776,13 +786,24 @@ export function useGallery() {
         isUpdatingTags, setIsUpdatingTags, // Export setter
         unpublishConfirmImage, setUnpublishConfirmImage,
         viewMode, setViewMode, isSu, isAdmin,
+        gridDensity, setGridDensity,
+
+        // Auth
+        user, profile, credits, availableCredits, 
+        effectiveRole, switchRole, setAudienceMode, signOut, authLoading,
+
 
         // Actions
         fetchImages, fetchCollections,
         handleDelete, handleBatchDelete, handleCreateCollection,
         handleCommunityToggle,
-        confirmUnpublish: () => unpublishConfirmImage && performCommunityToggle(unpublishConfirmImage, 'unpublish'),
+        confirmUnpublish: async () => {
+            if (unpublishConfirmImage) {
+                await performCommunityToggle(unpublishConfirmImage, 'unpublish');
+            }
+        },
         groupImagesByPromptSet,
+
         setImages,
         handleAddImageTag, handleRemoveImageTag,
         handleUpdatePromptSetID, handleToggleExemplar, handleToggleCollection, handleBatchToggleCollection, handleBatchUpdateTitle,
