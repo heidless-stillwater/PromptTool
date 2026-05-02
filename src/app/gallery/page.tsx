@@ -118,6 +118,10 @@ function GalleryContent() {
                     onFilterExemplarChange={gallery.setFilterExemplar}
                     filterCommunity={gallery.filterCommunity}
                     onFilterCommunityChange={gallery.setFilterCommunity}
+
+                    // Collapse Props
+                    isCollapsed={gallery.isSidebarCollapsed}
+                    onToggleCollapse={() => gallery.setIsSidebarCollapsed(!gallery.isSidebarCollapsed)}
                 />
 
                 <main className="flex-1 min-w-0">

@@ -42,8 +42,11 @@ export default function DashboardHeader({
                                 <Icons.zap className="text-primary w-5 h-5 group-hover:scale-110 transition-transform" />
                             </div>
                         </div>
-                        <div>
-                            <h1 className="text-lg font-black uppercase tracking-tighter leading-none">Stillwater Studio</h1>
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-2">
+                                <h1 className="text-lg font-black uppercase tracking-tighter leading-none">Stillwater Studio</h1>
+                                <span className="text-[9px] font-black bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded tracking-widest leading-none">v0.1.0</span>
+                            </div>
                             <p className="text-[9px] font-black text-foreground-muted uppercase tracking-[0.2em] mt-1">Ecosystem Central</p>
                         </div>
                     </Link>

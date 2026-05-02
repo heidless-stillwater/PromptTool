@@ -41,9 +41,10 @@ export default function GenerateHeader({
                     <div className="hidden sm:block">
                         <button
                             onClick={onDashboardClick}
-                            className="text-xl font-black tracking-tighter gradient-text hover:opacity-80 transition-opacity"
+                            className="flex items-center gap-2 text-xl font-black tracking-tighter hover:opacity-80 transition-opacity"
                         >
-                            STILLWATER<span className="text-foreground"> STUDIO</span>
+                            <span className="gradient-text">STILLWATER <span className="text-foreground">STUDIO</span></span>
+                            <span className="text-[9px] font-black bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded tracking-widest leading-none align-middle">v0.1.0</span>
                         </button>
                     </div>
                 </div>

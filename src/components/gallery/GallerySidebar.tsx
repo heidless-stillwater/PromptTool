@@ -24,6 +24,10 @@ interface GallerySidebarProps {
     onFilterExemplarChange: (val: boolean) => void;
     filterCommunity: boolean;
     onFilterCommunityChange: (val: boolean) => void;
+
+    // Collapse Props
+    isCollapsed: boolean;
+    onToggleCollapse: () => void;
 }
 
 export default function GallerySidebar({
@@ -40,13 +44,62 @@ export default function GallerySidebar({
     filterExemplar,
     onFilterExemplarChange,
     filterCommunity,
-    onFilterCommunityChange
+    onFilterCommunityChange,
+    isCollapsed,
+    onToggleCollapse
 }: GallerySidebarProps) {
     const [isFiltersExpanded, setIsFiltersExpanded] = useState(true);
-    const [isCollectionsExpanded, setIsCollectionsExpanded] = useState(false);
+    const [isCollectionsExpanded, setIsCollectionsExpanded] = useState(true);
+
+    if (isCollapsed) {
+        return (
+            <aside className="w-16 flex flex-col items-center py-4 gap-4 sticky top-4 self-start h-fit transition-all duration-300">
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onToggleCollapse}
+                    className="w-10 h-10 p-0 rounded-xl hover:bg-white/5 text-primary"
+                >
+                    <Icons.chevronRight size={20} />
+                </Button>
+
+                <div className="w-8 h-px bg-white/10" />
+
+                <button
+                    onClick={onToggleCollapse}
+                    className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-white/5 transition-colors group"
+                    title="Filters"
+                >
+                    <Icons.settings size={18} className="text-foreground-muted group-hover:text-primary transition-colors" />
+                </button>
+
+                <button
+                    onClick={onToggleCollapse}
+                    className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-white/5 transition-colors group"
+                    title="Collections"
+                >
+                    <Icons.stack size={18} className="text-foreground-muted group-hover:text-primary transition-colors" />
+                </button>
+            </aside>
+        );
+    }
 
     return (
-        <aside className="w-full lg:w-72 space-y-4">
+        <aside className="w-full lg:w-72 space-y-4 transition-all duration-300">
+            {/* Header / Toggle */}
+            <div className="flex items-center justify-between px-2 mb-2">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Studio Controls</span>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onToggleCollapse}
+                    className="h-8 px-2 text-[10px] font-black uppercase tracking-widest text-foreground-muted hover:text-primary gap-1.5"
+                >
+                    <Icons.chevronLeft size={14} />
+                    Collapse
+                </Button>
+            </div>
+
             {/* Filters Section */}
             <Card className="p-0 overflow-hidden" variant="glass">
                 <button

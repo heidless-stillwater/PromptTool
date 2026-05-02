@@ -36,6 +36,7 @@ const nextConfig = {
             },
         ],
     },
+    /*
     experimental: {
         optimizePackageImports: [
             'lucide-react',
@@ -44,11 +45,30 @@ const nextConfig = {
             '@tanstack/react-query'
         ],
     },
+    */
+    webpack: (config) => {
+        config.parallelism = 1;
+        return config;
+    },
     eslint: {
         ignoreDuringBuilds: true,
     },
     typescript: {
         ignoreBuildErrors: true,
+    },
+    optimizeFonts: false,
+    async headers() {
+        return [
+            {
+                source: '/(.*)',
+                headers: [
+                    {
+                        key: 'Cross-Origin-Opener-Policy',
+                        value: 'same-origin-allow-popups',
+                    },
+                ],
+            },
+        ];
     },
 };
 

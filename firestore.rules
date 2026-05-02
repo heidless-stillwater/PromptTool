@@ -94,6 +94,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Public/Shared configuration documents (Safe subset)
+    match /system/config {
+      allow read: if true;
+    }
+
     // Generated images - users own their creations
     match /generatedImages/{imageId} {
       allow read, list: if isAuthenticated() && resource.data.userId == request.auth.uid;

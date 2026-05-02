@@ -1,0 +1,212 @@
+(node:22742) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+No Firebase app associated with site prompttool-v0, injecting project default config.
+  You can link a Web app to a Hosting site here https://console.firebase.google.com/project/heidless-apps-0/settings/general/web
+
+   Thank you for trying our early preview of Next.js support on Firebase Hosting.
+   During the preview, support is best-effort and breaking changes can be expected. Proceed with caution.
+
+   Documentation: https://firebase.google.com/docs/hosting/frameworks/nextjs
+   File a bug: https://github.com/firebase/firebase-tools/issues/new?template=bug_report.md
+   Submit a feature request: https://github.com/firebase/firebase-tools/issues/new?template=feature_request.md
+
+   We'd love to learn from you. Express your interest in helping us shape the future of Firebase Hosting: https://goo.gle/41enW5X
+
+  ▲ Next.js 14.2.14
+
+  - Environments: .env.local, .env
+
+
+   Creating an optimized production build ...
+
+ ✓ Compiled successfully
+
+   Skipping validation of types
+
+   Skipping linting
+
+   Collecting page data ...
+
+   Generating static pages (0/46) ...
+
+   Generating static pages (11/46) 
+
+Video proxy error: B [Error]: Dynamic server usage: Route /api/proxy/video couldn't be rendered statically because it used `nextUrl.searchParams`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
+    at V (/home/heidless/projects/PromptTool/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:21777)
+    at Object.get (/home/heidless/projects/PromptTool/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:28809)
+    at p (/home/heidless/projects/PromptTool/.next/server/app/api/proxy/video/route.js:1:536)
+    at /home/heidless/projects/PromptTool/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:36963
+    at /home/heidless/projects/PromptTool/node_modules/next/dist/server/lib/trace/tracer.js:140:36
+    at NoopContextManager.with (/home/heidless/projects/PromptTool/node_modules/@opentelemetry/api/build/src/context/NoopContextManager.js:14:19)
+    at ContextAPI.with (/home/heidless/projects/PromptTool/node_modules/@opentelemetry/api/build/src/api/context.js:51:46)
+    at NoopTracer.startActiveSpan (/home/heidless/projects/PromptTool/node_modules/@opentelemetry/api/build/src/trace/NoopTracer.js:54:31)
+    at ProxyTracer.startActiveSpan (/home/heidless/projects/PromptTool/node_modules/@opentelemetry/api/build/src/trace/ProxyTracer.js:27:24)
+    at /home/heidless/projects/PromptTool/node_modules/next/dist/server/lib/trace/tracer.js:122:103 {
+  description: "Route /api/proxy/video couldn't be rendered statically because it used `nextUrl.searchParams`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
+  digest: 'DYNAMIC_SERVER_USAGE'
+}
+
+[User Search API] Error: B [Error]: Dynamic server usage: Route /api/user/search couldn't be rendered statically because it used `request.headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
+    at V (/home/heidless/projects/PromptTool/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:21777)
+    at Object.get (/home/heidless/projects/PromptTool/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:29137)
+    at s (/home/heidless/projects/PromptTool/.next/server/app/api/user/search/route.js:1:1365)
+    at /home/heidless/projects/PromptTool/node_modules/next/dist/compiled/next-server/app-route.runtime.prod.js:6:36963
+    at /home/heidless/projects/PromptTool/node_modules/next/dist/server/lib/trace/tracer.js:140:36
+    at NoopContextManager.with (/home/heidless/projects/PromptTool/node_modules/@opentelemetry/api/build/src/context/NoopContextManager.js:14:19)
+    at ContextAPI.with (/home/heidless/projects/PromptTool/node_modules/@opentelemetry/api/build/src/api/context.js:51:46)
+    at NoopTracer.startActiveSpan (/home/heidless/projects/PromptTool/node_modules/@opentelemetry/api/build/src/trace/NoopTracer.js:54:31)
+    at ProxyTracer.startActiveSpan (/home/heidless/projects/PromptTool/node_modules/@opentelemetry/api/build/src/trace/ProxyTracer.js:27:24)
+    at /home/heidless/projects/PromptTool/node_modules/next/dist/server/lib/trace/tracer.js:122:103 {
+  description: "Route /api/user/search couldn't be rendered statically because it used `request.headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
+  digest: 'DYNAMIC_SERVER_USAGE'
+}
+
+   Generating static pages (22/46) 
+
+Firebase Admin: Initializing with Service Account credentials
+
+[adminDb Proxy] Accessing prop: collection on database: prompttool-db-0
+[adminDb Proxy] Accessing prop: collection on database: prompttool-db-0
+
+   Generating static pages (34/46) 
+
+ ✓ Generating static pages (46/46)
+
+   Finalizing page optimization ...
+
+   Collecting build traces ...
+
+
+
+Route (app)                              Size     First Load JS
+┌ ○ /                                    11.5 kB         235 kB
+├ ○ /_not-found                          880 B          88.5 kB
+├ ○ /admin                               6.81 kB         269 kB
+├ ○ /admin/moderation                    4.63 kB         233 kB
+├ ○ /admin/monitoring                    3.66 kB         105 kB
+├ ○ /admin/settings                      7.48 kB         229 kB
+├ ○ /admin/users                         5.32 kB         227 kB
+├ ○ /analytics                           108 kB          326 kB
+├ ƒ /api/admin/award-weekly              0 B                0 B
+├ ƒ /api/admin/comment/action            0 B                0 B
+├ ƒ /api/admin/community/action          0 B                0 B
+├ ƒ /api/admin/community/backfill        0 B                0 B
+├ ƒ /api/admin/config                    0 B                0 B
+├ ƒ /api/admin/migrate-influence         0 B                0 B
+├ ƒ /api/admin/migrate-usernames         0 B                0 B
+├ ƒ /api/admin/rewards-preview           0 B                0 B
+├ ƒ /api/admin/stats                     0 B                0 B
+├ ƒ /api/admin/update-badges             0 B                0 B
+├ ƒ /api/admin/update-settings           0 B                0 B
+├ ƒ /api/admin/update-user-details       0 B                0 B
+├ ƒ /api/ai/suggest-tags                 0 B                0 B
+├ ƒ /api/community/comment               0 B                0 B
+├ ƒ /api/community/publish               0 B                0 B
+├ ƒ /api/community/react                 0 B                0 B
+├ ƒ /api/community/report                0 B                0 B
+├ ƒ /api/community/vote                  0 B                0 B
+├ ƒ /api/compliance/sovereign            0 B                0 B
+├ ƒ /api/download                        0 B                0 B
+├ ƒ /api/edit/save                       0 B                0 B
+├ ƒ /api/generate                        0 B                0 B
+├ ƒ /api/generate/enhance                0 B                0 B
+├ ƒ /api/generate/thumbnail              0 B                0 B
+├ ƒ /api/proxy/video                     0 B                0 B
+├ ƒ /api/stripe/checkout                 0 B                0 B
+├ ƒ /api/stripe/verify-session           0 B                0 B
+├ ƒ /api/stripe/webhook                  0 B                0 B
+├ ƒ /api/user/follow                     0 B                0 B
+├ ƒ /api/user/profile                    0 B                0 B
+├ ƒ /api/user/search                     0 B                0 B
+├ ○ /collections                         6.39 kB         235 kB
+├ ● /collections/[id]                    4.51 kB         330 kB
+├   └ /collections/demo
+├ ○ /community                           8.81 kB         337 kB
+├ ● /community/[entryId]                 1.43 kB        94.5 kB
+├   └ /community/1
+├ ○ /community/leaderboard               5.73 kB         234 kB
+├ ○ /dashboard                           4.13 kB         260 kB
+├ ○ /dashboard/notifications             7.34 kB         232 kB
+├ ○ /edit                                6.29 kB         223 kB
+├ ○ /gallery                             17.6 kB         346 kB
+├ ○ /generate                            28.4 kB         299 kB
+├ ○ /pricing                             6.51 kB         232 kB
+├ ● /profile/[userId]                    8.35 kB         333 kB
+├   └ /profile/1
+└ ○ /settings                            5.94 kB         235 kB
++ First Load JS shared by all            87.6 kB
+  ├ chunks/2117-8ee840d7c81e5c61.js      31.8 kB
+  ├ chunks/fd9d1056-d3a3ddc1044d6f87.js  53.6 kB
+  └ other shared chunks (total)          2.21 kB
+
+
+
+○  (Static)   prerendered as static content
+●  (SSG)      prerendered as static HTML (uses getStaticProps)
+ƒ  (Dynamic)  server-rendered on demand
+
+
+Building a Cloud Function to run this application. This is needed due to:
+ • use of fallback /collections/[id]
+ • use of fallback /profile/[userId]
+ • non-static component /api/admin/community/action/route
+ • non-static component /api/admin/community/backfill/route
+ • non-static component /api/admin/migrate-usernames/route
+ • and 28 other reasons, use --debug to see more
+
+Warning: Global esbuild version (0.27.3) does not match the required version (^0.19.2).
+
+up to date in 2s
+
+71 packages are looking for funding
+  run `npm fund` for details
+i  hosting: The following function(s) are pinned to site prompttool-v0 and will be deployed as well: ssrprompttoolv0
+
+=== Deploying to 'heidless-apps-0'...
+
+i  deploying functions, hosting
+i  functions: preparing codebase firebase-frameworks-prompttool-v0 for deployment
+i  functions: ensuring required API cloudfunctions.googleapis.com is enabled...
+i  functions: ensuring required API cloudbuild.googleapis.com is enabled...
+i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled...
+⚠  functions: package.json indicates an outdated version of firebase-functions. Please upgrade using npm install --save firebase-functions@latest in your functions directory.
+⚠  functions: Please note that there will be breaking changes when you upgrade.
+i  functions: Loading and analyzing source code for codebase firebase-frameworks-prompttool-v0 to determine what to deploy
+Serving at port 8257
+
+i  extensions: ensuring required API firebaseextensions.googleapis.com is enabled...
+i  functions: Loaded environment variables from .env.
+i  functions: preparing .firebase/prompttool-v0/functions directory for uploading...
+i  functions: packaged /home/heidless/projects/PromptTool/.firebase/prompttool-v0/functions (56.4 MB) for uploading
+i  functions: ensuring required API run.googleapis.com is enabled...
+i  functions: ensuring required API eventarc.googleapis.com is enabled...
+i  functions: ensuring required API pubsub.googleapis.com is enabled...
+i  functions: ensuring required API storage.googleapis.com is enabled...
+i  functions: generating the service identity for pubsub.googleapis.com...
+i  functions: generating the service identity for eventarc.googleapis.com...
+✔  functions: .firebase/prompttool-v0/functions source uploaded successfully
+i  hosting[prompttool-v0]: beginning deploy...
+i  hosting[prompttool-v0]: found 94 files in .firebase/prompttool-v0/hosting
+i  hosting: uploading new files [6/21] (28%)
+i  hosting: upload complete
+✔  hosting[prompttool-v0]: file upload complete
+i  functions: updating Node.js 22 (2nd Gen) function firebase-frameworks-prompttool-v0:ssrprompttoolv0(us-central1)...
+⚠  functions: Request to https://cloudfunctions.googleapis.com/v2/projects/heidless-apps-0/locations/us-central1/functions/ssrprompttoolv0?updateMask=name%2CbuildConfig.runtime%2CbuildConfig.entryPoint%2CbuildConfig.source.storageSource.bucket%2CbuildConfig.source.storageSource.object%2CbuildConfig.environmentVariables%2CserviceConfig.environmentVariables%2CserviceConfig.ingressSettings%2CserviceConfig.timeoutSeconds%2CserviceConfig.serviceAccountEmail%2CserviceConfig.availableMemory%2CserviceConfig.minInstanceCount%2CserviceConfig.maxInstanceCount%2CserviceConfig.maxInstanceRequestConcurrency%2CserviceConfig.availableCpu%2CserviceConfig.vpcConnector%2CserviceConfig.vpcConnectorEgressSettings%2Clabels had HTTP Error: 409, unable to queue the operation
+⚠  functions:  failed to update function projects/heidless-apps-0/locations/us-central1/functions/ssrprompttoolv0
+⚠  functions: Request to https://cloudfunctions.googleapis.com/v2/projects/heidless-apps-0/locations/us-central1/functions/ssrprompttoolv0?updateMask=name%2CbuildConfig.runtime%2CbuildConfig.entryPoint%2CbuildConfig.source.storageSource.bucket%2CbuildConfig.source.storageSource.object%2CbuildConfig.environmentVariables%2CserviceConfig.environmentVariables%2CserviceConfig.ingressSettings%2CserviceConfig.timeoutSeconds%2CserviceConfig.serviceAccountEmail%2CserviceConfig.availableMemory%2CserviceConfig.minInstanceCount%2CserviceConfig.maxInstanceCount%2CserviceConfig.maxInstanceRequestConcurrency%2CserviceConfig.availableCpu%2CserviceConfig.vpcConnector%2CserviceConfig.vpcConnectorEgressSettings%2Clabels had HTTP Error: 409, unable to queue the operation
+⚠  functions:  failed to update function projects/heidless-apps-0/locations/us-central1/functions/ssrprompttoolv0
+⚠  functions: Request to https://cloudfunctions.googleapis.com/v2/projects/heidless-apps-0/locations/us-central1/functions/ssrprompttoolv0?updateMask=name%2CbuildConfig.runtime%2CbuildConfig.entryPoint%2CbuildConfig.source.storageSource.bucket%2CbuildConfig.source.storageSource.object%2CbuildConfig.environmentVariables%2CserviceConfig.environmentVariables%2CserviceConfig.ingressSettings%2CserviceConfig.timeoutSeconds%2CserviceConfig.serviceAccountEmail%2CserviceConfig.availableMemory%2CserviceConfig.minInstanceCount%2CserviceConfig.maxInstanceCount%2CserviceConfig.maxInstanceRequestConcurrency%2CserviceConfig.availableCpu%2CserviceConfig.vpcConnector%2CserviceConfig.vpcConnectorEgressSettings%2Clabels had HTTP Error: 409, unable to queue the operation
+⚠  functions:  failed to update function projects/heidless-apps-0/locations/us-central1/functions/ssrprompttoolv0
+⚠  functions: Request to https://cloudfunctions.googleapis.com/v2/projects/heidless-apps-0/locations/us-central1/functions/ssrprompttoolv0?updateMask=name%2CbuildConfig.runtime%2CbuildConfig.entryPoint%2CbuildConfig.source.storageSource.bucket%2CbuildConfig.source.storageSource.object%2CbuildConfig.environmentVariables%2CserviceConfig.environmentVariables%2CserviceConfig.ingressSettings%2CserviceConfig.timeoutSeconds%2CserviceConfig.serviceAccountEmail%2CserviceConfig.availableMemory%2CserviceConfig.minInstanceCount%2CserviceConfig.maxInstanceCount%2CserviceConfig.maxInstanceRequestConcurrency%2CserviceConfig.availableCpu%2CserviceConfig.vpcConnector%2CserviceConfig.vpcConnectorEgressSettings%2Clabels had HTTP Error: 409, unable to queue the operation
+⚠  functions:  failed to update function projects/heidless-apps-0/locations/us-central1/functions/ssrprompttoolv0
+✔  functions[firebase-frameworks-prompttool-v0:ssrprompttoolv0(us-central1)] Successful update operation.
+Function URL (firebase-frameworks-prompttool-v0:ssrprompttoolv0(us-central1)): https://ssrprompttoolv0-6iyd5xyojq-uc.a.run.app
+i  hosting[prompttool-v0]: finalizing version...
+✔  hosting[prompttool-v0]: version finalized
+i  hosting[prompttool-v0]: releasing new version...
+✔  hosting[prompttool-v0]: release complete
+
+✔  Deploy complete!
+
+Project Console: https://console.firebase.google.com/project/heidless-apps-0/overview
+Hosting URL: https://prompttool-v0.web.app

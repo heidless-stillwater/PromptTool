@@ -60,6 +60,7 @@ export function useGallery() {
     const [collectionError, setCollectionError] = useState('');
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [batchDeleting, setBatchDeleting] = useState(false);
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
     // Editing State
     const [isEditingPromptSetID, setIsEditingPromptSetID] = useState(false);
@@ -787,6 +788,7 @@ export function useGallery() {
         unpublishConfirmImage, setUnpublishConfirmImage,
         viewMode, setViewMode, isSu, isAdmin,
         gridDensity, setGridDensity,
+        isSidebarCollapsed, setIsSidebarCollapsed,
 
         // Auth
         user, profile, credits, availableCredits, 

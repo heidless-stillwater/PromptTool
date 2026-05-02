@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 // Admin Award Weekly Rewards API Route
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
