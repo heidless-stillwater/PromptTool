@@ -16,7 +16,7 @@ function getEnsuredApp(): App {
 
     const privateKey = process.env.SERVICE_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY;
     const clientEmail = process.env.SERVICE_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL;
-    const projectId = process.env.SERVICE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
+    const projectId = process.env.SERVICE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'heidless-apps-2';
 
     try {
         if (privateKey && clientEmail && projectId) {

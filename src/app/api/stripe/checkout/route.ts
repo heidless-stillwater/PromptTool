@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { adminAuth } from '@/lib/firebase-admin';
 import { SUBSCRIPTION_PLANS, SubscriptionTier } from '@/lib/types';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function POST(req: NextRequest) {
     try {
@@ -65,3 +67,4 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }
+// Cache break: Tue May  5 16:57:14 BST 2026

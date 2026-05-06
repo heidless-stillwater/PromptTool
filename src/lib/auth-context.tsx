@@ -7,6 +7,7 @@ import {
     GoogleAuthProvider,
     signOut as firebaseSignOut,
     onAuthStateChanged,
+    getRedirectResult
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, Timestamp, onSnapshot } from 'firebase/firestore';
 import { auth, db } from './firebase';
@@ -143,9 +144,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const existingCredits = creditsSnap.data() as UserCredits;
 
             // Check if daily reset is needed
-            const lastReset = existingCredits.lastDailyReset.toDate();
+            let lastResetDate: Date;
+            if (existingCredits.lastDailyReset && typeof (existingCredits.lastDailyReset as any).toDate === 'function') {
+                lastResetDate = (existingCredits.lastDailyReset as any).toDate();
+            } else if (existingCredits.lastDailyReset) {
+                lastResetDate = new Date(existingCredits.lastDailyReset as any);
+            } else {
+                lastResetDate = new Date(0); // Fallback to epoch if missing
+            }
+
             const today = new Date();
-            const isNewDay = lastReset.toDateString() !== today.toDateString();
+            const isNewDay = lastResetDate.toDateString() !== today.toDateString();
 
             if (isNewDay) {
                 const updatedCredits: UserCredits = {
@@ -287,6 +296,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         let unsubscribeProfile: (() => void) | null = null;
         let unsubscribeCredits: (() => void) | null = null;
+
+        // Catch any silent errors from the Google Sign-in redirect bounce
+        getRedirectResult(auth).then((result) => {
+            if (result) {
+                console.log('[Auth] Redirect result captured successfully.');
+            }
+        }).catch((err) => {
+            console.error('[Auth] Silent Redirect Failure Caught:', err);
+            setError(`Authentication failed: ${err.message}`);
+        });
 
         const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
             setLoading(true);
