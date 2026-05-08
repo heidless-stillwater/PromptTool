@@ -78,7 +78,8 @@ service cloud.firestore {
       
       match /{allSubcollections=**} {
         allow read, list: if isAuthenticated();
-        allow write: if isOwner(userId) || isAdmin();
+        // Fixed: subcollections write check should use request.auth.uid or look for a field
+        allow write: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
       }
     }
     match /fonts/{id} { 

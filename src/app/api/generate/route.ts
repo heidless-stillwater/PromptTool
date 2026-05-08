@@ -1,5 +1,8 @@
-// Image & Video Generation API Route (Refactored for CORS resilience)
 import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 300; 
+export const runtime = 'nodejs';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -12,6 +15,7 @@ export async function OPTIONS() {
 }
 
 export async function POST(request: NextRequest) {
+    console.log('[PromptTool API] REQUEST_START: Incoming generation request');
     try {
         // Dynamic imports to prevent top-level initialization crashes during OPTIONS preflights
         const { adminAuth } = await import('@/lib/firebase-admin');
@@ -35,8 +39,7 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        console.log('[PromptTool API] Received Request Body:', JSON.stringify(body, null, 2));
-
+        
         if (!userId && body.uid) userId = body.uid;
         if (!userId) return NextResponse.json({ error: 'User ID required' }, { status: 401, headers: CORS_HEADERS });
 
@@ -64,7 +67,7 @@ export async function POST(request: NextRequest) {
 
         await GenerationService.validateTier(userId, validatedData);
         const validation = await GenerationService.validateCredits(userId, modality as any, quality as any, count);
-
+        
         const isUsingAdvanced = seed !== undefined || (negativePrompt?.trim() !== '') || (guidanceScale !== undefined && guidanceScale !== 7.0);
 
         const encoder = new TextEncoder();

@@ -8,8 +8,16 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
+    // Fix for local development port discrepancies (Always force 127.0.0.1:3001 for internal fetches)
+    let finalUrl = url.replace('localhost:3000', '127.0.0.1:3001').replace('localhost:3001', '127.0.0.1:3001');
+    
+    if (finalUrl !== url) {
+        console.log(`[Download API] Fixed localhost mapping: ${url} -> ${finalUrl}`);
+    }
+
     try {
-        const response = await fetch(url);
+        console.log(`[Download API] Proxying fetch for URL: ${finalUrl}`);
+        const response = await fetch(finalUrl);
         if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
 
         const blob = await response.blob();

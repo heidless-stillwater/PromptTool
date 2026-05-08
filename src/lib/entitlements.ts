@@ -14,7 +14,7 @@ export async function checkAppAccess(uid: string, app: AppSuiteType): Promise<bo
         const firebaseApp = apps.length > 0 ? apps[0] : null;
 
         if (!firebaseApp) {
-            console.error('Firebase app not initialized in checkAppAccess');
+            console.error('[Entitlements] Firebase app not initialized');
             return false;
         }
 
@@ -22,22 +22,26 @@ export async function checkAppAccess(uid: string, app: AppSuiteType): Promise<bo
         const identityDb = getFirestore(firebaseApp, 'prompttool-db-0');
         const userDoc = await identityDb.collection('users').doc(uid).get();
 
-        if (!userDoc.exists) return false;
+        if (!userDoc.exists) {
+            console.warn(`[Entitlements] No user record found for ${uid} in prompttool-db-0`);
+            return false;
+        }
+        
         const data = userDoc.data();
+        console.log(`[Entitlements] Evaluating access for ${uid} on app ${app}. User role: ${data?.role}, roles: ${JSON.stringify(data?.roles)}`);
 
         // 1. Admins always have access
         if (data?.role === 'admin' || data?.role === 'su') return true;
+        if (Array.isArray(data?.roles) && (data.roles.includes('admin') || data.roles.includes('su'))) return true;
 
-        // 2. Read activeSuites from any of the three possible Firestore fields:
-        //    - suiteSubscription  (new unified field, written by PromptResources Stripe webhook)
-        //    - subscriptionMetadata (legacy field used in earlier integration)
-        //    - subscription (fallback object, may have activeSuites)
+        // 2. Read activeSuites from any of the three possible Firestore fields
         const subscriptionObj =
             data?.suiteSubscription ||
             data?.subscriptionMetadata ||
             (typeof data?.subscription === 'object' ? data?.subscription : null);
 
         const activeSuites: string[] = subscriptionObj?.activeSuites || [];
+        console.log(`[Entitlements] Active suites for ${uid}: ${JSON.stringify(activeSuites)}`);
 
         // Direct match
         if (activeSuites.includes(app)) return true;
@@ -49,13 +53,14 @@ export async function checkAppAccess(uid: string, app: AppSuiteType): Promise<bo
         // 4. Legacy SubscriptionTier fallback
         const tier = typeof data?.subscription === 'string' ? data.subscription : null;
         if ((app === 'studio' || app === 'prompttool') &&
-            (tier === 'pro' || tier === 'standard')) {
+            (tier === 'pro' || tier === 'standard' || data?.subscription === 'pro')) {
             return true;
         }
 
+        console.warn(`[Entitlements] Access DENIED for ${uid} on app ${app}`);
         return false;
     } catch (error) {
-        console.error(`Entitlement check failed for ${uid} on app ${app}:`, error);
+        console.error(`[Entitlements] Check failed for ${uid} on app ${app}:`, error);
         return false;
     }
 }

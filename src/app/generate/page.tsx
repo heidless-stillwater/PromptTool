@@ -204,7 +204,9 @@ function GeneratePageContent() {
                     setPrompt(initialPrompt);
                     setRawTemplate(initialTemplate);
                     
-                    if (localState.quality) setQuality(localState.quality as ImageQuality);
+                    // Force default to standard (1 credit) as requested, ignoring saved high-tier quality
+                    setQuality('standard');
+                    // if (localState.quality) setQuality(localState.quality as ImageQuality);
                     if (localState.aspectRatio) setAspectRatio(localState.aspectRatio as AspectRatio);
                     if (localState.batchSize) setBatchSize(localState.batchSize);
                     if (localState.negativePrompt) setNegativePrompt(localState.negativePrompt);
@@ -247,7 +249,9 @@ function GeneratePageContent() {
                         if (cloudTimestamp > localTimestamp) {
                             console.log('Cloud draft is newer, syncing...');
                             if (cloudData.prompt) setPrompt(cloudData.prompt);
-                            if (cloudData.quality) setQuality(cloudData.quality as ImageQuality);
+                            // Force default to standard (1 credit) as requested
+                            setQuality('standard');
+                            // if (cloudData.quality) setQuality(cloudData.quality as ImageQuality);
                             if (cloudData.aspectRatio) setAspectRatio(cloudData.aspectRatio as AspectRatio);
                             if (cloudData.batchSize) setBatchSize(cloudData.batchSize);
                             if (cloudData.negativePrompt) setNegativePrompt(cloudData.negativePrompt);
@@ -598,7 +602,8 @@ function GeneratePageContent() {
                             setQuality('video');
                         } else {
                             setModality('image');
-                            setQuality((incomingQuality === 'video' ? 'standard' : incomingQuality) || 'standard');
+                            // Force default to standard (1 credit) for all variations
+                            setQuality('standard');
                         }
 
                         if (data.settings.aspectRatio) setAspectRatio(data.settings.aspectRatio);
@@ -773,7 +778,8 @@ function GeneratePageContent() {
             setQuality('video');
         } else {
             setModality('image');
-            setQuality((incomingQuality === 'video' ? 'standard' : incomingQuality) || 'standard');
+            // Force default to standard (1 credit) for all remixes
+            setQuality('standard');
         }
 
         setAspectRatio(image.settings.aspectRatio || '1:1');
@@ -896,7 +902,8 @@ function GeneratePageContent() {
                                 setQuality('video');
                             } else {
                                 setModality('image');
-                                setQuality((incomingQuality === 'video' ? 'standard' : incomingQuality) || 'standard');
+                                // Force default to standard (1 credit) for all variations
+                                setQuality('standard');
                             }
 
                             if (image.settings.aspectRatio) setAspectRatio(image.settings.aspectRatio);
@@ -942,7 +949,8 @@ function GeneratePageContent() {
                                     setQuality('video');
                                 } else {
                                     setModality('image');
-                                    setQuality((incomingQuality === 'video' ? 'standard' : incomingQuality) || 'standard');
+                                    // Force default to standard (1 credit) for all variations
+                                    setQuality('standard');
                                 }
 
                                 if (image.settings.aspectRatio) setAspectRatio(image.settings.aspectRatio);
@@ -971,7 +979,8 @@ function GeneratePageContent() {
             // Just import prompt and settings
             if (image.prompt) setPrompt(image.prompt);
             if (image.settings) {
-                if (image.settings.quality) setQuality(image.settings.quality);
+                // Force default to standard (1 credit) for all imports
+                setQuality('standard');
                 if (image.settings.aspectRatio) setAspectRatio(image.settings.aspectRatio);
                 if (image.settings.modality) setModality(image.settings.modality);
                 if (image.settings.negativePrompt) setNegativePrompt(image.settings.negativePrompt);

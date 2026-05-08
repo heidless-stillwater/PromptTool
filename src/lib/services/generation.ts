@@ -97,32 +97,38 @@ export class GenerationService {
      * Checks if user has enough credits and calculates costs.
      */
     static async validateCredits(userId: string, modality: MediaModality, quality: ImageQuality | 'video', count: number): Promise<GenerationValidationResult> {
+        const userDoc = await adminDb.collection('users').doc(userId).get();
+        const userProfile = userDoc.data();
+        const isSuperUser = userProfile?.role === 'su' || 
+                           userProfile?.role === 'admin' || 
+                           ADMIN_EMAILS.includes(userProfile?.email || '');
+
         const creditsRef = adminDb.collection('users').doc(userId).collection('data').doc('credits');
         const creditsDoc = await creditsRef.get();
 
-        if (!creditsDoc.exists) throw new Error('Credits not found');
+        if (!creditsDoc.exists && !isSuperUser) throw new Error('Credits not found');
 
-        const credits = creditsDoc.data() as any;
+        const credits = creditsDoc.exists ? creditsDoc.data() as any : { balance: 1000, dailyAllowance: 1000, dailyAllowanceUsed: 0, lastDailyReset: Timestamp.now() };
         const singleCost = modality === 'video' ? CREDIT_COSTS.video : CREDIT_COSTS[quality as ImageQuality];
         const totalCost = singleCost * count;
 
-        const lastReset = credits.lastDailyReset.toDate();
+        const lastReset = (credits.lastDailyReset as Timestamp).toDate();
         const today = new Date();
         const isNewDay = lastReset.toDateString() !== today.toDateString();
 
         const currentDailyUsed = isNewDay ? 0 : credits.dailyAllowanceUsed;
-        const remainingDaily = Math.max(0, credits.dailyAllowance - currentDailyUsed);
-        const totalAvailable = credits.balance + remainingDaily;
+        const remainingDaily = Math.max(0, (credits.dailyAllowance || 0) - currentDailyUsed);
+        const totalAvailable = (credits.balance || 0) + remainingDaily;
 
-        if (totalAvailable < totalCost) {
-            throw new Error(`Insufficient credits.Need ${totalCost}, have ${totalAvailable} `);
+        if (!isSuperUser && totalAvailable < totalCost) {
+            throw new Error(`Insufficient credits. Need ${totalCost}, have ${totalAvailable}`);
         }
 
         return {
             userId,
-            subscription: '', // Not strictly needed for credit logic itself
-            credits: credits as any,
-            costs: { single: singleCost, total: totalCost },
+            subscription: userProfile?.subscription || 'free',
+            credits: { ...credits, isSuperUser } as any,
+            costs: { single: isSuperUser ? 0 : singleCost, total: isSuperUser ? 0 : totalCost },
             isNewDay,
             remainingDaily
         };
@@ -132,7 +138,14 @@ export class GenerationService {
      * Deducts credits and logs history.
      */
     static async deductCredits(val: GenerationValidationResult, actualCount: number, options: any) {
-        const { userId, isNewDay, remainingDaily, costs } = val;
+        const { userId, isNewDay, remainingDaily, costs, credits } = val;
+        const isSuperUser = (credits as any).isSuperUser;
+        
+        if (isSuperUser) {
+            console.log(`[GenerationService] Skipping credit deduction for Super-User: ${userId}`);
+            return (credits.balance || 0) + Math.max(0, (credits.dailyAllowance || 0) - (credits.dailyAllowanceUsed || 0));
+        }
+
         const actualTotalCost = costs.single * actualCount;
 
         const dailyDeduction = Math.min(actualTotalCost, remainingDaily);
@@ -143,7 +156,7 @@ export class GenerationService {
         await creditsRef.update({
             balance: (FieldValue as any).increment(-balanceDeduction),
             dailyAllowanceUsed: isNewDay ? dailyDeduction : (FieldValue as any).increment(dailyDeduction),
-            lastDailyReset: isNewDay ? Timestamp.now() : val.credits.lastDailyReset,
+            lastDailyReset: isNewDay ? Timestamp.now() : (val.credits as any).lastDailyReset,
             totalUsed: (FieldValue as any).increment(actualTotalCost),
         });
 
@@ -173,6 +186,7 @@ export class GenerationService {
      * Saves generated media to Storage and Firestore.
      */
     static async saveMedia(userId: string, media: { data: string, mimeType: string }, options: MediaSaveOptions) {
+        console.log(`[GenerationService] saveMedia START for user: ${userId}`);
         const bucket = adminStorage.bucket();
         const { modality, quality, aspectRatio, prompt, promptType, madlibsData, seed, negativePrompt, guidanceScale, sourceImageId, promptSetID, collectionIds, requestedModality, initialImageUrl, targetVariationId, title, rawPrompt, variables, template } = options;
 
@@ -183,9 +197,13 @@ export class GenerationService {
         const file = bucket.file(filename);
         const mediaBuffer = Buffer.from(media.data, 'base64');
 
-        await file.save(mediaBuffer, {
-            metadata: { contentType: media.mimeType },
-        });
+        try {
+            await file.save(mediaBuffer, {
+                metadata: { contentType: media.mimeType },
+            });
+        } catch (storageError: any) {
+            throw storageError;
+        }
 
         await file.makePublic();
         const mediaUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
@@ -207,13 +225,19 @@ export class GenerationService {
         if (negativePrompt) settings.negativePrompt = negativePrompt;
         if (guidanceScale !== undefined) settings.guidanceScale = guidanceScale;
 
+        const userDoc = await adminDb.collection('users').doc(userId).get();
+        const userProfile = userDoc.data();
+        const isSuperUser = userProfile?.role === 'su' || 
+                           userProfile?.role === 'admin' || 
+                           ADMIN_EMAILS.includes(userProfile?.email || '');
+
         const mediaData: any = {
             userId,
             prompt: rawPrompt || prompt,
             settings,
             imageUrl: (actualModality === 'video' && initialImageUrl && !initialImageUrl.includes('dicebear')) ? initialImageUrl : mediaUrl,
             storagePath: filename,
-            creditsCost: isVideo ? CREDIT_COSTS.video : CREDIT_COSTS[quality as ImageQuality],
+            creditsCost: isSuperUser ? 0 : (isVideo ? CREDIT_COSTS.video : CREDIT_COSTS[quality as ImageQuality]),
             createdAt: Timestamp.now(),
             downloadCount: 0,
             isDraft: false,
@@ -271,7 +295,6 @@ export class GenerationService {
                         const currentCount = typeof data?.variationCount === 'number' ? data.variationCount : 0;
                         await userImgRef.update({ variationCount: currentCount + 1 });
 
-                        // Also find if this image was published and update its league entry
                         const q = await adminDb.collection('leagueEntries').where('originalImageId', '==', sourceImageId).limit(1).get();
                         if (!q.empty) {
                             const le = q.docs[0];

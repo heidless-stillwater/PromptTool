@@ -1,4 +1,4 @@
-// NanoBanana (Gemini) Image Generation Service
+// NanoBanana (Gemini) Image & Video Generation Service
 import { GoogleGenAI } from '@google/genai';
 import { AspectRatio, ImageQuality } from '../types';
 import { getSecret } from '../config-helper';
@@ -44,7 +44,8 @@ export interface GenerateImageResult {
 }
 
 export class NanoBananaService {
-    private client: GoogleGenAI;
+    private client: GoogleGenAI; // AI Studio client (for images)
+    private vertexClient: GoogleGenAI | null = null; // Vertex AI client (for video/image)
     private apiKey: string;
 
     constructor(apiKey: string) {
@@ -52,387 +53,315 @@ export class NanoBananaService {
         this.apiKey = apiKey;
     }
 
-    async generateVideo(options: { 
-        prompt: string; 
-        aspectRatio: AspectRatio; 
+    private async getVertexClient(): Promise<GoogleGenAI> {
+        if (this.vertexClient) return this.vertexClient;
+
+        const projectId = 'heidless-apps-2';
+        const location = 'us-east1';
+
+        console.log(`[NanoBanana] Initializing Vertex AI client for project: ${projectId} in ${location}`);
+        
+        this.vertexClient = new GoogleGenAI({
+            vertexai: true,
+            project: projectId,
+            location: location
+        });
+
+        return this.vertexClient;
+    }
+
+    private async getVertexAccessToken(): Promise<string> {
+        const { adminApp } = await import('../firebase-admin');
+        const credential = adminApp.options.credential as any;
+        const tokenObj = await credential.getAccessToken(['https://www.googleapis.com/auth/cloud-platform']);
+        return tokenObj.access_token;
+    }
+
+    async generateVideo(options: {
+        prompt: string;
+        aspectRatio: AspectRatio;
         onProgress?: (current: number, total: number) => void;
         onStatus?: (message: string) => void;
     }): Promise<GenerateImageResult> {
-        const { prompt, aspectRatio, onProgress } = options;
-        const model = 'models/veo-2.0-generate-001';
+        const { prompt, aspectRatio, onProgress, onStatus } = options;
+        const model = 'veo-2.0-generate-001';
+        const regions = ['us-central1', 'us-east1', 'europe-west1', 'asia-northeast1', 'us-west1', 'europe-west4'];
 
+        for (const location of regions) {
+            try {
+                if (onStatus) onStatus(`Initializing Vertex AI Video Engine (${location})...`);
+                console.log(`[NanoBanana] Attempting Veo generation in ${location}...`);
+                
+                const projectId = 'heidless-apps-2';
+                const vClient = new GoogleGenAI({
+                    vertexai: true,
+                    project: projectId,
+                    location: location
+                });
+
+                const aspectRatioMap: Record<AspectRatio, "16:9" | "9:16" | "1:1"> = {
+                    '16:9': '16:9', '9:16': '9:16', '1:1': '1:1', '4:3': '16:9', '3:4': '9:16',
+                };
+                const veoAspectRatio = aspectRatioMap[aspectRatio] || '16:9';
+
+                if (onStatus) onStatus(`Starting video generation in ${location}...`);
+
+                let operation = await vClient.models.generateVideos({
+                    model: model,
+                    prompt: prompt,
+                    config: { aspectRatio: veoAspectRatio }
+                });
+
+                console.log(`[NanoBanana] Video Operation Started in ${location}:`, operation.name);
+                if (onStatus) onStatus(`Generation in progress (${location})... this usually takes 1-3 minutes.`);
+
+                const startTime = Date.now();
+                const timeout = 600000; 
+
+                while (!operation.done) {
+                    if (Date.now() - startTime > timeout) throw new Error('Video generation timed out');
+                    await new Promise(resolve => setTimeout(resolve, 10000));
+                    operation = await vClient.operations.getVideosOperation({ operation });
+                    if (onProgress) onProgress(0, 1);
+                }
+
+                if (operation.error) throw new Error(`Veo Generation Failed: ${JSON.stringify(operation.error)}`);
+
+                console.log(`[NanoBanana] Successfully generated video in ${location}.`);
+                const rawResp = (operation as any).response || operation;
+                const resp = JSON.parse(JSON.stringify(rawResp));
+                const genVideos = resp.generatedVideos || resp.generated_videos;
+                const videoObj = genVideos?.[0]?.video || genVideos?.[0];
+                
+                let videoData = videoObj?.videoBytes || videoObj?.data;
+                let videoUri = videoObj?.uri;
+                let mimeType = videoObj?.mimeType || 'video/mp4';
+
+                if (!videoData && !videoUri) {
+                    const findValue = (obj: any, key: string): any => {
+                        if (!obj || typeof obj !== 'object') return null;
+                        if (obj[key]) return obj[key];
+                        for (const k of Object.keys(obj)) {
+                            const val = findValue(obj[k], key);
+                            if (val) return val;
+                        }
+                        return null;
+                    };
+                    videoData = findValue(resp, 'videoBytes') || findValue(resp, 'data');
+                    videoUri = findValue(resp, 'uri');
+                }
+
+                if (videoData) return { success: true, images: [{ data: videoData, mimeType: mimeType }] };
+
+                if (videoUri) {
+                    if (onStatus) onStatus(`Downloading video from ${location}...`);
+                    const accessToken = await this.getVertexAccessToken();
+                    return this.downloadVideo(videoUri, accessToken);
+                }
+
+                throw new Error(`Failed to find video data in response.`);
+
+            } catch (error: any) {
+                const errorStr = JSON.stringify(error).toLowerCase();
+                const isRetryable = errorStr.includes('429') || errorStr.includes('quota') || errorStr.includes('404') || errorStr.includes('not found');
+                
+                if (isRetryable && location !== regions[regions.length - 1]) {
+                    console.warn(`[NanoBanana] ${location} failover...`);
+                    continue; 
+                }
+                
+                console.error(`Vertex Veo generation error in ${location}:`, error);
+                return { success: false, error: error.message || 'Video generation failed' };
+            }
+        }
+        return { success: false, error: 'All regions exhausted quota' };
+    }
+
+    private async downloadVideo(videoUri: string, accessToken: string): Promise<GenerateImageResult> {
         try {
-            // Map aspect ratio for Veo
-            // Veo 2.0 primarily supports 16:9 and 9:16. 1:1 often works.
-            // 4:3 and 3:4 are generally not supported.
-            const aspectRatioMap: Record<AspectRatio, string> = {
-                '16:9': '16:9',
-                '9:16': '9:16',
-                '1:1': '1:1',
-                '4:3': '16:9', // Fallback to 16:9
-                '3:4': '9:16', // Fallback to 9:16
-            };
-            const veoAspectRatio = aspectRatioMap[aspectRatio] || '16:9';
+            let downloadUrl = videoUri;
+            
+            if (videoUri.startsWith('gs://')) {
+                const parts = videoUri.replace('gs://', '').split('/');
+                const bucket = parts.shift();
+                const path = parts.join('/');
+                downloadUrl = `https://storage.googleapis.com/storage/v1/b/${bucket}/o/${encodeURIComponent(path)}?alt=media`;
+            }
 
-            // 1. Initial Request
-            // Using raw fetch because predictLongRunning is not standard in SDK yet
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${model}:predictLongRunning?key=${this.apiKey}`, {
-                method: 'POST',
+            const videoRes = await fetch(downloadUrl, {
                 headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    instances: [
-                        { prompt }
-                    ],
-                    parameters: {
-                        sampleCount: 1,
-                        aspectRatio: veoAspectRatio
-                    }
-                })
+                    'Authorization': `Bearer ${accessToken}`
+                }
             });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                const status = response.status;
-                
-                // For video, we don't have a simple retry loop yet as it's a long-running op,
-                // but we can at least detect the 503/429 during the INITIAL request.
-                if (status === 503 || status === 429) {
-                     // We'll wrap this in a retry if needed, but for now let's just properly report it.
-                     throw new Error(`AI Core is at capacity (503). Please try again in a few moments.`);
-                }
-                throw new Error(`Veo API Error (${status}): ${errorText}`);
-            }
-
-            const initialData = await response.json();
-            const operationName = initialData.name; // e.g., "models/.../operations/..."
-
-            if (!operationName) {
-                throw new Error('No operation name returned from Veo API');
-            }
-
-            // 2. Poll for completion
-            let pollData;
-            const startTime = Date.now();
-            const timeout = 180000; // 3 minutes timeout (video gen is slow)
-
-            while (true) {
-                if (Date.now() - startTime > timeout) {
-                    throw new Error('Video generation timed out');
-                }
-
-                // Wait 5 seconds between polls
-                await new Promise(resolve => setTimeout(resolve, 5000));
-
-                const pollResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${operationName}?key=${this.apiKey}`);
-                if (!pollResponse.ok) {
-                    throw new Error(`Polling failed: ${pollResponse.statusText}`);
-                }
-
-                pollData = await pollResponse.json();
-
-                if (pollData.done) {
-                    break;
-                }
-
-                // Optional progress update? 
-                // Veo doesn't expose % progress easily, but we can fake it or just pulse.
-                if (onProgress) onProgress(0, 1);
-            }
-
-            if (pollData.error) {
-                throw new Error(`Veo Generation Failed: ${pollData.error.message || JSON.stringify(pollData.error)}`);
-            }
-
-            // 3. Extract Video
-            // The result is usually in response.result (for older LRO) or response (for new LRO)
-            // Based on test, it returns:
-            // "response": { "@type": "...", "generateVideoResponse": { "generatedSamples": [ { "video": { "uri": "..." } } ] } }
-            // Note: The field might be `result` or `response` depending on API version. 
-            // Our test output showed `response` at top level inside the operation JSON, returning `uri`.
-
-            const videoUri = pollData.response?.generateVideoResponse?.generatedSamples?.[0]?.video?.uri;
-
-            if (!videoUri) {
-                console.error('Full Poll Data:', JSON.stringify(pollData, null, 2));
-                throw new Error('No video URI found in completed operation');
-            }
-
-            // 4. Download Video Content
-            // The URI is likely a public or authenticated download link.
-            // Usually for Generative Language API, we can fetch it directly (maybe with key).
-            const downloadUrl = `${videoUri}&key=${this.apiKey}`; // Try appending key just in case
-
-            const videoRes = await fetch(downloadUrl);
-            if (!videoRes.ok) {
-                // Try without extra key param if 400/403?
-                // Actually the URI from test output already has some params.
-                // Let's assume standard fetch works.
-                const retryRes = await fetch(videoUri);
-                if (!retryRes.ok) {
-                    throw new Error(`Failed to download video content: ${videoRes.statusText}`);
-                }
-                return {
-                    success: true,
-                    images: [{
-                        data: Buffer.from(await retryRes.arrayBuffer()).toString('base64'),
-                        mimeType: 'video/mp4'
-                    }]
-                };
-            }
+            if (!videoRes.ok) throw new Error(`Failed to download video content: ${videoRes.statusText}`);
 
             const videoBuffer = await videoRes.arrayBuffer();
-
             return {
                 success: true,
                 images: [{
                     data: Buffer.from(videoBuffer).toString('base64'),
-                    mimeType: 'video/mp4' // Verify header? usually video/mp4
+                    mimeType: 'video/mp4'
                 }]
             };
-
         } catch (error: any) {
-            console.error('Veo video generation error:', error);
-            return { success: false, error: error.message || 'Video generation failed' };
+            throw new Error(`Video download failed: ${error.message}`);
         }
     }
 
     async generateImage(options: GenerateImageOptions): Promise<GenerateImageResult> {
-        const { prompt, quality, aspectRatio, count = 1, seed, negativePrompt, guidanceScale, referenceImage, referenceMimeType, referenceImages, onProgress } = options;
-        const model = MODELS[quality];
-        const resolution = RESOLUTIONS[quality];
-
-        const images: ImageResult[] = [];
+        const { prompt, quality = 'standard', aspectRatio = '1:1', count = 1, onProgress, onStatus } = options;
+        const projects = ['heidless-apps-2', 'heidless-apps-1', 'heidless-apps-3', 'heidless-apps-4', 'heidless-apps-5'];
+        const regions = [
+            'us-central1', 'us-east1', 'us-east4', 'us-west1', 'us-west4',
+            'europe-west1', 'europe-west3', 'europe-west4', 'europe-west9',
+            'asia-northeast1', 'asia-northeast3', 'asia-southeast1',
+            'australia-southeast1', 'northamerica-northeast1'
+        ];
         
-        // Helper to resolve URLs to Base64 for Gemini multimodal input
-        const resolveImage = async (data: string): Promise<{ data: string, mimeType: string }> => {
-            if (data.startsWith('http')) {
-                try {
-                    const res = await fetch(data);
-                    if (!res.ok) throw new Error(`Failed to fetch reference image: ${res.statusText}`);
-                    const buffer = Buffer.from(await res.arrayBuffer());
-                    return {
-                        data: buffer.toString('base64'),
-                        mimeType: res.headers.get('content-type') || 'image/png'
-                    };
-                } catch (err) {
-                    console.error('[NanoBanana] Image fetch failed:', err);
-                    throw err;
-                }
-            }
-            return { data, mimeType: referenceMimeType || 'image/png' };
-        };
+        let lastError: any = null;
 
-        try {
-            // Loop for multiple images (Batch Generation)
-            for (let i = 0; i < count; i++) {
-                let attempts = 0;
-                const maxAttempts = 5; // Increased for high-demand resilience
-                let foundImageInCandidate = false;
-                let lastError: any = null;
-
-                while (attempts < maxAttempts && !foundImageInCandidate) {
+        for (const projectId of projects) {
+            console.log(`[NanoBanana] Starting generation cycle for project: ${projectId}`);
+            
+            for (const location of regions) {
+                const models = ['imagen-3.0-generate-001', 'imagen-3.0-fast-generate-001', 'imagegeneration@006'];
+                
+                for (const modelName of models) {
                     try {
-                        attempts++;
-                        // Build config
-                        const config: any = {
-                            responseModalities: ['IMAGE'],
-                            safetySettings: [
-                                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
-                                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
-                                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
-                                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
-                            ],
-                        };
+                        const vClient = new GoogleGenAI({
+                            vertexai: true,
+                            project: projectId,
+                            location: location
+                        });
+                        
+                        console.log(`[NanoBanana] [${projectId}] [${location}] [${modelName}] Attempting generation...`);
+                        if (onStatus) onStatus(`Trying ${modelName} in ${location} (${projectId})...`);
+                        
+                        const vertexQuality = quality === 'standard' ? 'standard' : 'high';
 
-                        // Add generation config for advanced controls
-                        const generationConfig: any = {};
-                        if (seed !== undefined) {
-                            // If count > 1 and seed is locked, we use the same seed.
-                            // However, usually users want DIFFERENT images in a batch.
-                            // If seed is provided, we'll add the index to it for variation unless we want them identical.
-                            // For now, let's use the seed as a base.
-                            generationConfig.seed = seed + (i * 100);
-                        }
-                        if (guidanceScale !== undefined) {
-                            generationConfig.guidanceScale = guidanceScale;
-                        }
-
-                        if (Object.keys(generationConfig).length > 0) {
-                            config.generationConfig = generationConfig;
-                        }
-
-                        // Add image config for aspect ratio and resolution
-                        const imageConfig: any = {};
-
-                        // Convert aspect ratio format
-                        const aspectRatioMap: Record<AspectRatio, string> = {
-                            '1:1': '1:1',
-                            '4:3': '4:3',
-                            '16:9': '16:9',
-                            '9:16': '9:16',
-                            '3:4': '3:4',
-                        };
-                        imageConfig.aspectRatio = aspectRatioMap[aspectRatio];
-
-                        if (resolution) {
-                            imageConfig.imageSize = resolution;
-                        }
-
-                        if (Object.keys(imageConfig).length > 0) {
-                            config.imageConfig = imageConfig;
-                        }
-
-                        // Handle negative prompt if provided
-                        let finalPrompt = prompt;
-                        if (negativePrompt) {
-                            finalPrompt = `${prompt}\n\nNegative Prompt: ${negativePrompt}`;
-                        }
-
-                        // Build contents - multimodal if reference image(s) provided
-                        let contents: any;
-                        if (referenceImages && referenceImages.length > 0) {
-                            // Multiple reference images mode
-                            const resolvedImages = await Promise.all(referenceImages.map(img => resolveImage(img.data)));
-                            contents = [
-                                ...resolvedImages.map(img => ({
-                                    inlineData: {
-                                        mimeType: img.mimeType,
-                                        data: img.data,
-                                    },
-                                })),
-                                { text: finalPrompt },
-                            ];
-                        } else if (referenceImage) {
-                            // Single legacy reference image mode
-                            const resolved = await resolveImage(referenceImage);
-                            const variationPrompt = `Create a variation of this image. ${finalPrompt}`;
-                            contents = [
-                                {
-                                    inlineData: {
-                                        mimeType: resolved.mimeType,
-                                        data: resolved.data,
-                                    },
-                                },
-                                { text: variationPrompt },
-                            ];
-                        } else {
-                            // Text-only mode
-                            contents = finalPrompt;
-                        }
-
-                        const response = await this.client.models.generateContent({
-                            model,
-                            contents,
-                            config,
+                        const response = await vClient.models.generateContent({
+                            model: modelName,
+                            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                            config: {
+                                candidateCount: count,
+                                // @ts-ignore
+                                aspectRatio: aspectRatio,
+                                // @ts-ignore
+                                imageQuality: vertexQuality,
+                            } as any
                         });
 
-                        const candidate = response.candidates?.[0];
-
-                        if (candidate) {
-                            if (candidate.finishReason && candidate.finishReason !== 'STOP') {
-                                console.warn(`[NanoBanana] Generation stopped with reason: ${candidate.finishReason}`);
-                                console.warn(`[NanoBanana] Full candidate:`, JSON.stringify(candidate, null, 2));
-
-                                let blockReason = `Generation blocked: ${candidate.finishReason}`;
-                                if (candidate.finishMessage) {
-                                    blockReason += ` - ${candidate.finishMessage}`;
-                                }
-                                if (candidate.safetyRatings) {
-                                    const highRiskFilters = candidate.safetyRatings
-                                        .filter((r: any) => r.probability !== 'NEGLIGIBLE' && r.probability !== 'LOW')
-                                        .map((r: any) => `${r.category}: ${r.probability}`);
-                                    if (highRiskFilters.length > 0) {
-                                        blockReason += `. Safety Flags: ${highRiskFilters.join(', ')}`;
-                                    }
-                                }
-
-                                lastError = new Error(blockReason);
-                            }
-
-                            // Extract image from response
-                            const parts = candidate.content?.parts;
-
-                            if (parts) {
-                                for (const part of parts) {
-                                    if (part.inlineData && part.inlineData.data) {
-                                        images.push({
-                                            data: part.inlineData.data,
-                                            mimeType: part.inlineData.mimeType || 'image/png',
-                                        });
-                                        foundImageInCandidate = true;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-
-                        if (!foundImageInCandidate) {
-                            console.warn(`[NanoBanana] Attempt ${attempts} failed to find image in response for index ${i}`);
-                            if (!lastError) {
-                                lastError = new Error('No image data returned from API');
-                            }
-                        }
-                    } catch (innerError: any) {
-                        const status = innerError?.status || innerError?.error?.status;
-                        const isRetryable = status === 'UNAVAILABLE' || status === 'RESOURCE_EXHAUSTED' || innerError?.message?.includes('503') || innerError?.message?.includes('429');
-
-                        console.error(`[NanoBanana] Attempt ${attempts} failed for index ${i} (Status: ${status}):`, innerError.message);
-                        lastError = innerError;
-
-                        if (attempts >= maxAttempts || !isRetryable) {
-                            break;
-                        }
-
-                        // Exponential Backoff: 1s, 2s, 4s, 8s...
-                        const delay = Math.pow(2, attempts - 1) * 1000;
-                        const waitMsg = status === 'UNAVAILABLE' ? 'AI Core is at capacity' : 'Rate limit reached';
+                        const unwrapped = JSON.parse(JSON.stringify(response));
+                        const result = unwrapped.response || unwrapped;
                         
-                        if (options.onStatus) {
-                            options.onStatus(`${waitMsg}. Retrying in ${delay / 1000}s... (Attempt ${attempts + 1}/${maxAttempts})`);
+                        const images: ImageResult[] = [];
+                        const candidates = result.candidates || [];
+                        
+                        const deepSearch = (obj: any, key: string): any => {
+                            if (!obj || typeof obj !== 'object') return null;
+                            if (obj[key]) return obj[key];
+                            for (const k of Object.keys(obj)) {
+                                const val = deepSearch(obj[k], key);
+                                if (val) return val;
+                            }
+                            return null;
+                        };
+
+                        for (const candidate of candidates) {
+                            const data = deepSearch(candidate, 'bytesBase64Encoded') || 
+                                         deepSearch(candidate, 'data') || 
+                                         deepSearch(candidate, 'inlineData')?.data;
+                            
+                            if (data) {
+                                images.push({ 
+                                    data, 
+                                    mimeType: deepSearch(candidate, 'mimeType') || 'image/png' 
+                                });
+                            }
                         }
 
-                        await new Promise(resolve => setTimeout(resolve, delay));
+                        if (images.length === 0) throw new Error('No image data found in Vertex response');
+
+                        if (onProgress) onProgress(count, count);
+                        console.log(`[NanoBanana] [${projectId}] [${location}] SUCCESS`);
+                        if (onStatus) onStatus(`Success in ${location}!`);
+                        return { success: true, images };
+
+                    } catch (error: any) {
+                        lastError = error;
+                        const errorMsg = (error.message || '').toLowerCase();
+                        const errorCode = error.code || (error as any).status || '';
+                        const isRetryableError = 
+                            String(errorCode).includes('429') || 
+                            String(errorCode).includes('RESOURCE_EXHAUSTED') ||
+                            String(errorCode).includes('404') ||
+                            String(errorCode).includes('NOT_FOUND') ||
+                            errorMsg.includes('quota') ||
+                            errorMsg.includes('rate limit') ||
+                            errorMsg.includes('not found') ||
+                            JSON.stringify(error).includes('429') ||
+                            JSON.stringify(error).includes('404');
+                        
+                        if (isRetryableError) {
+                            const isFreeTier = JSON.stringify(error).includes('free_tier') || errorMsg.includes('free_tier');
+                            const reason = (String(errorCode).includes('404') || errorMsg.includes('not found')) ? 'Model Not Found' : 'Quota Exceeded';
+                            console.warn(`[NanoBanana] [${projectId}] [${location}] [${modelName}] ${reason}${isFreeTier ? ' (Free Tier)' : ''}. Switching...`);
+                            continue;
+                        }
+                        
+                        console.error(`[NanoBanana] [${projectId}] [${location}] [${modelName}] Error:`, error.message || error);
+                        throw error;
                     }
-                }
+                } // End of models loop
+            } // End of locations loop
+        } // End of projects loop
 
-                if (onProgress) {
-                    onProgress(i + 1, count);
-                }
-
-                if (!foundImageInCandidate && i === 0 && images.length === 0) {
-                    return { success: false, error: `Initial generation failed: ${lastError?.message || 'Unknown error'}` };
-                }
+        // --- Final Fallback: Gemini API (AI Studio) via REST ---
+        try {
+            console.log(`[NanoBanana] All Vertex regions exhausted. Attempting final REST fallback via Gemini API...`);
+            if (onStatus) onStatus('Attempting final fallback (REST)...');
+            
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${this.apiKey}`;
+            
+            const fbResponse = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    instances: [{ prompt }],
+                    parameters: { sampleCount: 1, aspectRatio: '1:1' }
+                })
+            });
+            
+            const fbData = await fbResponse.json();
+            
+            if (fbData.predictions?.[0]?.bytesBase64Encoded) {
+                console.log(`[NanoBanana] SUCCESS via Gemini API REST Fallback (Imagen 4.0)`);
+                if (onStatus) onStatus('Success via Imagen 4.0 REST fallback!');
+                return { 
+                    success: true, 
+                    images: [{ 
+                        data: fbData.predictions[0].bytesBase64Encoded, 
+                        mimeType: 'image/png' 
+                    }] 
+                };
+            } else {
+                console.warn(`[NanoBanana] Gemini API REST Fallback returned no data. Status: ${fbResponse.status}. Body:`, JSON.stringify(fbData).substring(0, 1000));
             }
-
-            if (images.length === 0) {
-                return { success: false, error: 'No images generated' };
-            }
-
-            return { success: true, images };
-        } catch (error: any) {
-            console.error('NanoBanana generation error:', error);
-            if (images.length > 0) {
-                return { success: true, images };
-            }
-            return {
-                success: false,
-                error: error.message || 'Image generation failed'
-            };
+        } catch (fbErr: any) {
+            console.error(`[NanoBanana] Gemini API REST Fallback failed:`, fbErr.message);
         }
+
+        console.error(`[NanoBanana] All projects, regions and fallbacks exhausted. Last error: ${lastError?.message}`);
+        return { success: false, images: [], error: lastError?.message || 'All regions exhausted quota' };
     }
 }
 
-// Server-side singleton
 let nanoBananaService: NanoBananaService | null = null;
-
 export async function getNanoBananaService(): Promise<NanoBananaService> {
     if (!nanoBananaService) {
         const apiKey = await getSecret('GEMINI_API_KEY');
-        if (!apiKey) {
-            throw new Error('GEMINI_API_KEY not configured in environment or database');
-        }
+        if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
         nanoBananaService = new NanoBananaService(apiKey);
     }
     return nanoBananaService;

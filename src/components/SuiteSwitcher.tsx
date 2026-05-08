@@ -8,7 +8,7 @@ const apps = [
     { name: 'PromptMaster', url: 'http://localhost:5173', icon: Icons.zap, color: 'text-amber-400', desc: 'Central Registry' },
     { name: 'PromptTool', url: 'http://localhost:3001', icon: Icons.grid, color: 'text-indigo-400', desc: 'AI Image Studio', current: true },
     { name: 'Resources', url: 'http://localhost:3002', icon: Icons.feed, color: 'text-emerald-400', desc: 'Sovereign Library' },
-    { name: 'VideoSystem', url: 'http://localhost:3000', icon: Icons.video, color: 'text-rose-400', desc: 'AI Documentary Engine' },
+    { name: 'VideoSystem', url: 'http://localhost:3001', icon: Icons.video, color: 'text-rose-400', desc: 'AI Documentary Engine' },
     { name: 'Accreditation', url: 'http://localhost:3003', icon: Icons.shield, color: 'text-blue-400', desc: 'Compliance Hub' },
 ];
 

@@ -1,0 +1,115 @@
+nohup: ignoring input
+
+> prompt-tool@0.1.0 dev
+> next dev --port 3001
+
+  ▲ Next.js 14.2.14
+  - Local:        http://localhost:3001
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 1957ms
+ ○ Compiling / ...
+ ✓ Compiled /api/compliance/sovereign in 17.7s (1960 modules)
+Firebase Admin: Initializing with Service Account credentials
+ GET /api/compliance/sovereign 200 in 12420ms
+ ✓ Compiled in 4.3s (825 modules)
+ GET / 200 in 53ms
+ GET /api/compliance/sovereign 200 in 196ms
+ GET / 200 in 58ms
+ GET /api/compliance/sovereign 200 in 203ms
+ GET / 200 in 26ms
+ GET /api/compliance/sovereign 200 in 188ms
+ GET / 200 in 38ms
+ GET /api/compliance/sovereign 200 in 186ms
+ GET / 200 in 34ms
+ GET /api/compliance/sovereign 200 in 693ms
+ GET /api/compliance/sovereign 200 in 238ms
+ ○ Compiling /generate ...
+ ✓ Compiled /generate in 1742ms (2019 modules)
+ GET /generate?ref=5cwEPgmFmIsR9dhUjZSW&edit=1 200 in 2069ms
+ ✓ Compiled /_not-found in 373ms (2022 modules)
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 568ms
+ GET /_next/static/chunks/app/generate/LayoutGroupContext.mjs.map 404 in 199ms
+ GET /_next/static/chunks/app/LayoutGroupContext.mjs.map 404 in 43ms
+ GET /api/compliance/sovereign 200 in 223ms
+ GET /api/compliance/sovereign 200 in 461ms
+ ○ Compiling /api/generate ...
+ ✓ Compiled /api/generate in 2.2s (1414 modules)
+[PromptTool API] Received Request Body: {
+  "prompt": "A hyper-realistic, Cyberpunk-style, AI-generated ASMR video where a razor-sharp knife slowly slices through an opaque gold bar in original gold color. The object rests on a rustic wooden cutting board, bathed in warm, dramatic Cinematic lighting, captured with an extreme Macro camera perspective. Each intentional cut delivers a deeply satisfying ASMR audio experience — crisp, metallic and clean - echoing in an otherwise silent, meditative space. Sliced gold drops gently to the cutting board. The overall pacing is slow and soothing, crafting a tranquil ASMR experience.",
+  "quality": "video",
+  "aspectRatio": "16:9",
+  "promptType": "freeform",
+  "count": 1,
+  "guidanceScale": 7,
+  "promptSetID": "mm3gvg4a",
+  "modality": "video",
+  "targetVariationId": "5cwEPgmFmIsR9dhUjZSW"
+}
+[Entitlements] Evaluating access for nNdenyyfKaN9yNB9Ly3vhhaHLXx1 on app studio. User role: su, roles: ["su"]
+[adminDb Proxy] Accessing prop: collection on database: prompttool-db-0
+[adminDb Proxy] Accessing prop: collection on database: prompttool-db-0
+[adminDb Proxy] Accessing prop: collection on database: prompttool-db-0
+Veo video generation error: Error: Veo API Error (400): {
+  "error": {
+    "code": 400,
+    "message": "The model models/veo-2.0-generate-001 is exclusively available to users with Google Cloud Platform billing enabled. To use this model, please ensure your account has active GCP billing. You can find more information on how to enable billing in your account settings.",
+    "status": "FAILED_PRECONDITION"
+  }
+}
+
+    at NanoBananaService.generateVideo (webpack-internal:///(rsc)/./src/lib/services/nanobanana.ts:76:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async eval (webpack-internal:///(rsc)/./src/app/api/generate/route.ts:92:33)
+ POST /api/generate 200 in 4248ms
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 2.6s (2487 modules)
+ GET /api/compliance/sovereign 404 in 2690ms
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ GET /_next/static/webpack/17d265b5e3d44246.webpack.hot-update.json 404 in 455ms
+ GET /generate?ref=5cwEPgmFmIsR9dhUjZSW&edit=1 200 in 91ms
+ GET /_next/static/css/app/layout.css?v=1778146187350 404 in 30ms
+ GET /_next/static/chunks/main-app.js?v=1778146187350 404 in 24ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 19ms
+ GET /_next/static/chunks/app/generate/page.js 404 in 19ms
+ GET /_next/static/chunks/app/layout.js 404 in 19ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 21ms
+ GET / 200 in 43ms
+[Error: ENOENT: no such file or directory, stat '/home/heidless/projects/PromptTool/.next/cache/webpack/client-development/2.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/home/heidless/projects/PromptTool/.next/cache/webpack/client-development/2.pack.gz'
+}
+ ⨯ unhandledRejection: [Error: ENOENT: no such file or directory, stat '/home/heidless/projects/PromptTool/.next/cache/webpack/client-development/2.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/home/heidless/projects/PromptTool/.next/cache/webpack/client-development/2.pack.gz'
+}
+ ⨯ unhandledRejection: [Error: ENOENT: no such file or directory, stat '/home/heidless/projects/PromptTool/.next/cache/webpack/client-development/2.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/home/heidless/projects/PromptTool/.next/cache/webpack/client-development/2.pack.gz'
+}
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, stat '/home/heidless/projects/PromptTool/.next/cache/webpack/client-development/2.pack.gz'
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat '/home/heidless/projects/PromptTool/.next/server/vendor-chunks/styled-jsx.js'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving './vendor-chunks/styled-jsx' in /home/heidless/projects/PromptTool/.next/server for build dependencies doesn't lead to expected result '/home/heidless/projects/PromptTool/.next/server/vendor-chunks/styled-jsx.js', but to 'Error: Can't resolve './vendor-chunks/styled-jsx' in '/home/heidless/projects/PromptTool/.next/server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ./vendor-chunks/styled-jsx (expected /home/heidless/projects/PromptTool/.next/server/vendor-chunks/styled-jsx.js)
+<w>  at file dependencies /home/heidless/projects/PromptTool/.next/server/webpack-runtime.js
+<w>  at file /home/heidless/projects/PromptTool/.next/server/webpack-runtime.js
+<w>  at file dependencies /home/heidless/projects/PromptTool/.next/server/app/page.js
+<w>  at file /home/heidless/projects/PromptTool/.next/server/app/page.js
+<w>  at file dependencies /home/heidless/projects/PromptTool/node_modules/next/dist/server/require.js
+<w>  at file /home/heidless/projects/PromptTool/node_modules/next/dist/server/require.js
+<w>  at file dependencies /home/heidless/projects/PromptTool/node_modules/next/dist/server/load-components.js
+<w>  at file /home/heidless/projects/PromptTool/node_modules/next/dist/server/load-components.js
+<w>  at file dependencies /home/heidless/projects/PromptTool/node_modules/next/dist/build/utils.js
+<w>  at file /home/heidless/projects/PromptTool/node_modules/next/dist/build/utils.js
+<w>  at file dependencies /home/heidless/projects/PromptTool/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
+<w>  at file /home/heidless/projects/PromptTool/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
+<w>  at resolve commonjs /home/heidless/projects/PromptTool/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
+ GET / 200 in 32ms
+[?25h
